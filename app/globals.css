@@ -120,3 +120,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Sidebar menu button cursor styles */
+[data-sidebar="menu-button"]:not([disabled]):not([aria-disabled="true"]) {
+  cursor: pointer;
+}
