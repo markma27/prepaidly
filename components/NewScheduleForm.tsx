@@ -37,7 +37,7 @@ const scheduleSchema = z.object({
   serviceEnd: z.date({
     required_error: 'Service end date is required',
   }),
-  description: z.string().optional(),
+  description: z.string().min(1, 'Description is required'),
 })
 
 type ScheduleFormData = z.infer<typeof scheduleSchema>
@@ -618,13 +618,16 @@ function NewScheduleForm({ currency = 'USD', currencySymbol = '$', userAccounts,
 
           {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="description">Description (Optional)</Label>
+            <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
               {...register('description')}
               placeholder="Enter a description for this schedule"
               rows={3}
             />
+            {errors.description && (
+              <p className="text-sm text-red-600">{errors.description.message}</p>
+            )}
           </div>
 
           {/* Error Message */}

@@ -13,13 +13,14 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
-  // Fetch user's schedules for dashboard metrics
+  // Fetch user's schedules for dashboard metrics with ordering
   const { data: schedules, error } = await supabase
     .from('schedules')
     .select('*')
     .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
 
-  // Fetch user's settings for currency display
+  // Fetch user's settings for currency display and account lookup
   const { data: userSettings } = await supabase
     .from('user_settings')
     .select('*')
@@ -41,7 +42,7 @@ export default async function DashboardPage() {
   const currencySymbol = currencySymbols[userCurrency] || '$'
 
   // Get recent schedules for data table
-  const recentSchedules = schedules?.slice(0, 10) || []
+  const recentSchedules = schedules?.slice(0, 7) || []
 
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
@@ -58,6 +59,7 @@ export default async function DashboardPage() {
       <DataTable 
         data={recentSchedules} 
         currencySymbol={currencySymbol}
+        userSettings={userSettings}
       />
     </div>
   )

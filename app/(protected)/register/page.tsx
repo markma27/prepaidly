@@ -71,6 +71,7 @@ export default async function RegisterPage() {
           schedules={schedules || []} 
           currency={userCurrency}
           currencySymbol={currencySymbol}
+          userSettings={userSettings}
         />
       </div>
     </div>

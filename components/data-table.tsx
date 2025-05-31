@@ -45,45 +45,36 @@ export interface Schedule {
   service_end: string
   description: string
   created_at: string
+  account_id?: string
 }
 
 
 
-export function DataTable({ data, currencySymbol = '$' }: { data: Schedule[], currencySymbol?: string }) {
+interface UserSettings {
+  prepaid_accounts: Array<{ id: string; name: string; account: string }>
+  unearned_accounts: Array<{ id: string; name: string; account: string }>
+  [key: string]: any
+}
+
+export function DataTable({ data, currencySymbol = '$', userSettings }: { data: Schedule[], currencySymbol?: string, userSettings?: UserSettings }) {
   const router = useRouter()
   const [sorting, setSorting] = React.useState<SortingState>([
-    { id: "description", desc: false }
+    { id: "created_at", desc: true }
   ])
 
+  // Helper function to get account name by ID
+  const getAccountName = (accountId: string | undefined, scheduleType: string): string => {
+    if (!accountId || !userSettings) return 'N/A'
+    
+    const accounts = scheduleType === 'prepayment' 
+      ? userSettings.prepaid_accounts 
+      : userSettings.unearned_accounts
+    
+    const account = accounts?.find(acc => acc.id === accountId)
+    return account?.account || 'Unknown Account'
+  }
+
   const columns: ColumnDef<Schedule>[] = [
-    {
-      accessorKey: "description",
-      header: "Schedule Name",
-      cell: ({ row }) => {
-        const schedule = row.original
-        return (
-          <div className="space-y-1">
-            <div className="font-medium">{schedule.description}</div>
-            <div className="text-sm text-muted-foreground">
-              Created {new Date(schedule.created_at).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
-              })}
-            </div>
-          </div>
-        )
-      },
-    },
-    {
-      accessorKey: "vendor",
-      header: "Contact",
-      cell: ({ row }) => {
-        return (
-          <div className="font-medium">{row.original.vendor}</div>
-        )
-      },
-    },
     {
       accessorKey: "type",
       header: "Type",
@@ -102,6 +93,26 @@ export function DataTable({ data, currencySymbol = '$' }: { data: Schedule[], cu
             </Badge>
           )
         }
+      },
+    },
+    {
+      accessorKey: "vendor",
+      header: "Contact",
+      cell: ({ row }) => {
+        return (
+          <div className="font-medium">{row.original.vendor}</div>
+        )
+      },
+    },
+    {
+      accessorKey: "account",
+      header: "Account Code & Name",
+      cell: ({ row }) => {
+        const schedule = row.original
+        const accountName = getAccountName(schedule.account_id, schedule.type)
+        return (
+          <div className="text-sm">{accountName}</div>
+        )
       },
     },
     {
@@ -148,6 +159,30 @@ export function DataTable({ data, currencySymbol = '$' }: { data: Schedule[], cu
         }
       },
     },
+    {
+      accessorKey: "description",
+      header: "Description",
+      cell: ({ row }) => {
+        return (
+          <div className="font-medium">{row.original.description}</div>
+        )
+      },
+    },
+    {
+      accessorKey: "created_at",
+      header: "Created Date",
+      cell: ({ row }) => {
+        return (
+          <div className="text-sm text-muted-foreground">
+            {new Date(row.original.created_at).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric'
+            })}
+          </div>
+        )
+      },
+    },
   ]
 
   const table = useReactTable({
@@ -162,13 +197,13 @@ export function DataTable({ data, currencySymbol = '$' }: { data: Schedule[], cu
   })
 
   return (
-    <div className="px-4 lg:px-6">
+    <div className="*:data-[slot=card]:bg-white dark:*:data-[slot=card]:bg-card px-4 *:data-[slot=card]:shadow-xs lg:px-6">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
             <CardTitle>Recent Schedules</CardTitle>
             <CardDescription>
-              Your most recently created prepayment and unearned revenue schedules
+              Your 7 most recently created prepayment and unearned revenue schedules
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">

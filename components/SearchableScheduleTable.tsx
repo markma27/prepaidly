@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import Link from 'next/link'
@@ -18,17 +19,32 @@ interface Schedule {
   total_amount: number
   service_start: string
   service_end: string
+  description: string
+  invoice_date: string
   created_at: string
+  account_id?: string
   schedule_entries?: any[]
+}
+
+interface UserSettings {
+  prepaid_accounts: Array<{ id: string; name: string; account: string }>
+  unearned_accounts: Array<{ id: string; name: string; account: string }>
+  [key: string]: any
 }
 
 interface SearchableScheduleTableProps {
   schedules: Schedule[]
   currency?: string
   currencySymbol?: string
+  userSettings?: UserSettings
 }
 
-export default function SearchableScheduleTable({ schedules, currency = 'USD', currencySymbol = '$' }: SearchableScheduleTableProps) {
+export default function SearchableScheduleTable({ 
+  schedules, 
+  currency = 'USD', 
+  currencySymbol = '$',
+  userSettings 
+}: SearchableScheduleTableProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const router = useRouter()
 
@@ -43,33 +59,56 @@ export default function SearchableScheduleTable({ schedules, currency = 'USD', c
     return format(new Date(dateString), 'dd MMM yyyy')
   }
 
-  // Filter schedules based on search query
+  // Helper function to get account name by ID
+  const getAccountName = (accountId: string | undefined, scheduleType: string): string => {
+    if (!accountId || !userSettings) return 'N/A'
+    
+    const accounts = scheduleType === 'prepayment' 
+      ? userSettings.prepaid_accounts 
+      : userSettings.unearned_accounts
+    
+    const account = accounts?.find(acc => acc.id === accountId)
+    return account?.account || 'Unknown Account'
+  }
+
+  // Filter and sort schedules based on search query
   const filteredSchedules = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return schedules
+    let result = schedules
+
+    // Filter based on search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      
+      result = schedules.filter((schedule) => {
+        // Search by contact name (vendor)
+        const matchesContact = schedule.vendor.toLowerCase().includes(query)
+        
+        // Search by reference number
+        const matchesReference = schedule.reference_number.toLowerCase().includes(query)
+        
+        // Search by type
+        const typeDisplay = schedule.type === 'prepayment' ? 'prepaid expense' : 'unearned revenue'
+        const matchesType = typeDisplay.includes(query) || schedule.type.includes(query)
+        
+        // Search by amount (both formatted and raw)
+        const rawAmount = schedule.total_amount.toString()
+        const matchesAmount = rawAmount.includes(query)
+        
+        // Search by account name
+        const accountName = getAccountName(schedule.account_id, schedule.type)
+        const matchesAccount = accountName.toLowerCase().includes(query)
+        
+        return matchesContact || matchesReference || matchesType || matchesAmount || matchesAccount
+      })
     }
 
-    const query = searchQuery.toLowerCase().trim()
-    
-    return schedules.filter((schedule) => {
-      // Search by contact name (vendor)
-      const matchesContact = schedule.vendor.toLowerCase().includes(query)
-      
-      // Search by reference number
-      const matchesReference = schedule.reference_number.toLowerCase().includes(query)
-      
-      // Search by type
-      const typeDisplay = schedule.type === 'prepayment' ? 'prepaid expense' : 'unearned revenue'
-      const matchesType = typeDisplay.includes(query) || schedule.type.includes(query)
-      
-      // Search by amount (both formatted and raw)
-      const formattedAmount = formatCurrency(schedule.total_amount).toLowerCase()
-      const rawAmount = schedule.total_amount.toString()
-      const matchesAmount = formattedAmount.includes(query) || rawAmount.includes(query)
-      
-      return matchesContact || matchesReference || matchesType || matchesAmount
+    // Sort by invoice date (newest to oldest)
+    return result.sort((a, b) => {
+      const dateA = new Date(a.invoice_date)
+      const dateB = new Date(b.invoice_date)
+      return dateB.getTime() - dateA.getTime() // Descending order (newest first)
     })
-  }, [schedules, searchQuery])
+  }, [schedules, searchQuery, userSettings])
 
   return (
     <Card>
@@ -84,7 +123,7 @@ export default function SearchableScheduleTable({ schedules, currency = 'USD', c
           <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Search by contact, reference, type, or amount..."
+              placeholder="Search by contact, reference, account, type, or amount..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -92,7 +131,7 @@ export default function SearchableScheduleTable({ schedules, currency = 'USD', c
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-6 pb-6">
         {filteredSchedules.length > 0 ? (
           <>
             {searchQuery && (
@@ -100,52 +139,72 @@ export default function SearchableScheduleTable({ schedules, currency = 'USD', c
                 Found {filteredSchedules.length} of {schedules.length} schedules
               </div>
             )}
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="rounded-md border overflow-x-auto">
+              <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Total Amount</TableHead>
-                    <TableHead>Service Period</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Periods</TableHead>
+                    <TableHead className="h-12 px-4">Type</TableHead>
+                    <TableHead className="h-12 px-4">Contact</TableHead>
+                    <TableHead className="h-12 px-4">Invoice Date</TableHead>
+                    <TableHead className="h-12 px-4">Reference</TableHead>
+                    <TableHead className="h-12 px-4">Account Code & Name</TableHead>
+                    <TableHead className="h-12 px-4">Amount</TableHead>
+                    <TableHead className="h-12 px-4">Period</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredSchedules.map((schedule) => (
                     <TableRow 
                       key={schedule.id} 
-                      className="cursor-pointer hover:bg-muted/50"
+                      className="hover:bg-muted/50 cursor-pointer"
                       onClick={() => router.push(`/register/${schedule.id}/edit`)}
                     >
-                      <TableCell className="font-medium">
-                        {schedule.vendor}
+                      <TableCell className="py-3 px-4">
+                        {schedule.type === 'prepayment' ? (
+                          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                            Prepaid Expense
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                            Unearned Revenue
+                          </Badge>
+                        )}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {schedule.reference_number}
+                      <TableCell className="py-3 px-4">
+                        <div className="font-medium">{schedule.vendor}</div>
                       </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          schedule.type === 'prepayment' 
-                            ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' 
-                            : 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-                        }`}>
-                          {schedule.type === 'prepayment' ? 'Prepaid Expense' : 'Unearned Revenue'}
-                        </span>
+                      <TableCell className="py-3 px-4">
+                        <div className="text-sm text-muted-foreground">
+                          {new Date(schedule.invoice_date).toLocaleDateString('en-GB', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </div>
                       </TableCell>
-                      <TableCell className="font-medium">
-                        {formatCurrency(Number(schedule.total_amount))}
+                      <TableCell className="py-3 px-4">
+                        <div className="text-sm text-muted-foreground">{schedule.reference_number}</div>
                       </TableCell>
-                      <TableCell>
-                        {formatDate(schedule.service_start)} - {formatDate(schedule.service_end)}
+                      <TableCell className="py-3 px-4">
+                        <div className="text-sm">{getAccountName(schedule.account_id, schedule.type)}</div>
                       </TableCell>
-                      <TableCell>
-                        {formatDate(schedule.created_at)}
+                      <TableCell className="py-3 px-4">
+                        <div className="font-medium">
+                          {currencySymbol}{Number(schedule.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
                       </TableCell>
-                      <TableCell>
-                        {schedule.schedule_entries?.length || 0} months
+                      <TableCell className="py-3 px-4">
+                        <div className="text-sm">
+                          {new Date(schedule.service_start).toLocaleDateString('en-GB', { 
+                            day: '2-digit', 
+                            month: 'short', 
+                            year: 'numeric' 
+                          })} - {new Date(schedule.service_end).toLocaleDateString('en-GB', { 
+                            day: '2-digit', 
+                            month: 'short', 
+                            year: 'numeric' 
+                          })}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -124,7 +124,7 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
   const hasUnearnedData = monthlyData.some(d => d.unearned_balance > 0)
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2 px-4 lg:px-6">
+    <div className="*:data-[slot=card]:bg-white dark:*:data-[slot=card]:bg-card grid gap-6 lg:grid-cols-2 px-4 *:data-[slot=card]:shadow-xs lg:px-6">
       {/* Prepaid Expenses Chart */}
       <Card className="@container/card">
         <CardHeader>

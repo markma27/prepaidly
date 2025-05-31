@@ -154,6 +154,37 @@ export default function EditSchedulePage() {
     getFormErrors: () => any
   } | null>(null)
 
+  // Store last saved form data to detect changes
+  const [lastSavedFormData, setLastSavedFormData] = useState<ScheduleFormData | null>(null)
+
+  // Reset save status when form data changes after successful save
+  useEffect(() => {
+    if (saveStatus === 'success' && formMethods && lastSavedFormData) {
+      const checkForChanges = () => {
+        try {
+          const currentFormData = formMethods.getCurrentFormData()
+          
+          // Compare current form data with last saved data
+          const hasChanges = (Object.keys(currentFormData) as (keyof ScheduleFormData)[]).some(key => {
+            return currentFormData[key] !== lastSavedFormData[key]
+          })
+          
+          if (hasChanges) {
+            setSaveStatus('idle')
+            setSaveMessage('')
+          }
+        } catch (error) {
+          // Ignore errors during form data retrieval
+        }
+      }
+
+      // Check for changes every 500ms
+      const interval = setInterval(checkForChanges, 500)
+      
+      return () => clearInterval(interval)
+    }
+  }, [formMethods, saveStatus, lastSavedFormData])
+
   const handleUpdateSchedule = async () => {
     if (!formMethods) {
       setSaveStatus('error')
@@ -222,6 +253,9 @@ export default function EditSchedulePage() {
 
       setSaveStatus('success')
       setSaveMessage(result.message || 'Schedule successfully updated')
+      
+      // Store the saved form data for change detection
+      setLastSavedFormData(currentFormData)
 
     } catch (error: any) {
       console.error('Error updating schedule:', error)
@@ -337,7 +371,7 @@ export default function EditSchedulePage() {
                 currencySymbol={currencySymbol}
               />
             ) : (
-              <div className="flex items-center justify-center h-64 bg-card rounded-lg border">
+              <div className="flex items-center justify-center h-64 bg-white dark:bg-card rounded-lg border">
                 <div className="text-center text-muted-foreground">
                   <div className="text-lg font-medium mb-2">Schedule Preview</div>
                   <div className="text-sm">
