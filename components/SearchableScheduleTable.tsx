@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import Link from 'next/link'
-import { Eye, Download, Edit, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { format } from 'date-fns'
 
 interface Schedule {
@@ -23,15 +24,18 @@ interface Schedule {
 
 interface SearchableScheduleTableProps {
   schedules: Schedule[]
+  currency?: string
+  currencySymbol?: string
 }
 
-export default function SearchableScheduleTable({ schedules }: SearchableScheduleTableProps) {
+export default function SearchableScheduleTable({ schedules, currency = 'USD', currencySymbol = '$' }: SearchableScheduleTableProps) {
   const [searchQuery, setSearchQuery] = useState('')
+  const router = useRouter()
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: currency,
     }).format(amount)
   }
 
@@ -77,8 +81,8 @@ export default function SearchableScheduleTable({ schedules }: SearchableSchedul
               Click on any schedule to view details or download the CSV
             </CardDescription>
           </div>
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <div className="relative w-full sm:w-96">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
               placeholder="Search by contact, reference, type, or amount..."
               value={searchQuery}
@@ -92,7 +96,7 @@ export default function SearchableScheduleTable({ schedules }: SearchableSchedul
         {filteredSchedules.length > 0 ? (
           <>
             {searchQuery && (
-              <div className="mb-4 text-sm text-gray-600">
+              <div className="mb-4 text-sm text-muted-foreground">
                 Found {filteredSchedules.length} of {schedules.length} schedules
               </div>
             )}
@@ -107,28 +111,31 @@ export default function SearchableScheduleTable({ schedules }: SearchableSchedul
                     <TableHead>Service Period</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Periods</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredSchedules.map((schedule) => (
-                    <TableRow key={schedule.id}>
+                    <TableRow 
+                      key={schedule.id} 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => router.push(`/register/${schedule.id}/edit`)}
+                    >
                       <TableCell className="font-medium">
                         {schedule.vendor}
                       </TableCell>
-                      <TableCell className="text-sm text-gray-600">
+                      <TableCell className="text-sm text-muted-foreground">
                         {schedule.reference_number}
                       </TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           schedule.type === 'prepayment' 
-                            ? 'bg-blue-100 text-blue-800' 
-                            : 'bg-green-100 text-green-800'
+                            ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' 
+                            : 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
                         }`}>
                           {schedule.type === 'prepayment' ? 'Prepaid Expense' : 'Unearned Revenue'}
                         </span>
                       </TableCell>
-                      <TableCell className="font-mono">
+                      <TableCell className="font-medium">
                         {formatCurrency(Number(schedule.total_amount))}
                       </TableCell>
                       <TableCell>
@@ -140,23 +147,6 @@ export default function SearchableScheduleTable({ schedules }: SearchableSchedul
                       <TableCell>
                         {schedule.schedule_entries?.length || 0} months
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-                          <Link href={`/register/${schedule.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          <Link href={`/register/${schedule.id}/edit`}>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          <Button variant="ghost" size="sm" disabled>
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -167,11 +157,11 @@ export default function SearchableScheduleTable({ schedules }: SearchableSchedul
           <div className="flex flex-col items-center justify-center py-12 text-center">
             {searchQuery ? (
               <>
-                <div className="rounded-full bg-gray-100 p-3 mb-4">
-                  <Search className="h-6 w-6 text-gray-400" />
+                <div className="rounded-full bg-muted p-3 mb-4">
+                  <Search className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <h3 className="font-semibold mb-2">No schedules found</h3>
-                <p className="text-sm text-gray-600 mb-4 max-w-sm">
+                <p className="text-sm text-muted-foreground mb-4 max-w-sm">
                   No schedules match your search "{searchQuery}". Try adjusting your search terms.
                 </p>
                 <Button 
@@ -183,11 +173,11 @@ export default function SearchableScheduleTable({ schedules }: SearchableSchedul
               </>
             ) : (
               <>
-                <div className="rounded-full bg-gray-100 p-3 mb-4">
-                  <Search className="h-6 w-6 text-gray-400" />
+                <div className="rounded-full bg-muted p-3 mb-4">
+                  <Search className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <h3 className="font-semibold mb-2">No schedules yet</h3>
-                <p className="text-sm text-gray-600 mb-4 max-w-sm">
+                <p className="text-sm text-muted-foreground mb-4 max-w-sm">
                   Get started by creating your first prepayment or unearned revenue schedule.
                 </p>
                 <Link href="/new-schedule">

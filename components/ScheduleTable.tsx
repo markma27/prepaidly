@@ -10,19 +10,20 @@ interface ScheduleTableProps {
   scheduleType: string
   vendor: string
   totalAmount: number
+  currency?: string
+  currencySymbol?: string
 }
 
 export default function ScheduleTable({ 
   schedule, 
   scheduleType, 
   vendor, 
-  totalAmount 
+  totalAmount,
+  currency = 'USD',
+  currencySymbol = '$'
 }: ScheduleTableProps) {
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount)
+    return `${currencySymbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
   const formatDate = (dateString: string) => {
@@ -57,13 +58,13 @@ export default function ScheduleTable({
                   <TableCell className="font-medium">
                     {formatDate(entry.period)}
                   </TableCell>
-                  <TableCell className="text-right font-mono">
+                  <TableCell className="text-right font-medium">
                     {formatCurrency(entry.amount)}
                   </TableCell>
-                  <TableCell className="text-right font-mono">
+                  <TableCell className="text-right font-medium">
                     {formatCurrency(entry.cumulative)}
                   </TableCell>
-                  <TableCell className="text-right font-mono">
+                  <TableCell className="text-right font-medium">
                     {formatCurrency(entry.remaining)}
                   </TableCell>
                 </TableRow>
@@ -76,7 +77,7 @@ export default function ScheduleTable({
         <div className="mt-4 pt-4 border-t">
           <div className="flex justify-between items-center text-sm font-medium">
             <span>Total:</span>
-            <span className="font-mono">{formatCurrency(totalAmount)}</span>
+            <span className="font-medium">{formatCurrency(totalAmount)}</span>
           </div>
         </div>
       </CardContent>

@@ -25,6 +25,27 @@ export default async function DashboardPage() {
     .select('*')
     .eq('user_id', user.id)
 
+  // Fetch user's settings for currency display
+  const { data: userSettings } = await supabase
+    .from('user_settings')
+    .select('*')
+    .eq('user_id', user.id)
+    .single()
+
+  const userCurrency = userSettings?.currency || 'USD'
+  // Map currency to symbol
+  const currencySymbols: { [key: string]: string } = {
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'CAD': '$',
+    'AUD': '$',
+    'JPY': '¥',
+    'CHF': 'CHF',
+    'CNY': '¥'
+  }
+  const currencySymbol = currencySymbols[userCurrency] || '$'
+
   // Get recent schedules for data table
   const recentSchedules = schedules?.slice(0, 10) || []
 
@@ -43,9 +64,20 @@ export default async function DashboardPage() {
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-              <SectionCards schedules={schedules || []} />
-              <ChartAreaInteractive schedules={schedules || []} />
-              <DataTable data={recentSchedules} />
+              <SectionCards 
+                schedules={schedules || []} 
+                currency={userCurrency}
+                currencySymbol={currencySymbol}
+              />
+              <ChartAreaInteractive 
+                schedules={schedules || []} 
+                currency={userCurrency}
+                currencySymbol={currencySymbol}
+              />
+              <DataTable 
+                data={recentSchedules} 
+                currencySymbol={currencySymbol}
+              />
             </div>
           </div>
         </div>

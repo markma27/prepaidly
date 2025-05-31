@@ -69,9 +69,9 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     navSecondary: [
       {
         title: "Settings",
-        url: "#",
+        url: "/settings",
         icon: IconSettings,
-        disabled: true,
+        disabled: false,
       },
       {
         title: "Help & Support",

@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 interface SiteHeaderProps {
   user?: {
@@ -24,6 +25,7 @@ export function SiteHeader({ user }: SiteHeaderProps) {
           <span className="hidden sm:inline-block text-sm text-muted-foreground">
             Welcome, {user?.email}
           </span>
+          <ThemeToggle />
           <form action="/api/auth/logout" method="post">
             <Button variant="outline" size="sm" type="submit">
               Sign Out

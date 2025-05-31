@@ -9,7 +9,7 @@ import { CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -21,6 +21,7 @@ const scheduleSchema = z.object({
   type: z.enum(['prepayment', 'unearned'], {
     required_error: 'Please select a schedule type',
   }),
+  accountId: z.string().min(1, 'Please select an account'),
   referenceNumber: z.string().min(1, 'Reference number is required'),
   vendor: z.string().min(1, 'Vendor name is required'),
   invoiceDate: z.date({
@@ -41,22 +42,32 @@ const scheduleSchema = z.object({
 
 type ScheduleFormData = z.infer<typeof scheduleSchema>
 
+type AccountItem = {
+  id: string
+  name: string
+  account: string
+}
+
 interface NewScheduleFormProps {
-  onScheduleGenerated: (schedule: ScheduleEntry[], formData: {
-    type: 'prepayment' | 'unearned'
-    referenceNumber: string
-    vendor: string
-    invoiceDate: string
-    totalAmount: string
-    serviceStart: string
-    serviceEnd: string
-    description?: string
+  currency?: string
+  currencySymbol?: string
+  userAccounts?: {
+    prepaid_accounts: AccountItem[]
+    unearned_accounts: AccountItem[]
+  }
+  onFormReady?: (methods: {
+    getCurrentFormData: () => any
+    validateForm: () => Promise<boolean>
+    getFormErrors: () => any
   }) => void
 }
 
-export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleFormProps) {
+function NewScheduleForm({ currency = 'USD', currencySymbol = '$', userAccounts, onFormReady }: NewScheduleFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Use provided userAccounts or default to empty arrays
+  const accounts = userAccounts || { prepaid_accounts: [], unearned_accounts: [] }
   
   // Local state for date inputs to allow free typing
   const [invoiceDateInput, setInvoiceDateInput] = useState('')
@@ -75,6 +86,7 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
     setValue,
     watch,
     control,
+    trigger,
   } = useForm<ScheduleFormData>({
     resolver: zodResolver(scheduleSchema),
   })
@@ -82,6 +94,41 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
   const watchedType = watch('type')
   const watchedInvoiceDate = watch('invoiceDate')
   const watchedServiceStart = watch('serviceStart')
+
+  // Methods to expose to parent component
+  const getCurrentFormData = () => {
+    const currentValues = watch()
+    return {
+      ...currentValues,
+      invoiceDate: format(currentValues.invoiceDate, 'yyyy-MM-dd'),
+      serviceStart: format(currentValues.serviceStart, 'yyyy-MM-dd'),
+      serviceEnd: format(currentValues.serviceEnd, 'yyyy-MM-dd'),
+    }
+  }
+
+  const validateForm = async () => {
+    return await trigger()
+  }
+
+  const getFormErrors = () => {
+    return errors
+  }
+
+  // Expose methods to parent component
+  useEffect(() => {
+    if (onFormReady) {
+      onFormReady({
+        getCurrentFormData,
+        validateForm,
+        getFormErrors
+      })
+    }
+  }, [onFormReady])
+
+  // Clear account selection when schedule type changes
+  useEffect(() => {
+    setValue('accountId', '')
+  }, [watchedType, setValue])
 
   // Helper function to parse date from string with strict validation
   const parseDate = (value: string): Date | null => {
@@ -193,42 +240,7 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
     }
   }, [watch('serviceEnd')])
 
-  const onSubmit = async (data: ScheduleFormData) => {
-    setIsLoading(true)
-    setError(null)
 
-    try {
-      const serviceStart = data.serviceStart
-      const serviceEnd = data.serviceEnd
-      const totalAmount = Number(data.totalAmount)
-
-      // Validate date range
-      if (serviceStart >= serviceEnd) {
-        throw new Error('Service start date must be before service end date')
-      }
-
-      // Generate the schedule
-      const schedule = generateStraightLineSchedule({
-        serviceStart,
-        serviceEnd,
-        totalAmount,
-      })
-
-      // Convert dates to strings for the API
-      const formDataForAPI = {
-        ...data,
-        invoiceDate: format(data.invoiceDate, 'yyyy-MM-dd'),
-        serviceStart: format(data.serviceStart, 'yyyy-MM-dd'),
-        serviceEnd: format(data.serviceEnd, 'yyyy-MM-dd'),
-      }
-
-      onScheduleGenerated(schedule, formDataForAPI)
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while generating the schedule')
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   return (
     <Card>
@@ -236,7 +248,7 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
         <CardTitle>New Schedule Details</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <div className="space-y-6">
           {/* Schedule Type */}
           <div className="space-y-2">
             <Label htmlFor="type">Schedule Type</Label>
@@ -280,6 +292,50 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
               <p className="text-sm text-red-600">{errors.type.message}</p>
             )}
           </div>
+
+          {/* Account Selection */}
+          {watchedType && (
+            <div className="space-y-2">
+              <Label htmlFor="accountId">
+                Select Account *
+                <span className="text-sm text-muted-foreground ml-2">
+                  ({watchedType === 'prepayment' ? 'Prepaid Expense' : 'Unearned Revenue'} Account)
+                </span>
+              </Label>
+              <Controller
+                name="accountId"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose an account from your settings" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(watchedType === 'prepayment' 
+                        ? accounts.prepaid_accounts 
+                        : accounts.unearned_accounts
+                      ).map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.account}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.accountId && (
+                <p className="text-sm text-red-600">{errors.accountId.message}</p>
+              )}
+              {watchedType && (watchedType === 'prepayment' 
+                ? accounts.prepaid_accounts 
+                : accounts.unearned_accounts
+              ).length === 0 && (
+                <p className="text-sm text-amber-600">
+                  No accounts configured. Please add accounts in Settings first.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Reference Number */}
           <div className="space-y-2">
@@ -377,7 +433,7 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
 
           {/* Total Amount */}
           <div className="space-y-2">
-            <Label htmlFor="totalAmount">Total Amount ($)</Label>
+            <Label htmlFor="totalAmount">Total Amount ({currencySymbol})</Label>
             <Input
               id="totalAmount"
               type="number"
@@ -577,13 +633,10 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
               {error}
             </div>
           )}
-
-          {/* Submit Button */}
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Generating Schedule...' : 'Generate Schedule'}
-          </Button>
-        </form>
+        </div>
       </CardContent>
     </Card>
   )
-} 
+}
+
+export default NewScheduleForm

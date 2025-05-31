@@ -6,6 +6,7 @@ interface UpdateScheduleRequest {
   schedule: ScheduleEntry[]
   formData: {
     type: 'prepayment' | 'unearned'
+    accountId: string
     vendor: string
     invoiceDate: string
     totalAmount: string
@@ -109,6 +110,7 @@ export async function PUT(
       .from('schedules')
       .update({
         type: formData.type,
+        account_id: formData.accountId,
         vendor: formData.vendor,
         invoice_date: formData.invoiceDate,
         total_amount: parseFloat(formData.totalAmount),

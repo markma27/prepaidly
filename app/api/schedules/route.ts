@@ -6,6 +6,7 @@ interface SaveScheduleRequest {
   schedule: ScheduleEntry[]
   formData: {
     type: 'prepayment' | 'unearned'
+    accountId: string
     vendor: string
     invoiceDate: string
     totalAmount: string
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: user.id,
         type: formData.type,
+        account_id: formData.accountId,
         vendor: formData.vendor,
         invoice_date: formData.invoiceDate,
         total_amount: parseFloat(formData.totalAmount),

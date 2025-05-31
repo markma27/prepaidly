@@ -8,10 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft, Save, Check } from 'lucide-react'
 import EditScheduleForm from '@/components/EditScheduleForm'
 import ScheduleTable from '@/components/ScheduleTable'
-import { ScheduleEntry } from '@/lib/generateStraightLineSchedule'
+import { ScheduleEntry, generateStraightLineSchedule } from '@/lib/generateStraightLineSchedule'
 
 type ScheduleFormData = {
   type: 'prepayment' | 'unearned'
+  accountId: string
   vendor: string
   invoiceDate: string
   totalAmount: string
@@ -31,6 +32,7 @@ type ScheduleData = {
   service_end: string
   description?: string
   reference_number: string
+  account_id?: string
   schedule_entries: ScheduleEntry[]
 }
 
@@ -46,6 +48,53 @@ export default function EditSchedulePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [saveMessage, setSaveMessage] = useState<string>('')
+  const [currency, setCurrency] = useState('USD')
+  const [currencySymbol, setCurrencySymbol] = useState('$')
+  const [userAccounts, setUserAccounts] = useState<{
+    prepaid_accounts: any[]
+    unearned_accounts: any[]
+  }>({ prepaid_accounts: [], unearned_accounts: [] })
+
+  useEffect(() => {
+    const fetchUserSettings = async () => {
+      try {
+        const response = await fetch('/api/settings')
+        if (response.ok) {
+          const result = await response.json()
+          const settings = result.settings
+          
+          // Set currency
+          const userCurrency = settings?.currency || 'USD'
+          setCurrency(userCurrency)
+          
+          // Map currency to symbol
+          const currencySymbols: { [key: string]: string } = {
+            'USD': '$',
+            'EUR': '€',
+            'GBP': '£',
+            'CAD': '$',
+            'AUD': '$',
+            'JPY': '¥',
+            'CHF': 'CHF',
+            'CNY': '¥'
+          }
+          setCurrencySymbol(currencySymbols[userCurrency] || '$')
+          
+          // Set accounts
+          if (settings) {
+            setUserAccounts({
+              prepaid_accounts: settings.prepaid_accounts || [],
+              unearned_accounts: settings.unearned_accounts || []
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user settings:', error)
+      }
+    }
+
+    fetchUserSettings()
+  }, [])
 
   useEffect(() => {
     const fetchSchedule = async () => {
@@ -62,8 +111,12 @@ export default function EditSchedulePage() {
         setOriginalData(scheduleData)
         
         // Convert the database data to form format
+        console.log('Loaded schedule data:', scheduleData)
+        console.log('Account ID from database:', scheduleData.account_id)
+        
         const initialFormData: ScheduleFormData = {
           type: scheduleData.type,
+          accountId: scheduleData.account_id || '',
           vendor: scheduleData.vendor,
           invoiceDate: scheduleData.invoice_date,
           totalAmount: scheduleData.total_amount.toString(),
@@ -72,6 +125,8 @@ export default function EditSchedulePage() {
           description: scheduleData.description || '',
           referenceNumber: scheduleData.reference_number,
         }
+        
+        console.log('Initial form data:', initialFormData)
         
         setFormData(initialFormData)
         
@@ -94,27 +149,70 @@ export default function EditSchedulePage() {
     }
   }, [scheduleId, router])
 
-  const handleScheduleGenerated = (newSchedule: ScheduleEntry[], newFormData: ScheduleFormData) => {
-    setSchedule(newSchedule)
-    setFormData(newFormData)
-    setSaveStatus('idle')
-  }
+  // Store form methods
+  const [formMethods, setFormMethods] = useState<{
+    getCurrentFormData: () => any
+    validateForm: () => Promise<boolean>
+    getFormErrors: () => any
+  } | null>(null)
 
   const handleUpdateSchedule = async () => {
-    if (!schedule || !formData) return
+    if (!formMethods) {
+      setSaveStatus('error')
+      setSaveMessage('Form not ready. Please try again.')
+      return
+    }
 
     setIsSaving(true)
     setSaveStatus('idle')
     
     try {
+      // First validate the form
+      const isValid = await formMethods.validateForm()
+      if (!isValid) {
+        const errors = formMethods.getFormErrors()
+        console.log('Form validation failed:', errors)
+        setSaveStatus('error')
+        setSaveMessage('Please fix the form errors and try again.')
+        return
+      }
+
+      // Get current form data
+      const currentFormData = formMethods.getCurrentFormData()
+      console.log('Current form data:', currentFormData)
+      console.log('Account ID being saved:', currentFormData.accountId)
+
+      // Validate date range
+      const serviceStart = new Date(currentFormData.serviceStart)
+      const serviceEnd = new Date(currentFormData.serviceEnd)
+      const totalAmount = Number(currentFormData.totalAmount)
+
+      if (serviceStart >= serviceEnd) {
+        throw new Error('Service start date must be before service end date')
+      }
+
+      // Generate the schedule
+      const newSchedule = generateStraightLineSchedule({
+        serviceStart,
+        serviceEnd,
+        totalAmount,
+      })
+
+      console.log('Generated schedule:', newSchedule)
+
+      // Update the preview
+      setSchedule(newSchedule)
+      setFormData(currentFormData)
+
+      // Save to database
       const response = await fetch(`/api/schedules/${scheduleId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          schedule,
-          formData,
+          schedule: newSchedule,
+          formData: currentFormData,
         }),
       })
 
@@ -126,11 +224,6 @@ export default function EditSchedulePage() {
 
       setSaveStatus('success')
       setSaveMessage(result.message || 'Schedule successfully updated')
-      
-      // Auto-hide success message and redirect after 2 seconds
-      setTimeout(() => {
-        router.push('/register')
-      }, 2000)
 
     } catch (error: any) {
       console.error('Error updating schedule:', error)
@@ -143,25 +236,25 @@ export default function EditSchedulePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm border-b">
+      <div className="min-h-screen bg-background">
+        <header className="bg-card shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center py-6">
               <Link href="/register">
-                <Button className="gap-2 bg-black text-white hover:bg-gray-800">
+                <Button className="gap-2 bg-foreground text-background hover:bg-foreground/90">
                   <ArrowLeft className="h-4 w-4" />
                   Back to Register
                 </Button>
               </Link>
               <div className="ml-8">
-                <h1 className="text-2xl font-bold text-gray-900">Loading Schedule...</h1>
+                <h1 className="text-2xl font-bold text-foreground">Loading Schedule...</h1>
               </div>
             </div>
           </div>
         </header>
         <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
           </div>
         </main>
       </div>
@@ -170,18 +263,18 @@ export default function EditSchedulePage() {
 
   if (!originalData || !formData) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm border-b">
+      <div className="min-h-screen bg-background">
+        <header className="bg-card shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center py-6">
               <Link href="/register">
-                <Button className="gap-2 bg-black text-white hover:bg-gray-800">
+                <Button className="gap-2 bg-foreground text-background hover:bg-foreground/90">
                   <ArrowLeft className="h-4 w-4" />
                   Back to Register
                 </Button>
               </Link>
               <div className="ml-8">
-                <h1 className="text-2xl font-bold text-gray-900">Schedule Not Found</h1>
+                <h1 className="text-2xl font-bold text-foreground">Schedule Not Found</h1>
               </div>
             </div>
           </div>
@@ -191,19 +284,19 @@ export default function EditSchedulePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center py-6">
             <Link href="/register">
-              <Button className="gap-2 bg-black text-white hover:bg-gray-800">
+              <Button className="gap-2 bg-foreground text-background hover:bg-foreground/90">
                 <ArrowLeft className="h-4 w-4" />
                 Back to Register
               </Button>
             </Link>
             <div className="ml-8">
-              <h1 className="text-2xl font-bold text-gray-900">Edit Schedule</h1>
-              <p className="text-gray-600">Modify your {formData.type} schedule for {formData.vendor}</p>
+              <h1 className="text-2xl font-bold text-foreground">Edit Schedule</h1>
+              <p className="text-muted-foreground">Modify your {formData.type} schedule for {formData.vendor}</p>
             </div>
           </div>
         </div>
@@ -212,73 +305,76 @@ export default function EditSchedulePage() {
       <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Form Column */}
-          <div>
+          <div className="space-y-6">
             <EditScheduleForm 
               initialData={formData}
-              onScheduleGenerated={handleScheduleGenerated} 
+              currency={currency}
+              currencySymbol={currencySymbol}
+              userAccounts={userAccounts}
+              onFormReady={setFormMethods}
             />
+            
+            {/* Generate Schedule and Save Button */}
+            <div className="flex justify-center">
+              <Button 
+                onClick={handleUpdateSchedule}
+                disabled={isSaving || saveStatus === 'success'}
+                className="w-full sm:w-auto"
+                variant={saveStatus === 'success' ? 'default' : 'default'}
+              >
+                {isSaving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Generating and Saving...
+                  </>
+                ) : saveStatus === 'success' ? (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Saved Successfully!
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Generate Schedule and Save
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Save Status Messages */}
+            {saveStatus === 'success' && (
+              <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200 px-4 py-3 rounded-md">
+                <div className="flex items-center">
+                  <Check className="h-4 w-4 mr-2" />
+                  {saveMessage}
+                </div>
+              </div>
+            )}
+
+            {saveStatus === 'error' && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md">
+                <div className="flex items-center">
+                  <span className="h-4 w-4 mr-2">⚠️</span>
+                  {saveMessage}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Preview Column */}
           <div>
             {schedule && formData ? (
-              <div className="space-y-6">
-                <ScheduleTable
-                  schedule={schedule}
-                  scheduleType={formData.type}
-                  vendor={formData.vendor}
-                  totalAmount={Number(formData.totalAmount)}
-                />
-                
-                {/* Update Button */}
-                <div className="flex justify-center">
-                  <Button 
-                    onClick={handleUpdateSchedule}
-                    disabled={isSaving || saveStatus === 'success'}
-                    className="w-full sm:w-auto"
-                    variant={saveStatus === 'success' ? 'default' : 'default'}
-                  >
-                    {isSaving ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Updating...
-                      </>
-                    ) : saveStatus === 'success' ? (
-                      <>
-                        <Check className="h-4 w-4 mr-2" />
-                        Updated! Redirecting...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Update Schedule
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                {/* Save Status Messages */}
-                {saveStatus === 'success' && (
-                  <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md">
-                    <div className="flex items-center">
-                      <Check className="h-4 w-4 mr-2" />
-                      {saveMessage}
-                    </div>
-                  </div>
-                )}
-
-                {saveStatus === 'error' && (
-                  <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md">
-                    <div className="flex items-center">
-                      <span className="h-4 w-4 mr-2">⚠️</span>
-                      {saveMessage}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <ScheduleTable
+                schedule={schedule}
+                scheduleType={formData.type}
+                vendor={formData.vendor}
+                totalAmount={Number(formData.totalAmount)}
+                currency={currency}
+                currencySymbol={currencySymbol}
+              />
             ) : (
-              <div className="flex items-center justify-center h-64 bg-white rounded-lg border border-gray-200">
-                <div className="text-center text-gray-500">
+              <div className="flex items-center justify-center h-64 bg-card rounded-lg border">
+                <div className="text-center text-muted-foreground">
                   <div className="text-lg font-medium mb-2">Schedule Preview</div>
                   <div className="text-sm">
                     Update the form to regenerate the schedule preview

@@ -28,22 +28,41 @@ export default async function RegisterPage() {
     console.error('Error fetching schedules:', error)
   }
 
+  // Fetch user's settings for currency display
+  const { data: userSettings } = await supabase
+    .from('user_settings')
+    .select('*')
+    .eq('user_id', user.id)
+    .single()
 
+  const userCurrency = userSettings?.currency || 'USD'
+  // Map currency to symbol
+  const currencySymbols: { [key: string]: string } = {
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'CAD': '$',
+    'AUD': '$',
+    'JPY': '¥',
+    'CHF': 'CHF',
+    'CNY': '¥'
+  }
+  const currencySymbol = currencySymbols[userCurrency] || '$'
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center py-6">
             <Link href="/dashboard">
-              <Button className="gap-2 bg-black text-white hover:bg-gray-800">
+              <Button className="gap-2 bg-foreground text-background hover:bg-foreground/90">
                 <ArrowLeft className="h-4 w-4" />
                 Back to Dashboard
               </Button>
             </Link>
             <div className="ml-8">
-              <h1 className="text-2xl font-bold text-gray-900">Schedule Register</h1>
-              <p className="text-gray-600">View and manage your saved schedules</p>
+              <h1 className="text-2xl font-bold text-foreground">Schedule Register</h1>
+              <p className="text-muted-foreground">View and manage your saved schedules</p>
             </div>
           </div>
         </div>
@@ -52,10 +71,10 @@ export default async function RegisterPage() {
       <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="mb-6 flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold text-foreground">
               All Schedules ({schedules?.length || 0})
             </h2>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               Your saved prepayment and unearned revenue schedules
             </p>
           </div>
@@ -66,7 +85,11 @@ export default async function RegisterPage() {
           </Link>
         </div>
 
-        <SearchableScheduleTable schedules={schedules || []} />
+        <SearchableScheduleTable 
+          schedules={schedules || []} 
+          currency={userCurrency}
+          currencySymbol={currencySymbol}
+        />
       </main>
     </div>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useImperativeHandle } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -9,7 +9,7 @@ import { CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -21,6 +21,7 @@ const scheduleSchema = z.object({
   type: z.enum(['prepayment', 'unearned'], {
     required_error: 'Please select a schedule type',
   }),
+  accountId: z.string().min(1, 'Please select an account'),
   referenceNumber: z.string().min(1, 'Reference number is required'),
   vendor: z.string().min(1, 'Vendor name is required'),
   invoiceDate: z.date({
@@ -41,9 +42,16 @@ const scheduleSchema = z.object({
 
 type ScheduleFormData = z.infer<typeof scheduleSchema>
 
+type AccountItem = {
+  id: string
+  name: string
+  account: string
+}
+
 interface EditScheduleFormProps {
   initialData: {
     type: 'prepayment' | 'unearned'
+    accountId?: string
     vendor: string
     invoiceDate: string
     totalAmount: string
@@ -52,21 +60,46 @@ interface EditScheduleFormProps {
     description?: string
     referenceNumber: string
   }
-  onScheduleGenerated: (schedule: ScheduleEntry[], formData: {
+  currency?: string
+  currencySymbol?: string
+  ref?: React.Ref<{
+    getCurrentFormData: () => any
+    validateForm: () => Promise<boolean>
+    getFormErrors: () => any
+  }>
+}
+
+interface EditScheduleFormProps {
+  initialData: {
     type: 'prepayment' | 'unearned'
-    referenceNumber: string
+    accountId?: string
     vendor: string
     invoiceDate: string
     totalAmount: string
     serviceStart: string
     serviceEnd: string
     description?: string
+    referenceNumber: string
+  }
+  currency?: string
+  currencySymbol?: string
+  userAccounts?: {
+    prepaid_accounts: AccountItem[]
+    unearned_accounts: AccountItem[]
+  }
+  onFormReady?: (methods: {
+    getCurrentFormData: () => any
+    validateForm: () => Promise<boolean>
+    getFormErrors: () => any
   }) => void
 }
 
-export default function EditScheduleForm({ initialData, onScheduleGenerated }: EditScheduleFormProps) {
+function EditScheduleForm({ initialData, currency = 'USD', currencySymbol = '$', userAccounts, onFormReady }: EditScheduleFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Use provided userAccounts or default to empty arrays
+  const accounts = userAccounts || { prepaid_accounts: [], unearned_accounts: [] }
   
   // Local state for date inputs to allow free typing
   const [invoiceDateInput, setInvoiceDateInput] = useState('')
@@ -76,6 +109,7 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
   // Convert string dates to Date objects for the form
   const convertedInitialData: ScheduleFormData = {
     ...initialData,
+    accountId: initialData.accountId || '', // Default to empty string if not provided
     invoiceDate: parseISO(initialData.invoiceDate),
     serviceStart: parseISO(initialData.serviceStart),
     serviceEnd: parseISO(initialData.serviceEnd),
@@ -89,6 +123,7 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
     watch,
     reset,
     control,
+    trigger,
   } = useForm<ScheduleFormData>({
     resolver: zodResolver(scheduleSchema),
     defaultValues: convertedInitialData,
@@ -97,6 +132,8 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
   const watchedType = watch('type')
   const watchedInvoiceDate = watch('invoiceDate')
   const watchedServiceStart = watch('serviceStart')
+
+
 
   // Helper function to parse date from string with strict validation
   const parseDate = (value: string): Date | null => {
@@ -190,6 +227,7 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
   useEffect(() => {
     const convertedData: ScheduleFormData = {
       ...initialData,
+      accountId: initialData.accountId || '', // Default to empty string if not provided
       invoiceDate: parseISO(initialData.invoiceDate),
       serviceStart: parseISO(initialData.serviceStart),
       serviceEnd: parseISO(initialData.serviceEnd),
@@ -207,44 +245,40 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
     if (initialData.type) {
       setValue('type', initialData.type)
     }
-  }, [initialData.type, setValue])
+    if (initialData.accountId) {
+      setValue('accountId', initialData.accountId)
+    }
+  }, [initialData.type, initialData.accountId, setValue])
 
-  const onSubmit = async (data: ScheduleFormData) => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const serviceStart = data.serviceStart
-      const serviceEnd = data.serviceEnd
-      const totalAmount = Number(data.totalAmount)
-
-      // Validate date range
-      if (serviceStart >= serviceEnd) {
-        throw new Error('Service start date must be before service end date')
-      }
-
-      // Generate the schedule
-      const schedule = generateStraightLineSchedule({
-        serviceStart,
-        serviceEnd,
-        totalAmount,
-      })
-
-      // Convert dates to strings for the API
-      const formDataForAPI = {
-        ...data,
-        invoiceDate: format(data.invoiceDate, 'yyyy-MM-dd'),
-        serviceStart: format(data.serviceStart, 'yyyy-MM-dd'),
-        serviceEnd: format(data.serviceEnd, 'yyyy-MM-dd'),
-      }
-
-      onScheduleGenerated(schedule, formDataForAPI)
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while generating the schedule')
-    } finally {
-      setIsLoading(false)
+  // Methods to expose to parent component
+  const getCurrentFormData = () => {
+    const currentValues = watch()
+    return {
+      ...currentValues,
+      invoiceDate: format(currentValues.invoiceDate, 'yyyy-MM-dd'),
+      serviceStart: format(currentValues.serviceStart, 'yyyy-MM-dd'),
+      serviceEnd: format(currentValues.serviceEnd, 'yyyy-MM-dd'),
     }
   }
+
+  const validateForm = async () => {
+    return await trigger()
+  }
+
+  const getFormErrors = () => {
+    return errors
+  }
+
+  // Expose methods to parent component
+  useEffect(() => {
+    if (onFormReady) {
+      onFormReady({
+        getCurrentFormData,
+        validateForm,
+        getFormErrors
+      })
+    }
+  }, [onFormReady])
 
   return (
     <Card>
@@ -252,7 +286,7 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
         <CardTitle>Edit Schedule Details</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <div className="space-y-6">
           {/* Schedule Type */}
           <div className="space-y-2">
             <Label htmlFor="type">Schedule Type</Label>
@@ -296,6 +330,51 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
               <p className="text-sm text-red-600">{errors.type.message}</p>
             )}
           </div>
+
+          {/* Account Selection */}
+          {watchedType && (
+            <div className="space-y-2">
+              <Label htmlFor="accountId">
+                Select Account *
+                <span className="text-sm text-muted-foreground ml-2">
+                  ({watchedType === 'prepayment' ? 'Prepaid Expense' : 'Unearned Revenue'} Account)
+                </span>
+              </Label>
+              <Controller
+                name="accountId"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose an account from your settings" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(watchedType === 'prepayment' 
+                        ? accounts.prepaid_accounts 
+                        : accounts.unearned_accounts
+                      ).map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.account}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.accountId && (
+                <p className="text-sm text-red-600">{errors.accountId.message}</p>
+              )}
+              {watchedType && (watchedType === 'prepayment' 
+                ? accounts.prepaid_accounts 
+                : accounts.unearned_accounts
+              ).length === 0 && (
+                <p className="text-sm text-amber-600">
+                  No accounts configured. Please add accounts in Settings first.
+                </p>
+              )}
+
+            </div>
+          )}
 
           {/* Reference Number */}
           <div className="space-y-2">
@@ -389,7 +468,7 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
 
           {/* Total Amount */}
           <div className="space-y-2">
-            <Label htmlFor="totalAmount">Total Amount ($)</Label>
+            <Label htmlFor="totalAmount">Total Amount ({currencySymbol})</Label>
             <Input
               id="totalAmount"
               type="number"
@@ -579,13 +658,10 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
               {error}
             </div>
           )}
-
-          {/* Submit Button */}
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Regenerating Schedule...' : 'Regenerate Schedule'}
-          </Button>
-        </form>
+        </div>
       </CardContent>
-    </Card>
-  )
-} 
+          </Card>
+    )
+  }
+
+export default EditScheduleForm 

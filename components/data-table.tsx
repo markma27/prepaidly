@@ -2,8 +2,8 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
-  IconChevronRight,
   IconPlus,
   IconCalendar,
   IconCurrencyDollar,
@@ -47,121 +47,108 @@ export interface Schedule {
   created_at: string
 }
 
-const columns: ColumnDef<Schedule>[] = [
-  {
-    accessorKey: "description",
-    header: "Schedule Name",
-    cell: ({ row }) => {
-      const schedule = row.original
-      return (
-        <div className="space-y-1">
-          <div className="font-medium">{schedule.description}</div>
-          <div className="text-sm text-muted-foreground">
-            Created {new Date(schedule.created_at).toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric'
-            })}
-          </div>
-        </div>
-      )
-    },
-  },
-  {
-    accessorKey: "vendor",
-    header: "Contact",
-    cell: ({ row }) => {
-      return (
-        <div className="font-medium">{row.original.vendor}</div>
-      )
-    },
-  },
-  {
-    accessorKey: "type",
-    header: "Type",
-    cell: ({ row }) => {
-      const type = row.original.type
-      if (type === 'prepayment') {
-        return (
-          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
-            Prepaid Expense
-          </Badge>
-        )
-      } else {
-        return (
-          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-            Unearned Revenue
-          </Badge>
-        )
-      }
-    },
-  },
-  {
-    accessorKey: "total_amount",
-    header: "Amount",
-    cell: ({ row }) => {
-      const amount = Number(row.original.total_amount)
-      return (
-        <div className="font-medium">
-          ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </div>
-      )
-    },
-  },
-  {
-    accessorKey: "period",
-    header: "Period",
-    cell: ({ row }) => {
-      const schedule = row.original
-      try {
-        const startDate = new Date(schedule.service_start)
-        const endDate = new Date(schedule.service_end)
-        
-        // Check if dates are valid
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-          return <div className="text-sm text-muted-foreground">Invalid Date</div>
-        }
-        
-        return (
-          <div className="text-sm">
-            {startDate.toLocaleDateString('en-GB', { 
-              day: '2-digit', 
-              month: 'short', 
-              year: 'numeric' 
-            })} - {endDate.toLocaleDateString('en-GB', { 
-              day: '2-digit', 
-              month: 'short', 
-              year: 'numeric' 
-            })}
-          </div>
-        )
-      } catch (error) {
-        return <div className="text-sm text-muted-foreground">Invalid Date</div>
-      }
-    },
-  },
-  {
-    id: "actions",
-    header: "",
-    cell: ({ row }) => {
-      const schedule = row.original
-      return (
-        <div className="text-right">
-          <Link href={`/register/${schedule.id}/edit`}>
-            <Button variant="ghost" size="sm">
-              View <IconChevronRight className="ml-1 size-3" />
-            </Button>
-          </Link>
-        </div>
-      )
-    },
-  },
-]
 
-export function DataTable({ data }: { data: Schedule[] }) {
+
+export function DataTable({ data, currencySymbol = '$' }: { data: Schedule[], currencySymbol?: string }) {
+  const router = useRouter()
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "description", desc: false }
   ])
+
+  const columns: ColumnDef<Schedule>[] = [
+    {
+      accessorKey: "description",
+      header: "Schedule Name",
+      cell: ({ row }) => {
+        const schedule = row.original
+        return (
+          <div className="space-y-1">
+            <div className="font-medium">{schedule.description}</div>
+            <div className="text-sm text-muted-foreground">
+              Created {new Date(schedule.created_at).toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+              })}
+            </div>
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "vendor",
+      header: "Contact",
+      cell: ({ row }) => {
+        return (
+          <div className="font-medium">{row.original.vendor}</div>
+        )
+      },
+    },
+    {
+      accessorKey: "type",
+      header: "Type",
+      cell: ({ row }) => {
+        const type = row.original.type
+        if (type === 'prepayment') {
+          return (
+            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+              Prepaid Expense
+            </Badge>
+          )
+        } else {
+          return (
+            <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+            Unearned Revenue
+            </Badge>
+          )
+        }
+      },
+    },
+    {
+      accessorKey: "total_amount",
+      header: "Amount",
+      cell: ({ row }) => {
+        const amount = Number(row.original.total_amount)
+        return (
+          <div className="font-medium">
+            {currencySymbol}{amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "period",
+      header: "Period",
+      cell: ({ row }) => {
+        const schedule = row.original
+        try {
+          const startDate = new Date(schedule.service_start)
+          const endDate = new Date(schedule.service_end)
+          
+          // Check if dates are valid
+          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            return <div className="text-sm text-muted-foreground">Invalid Date</div>
+          }
+          
+          return (
+            <div className="text-sm">
+              {startDate.toLocaleDateString('en-GB', { 
+                day: '2-digit', 
+                month: 'short', 
+                year: 'numeric' 
+              })} - {endDate.toLocaleDateString('en-GB', { 
+                day: '2-digit', 
+                month: 'short', 
+                year: 'numeric' 
+              })}
+            </div>
+          )
+        } catch (error) {
+          return <div className="text-sm text-muted-foreground">Invalid Date</div>
+        }
+      },
+    },
+  ]
 
   const table = useReactTable({
     data,
@@ -224,7 +211,8 @@ export function DataTable({ data }: { data: Schedule[] }) {
                       <TableRow
                         key={row.id}
                         data-state={row.getIsSelected() && "selected"}
-                        className="hover:bg-muted/50"
+                        className="hover:bg-muted/50 cursor-pointer"
+                        onClick={() => router.push(`/register/${row.original.id}/edit`)}
                       >
                         {row.getVisibleCells().map((cell) => (
                           <TableCell key={cell.id} className="py-3 px-4">

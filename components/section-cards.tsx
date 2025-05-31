@@ -22,9 +22,11 @@ interface SectionCardsProps {
     description: string
     created_at: string
   }>
+  currency?: string
+  currencySymbol?: string
 }
 
-export function SectionCards({ schedules }: SectionCardsProps) {
+export function SectionCards({ schedules, currency = 'USD', currencySymbol = '$' }: SectionCardsProps) {
   // Calculate metrics from schedules
   const totalSchedules = schedules.length
   const totalAmount = schedules.reduce((sum, schedule) => sum + Number(schedule.total_amount), 0)
@@ -67,12 +69,12 @@ export function SectionCards({ schedules }: SectionCardsProps) {
         <CardHeader>
           <CardDescription>Total Amount Managed</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            ${totalAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            {currencySymbol}{totalAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <IconCurrencyDollar className="size-3" />
-              USD
+              {currency}
             </Badge>
           </CardAction>
         </CardHeader>
@@ -90,7 +92,7 @@ export function SectionCards({ schedules }: SectionCardsProps) {
         <CardHeader>
           <CardDescription>Prepaid Expenses</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            ${prepaidAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            {currencySymbol}{prepaidAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
@@ -113,7 +115,7 @@ export function SectionCards({ schedules }: SectionCardsProps) {
         <CardHeader>
           <CardDescription>Unearned Revenue</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            ${unearnedAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            {currencySymbol}{unearnedAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">

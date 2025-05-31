@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
+import { useTheme } from "next-themes"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
@@ -30,6 +31,8 @@ interface ChartAreaInteractiveProps {
     description: string
     created_at: string
   }>
+  currency?: string
+  currencySymbol?: string
 }
 
 const chartConfig = {
@@ -43,8 +46,14 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function ChartAreaInteractive({ schedules }: ChartAreaInteractiveProps) {
+export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymbol = '$' }: ChartAreaInteractiveProps) {
   const isMobile = useIsMobile()
+  const { theme, resolvedTheme } = useTheme()
+  
+  // Get the appropriate colors based on theme
+  const isDark = resolvedTheme === 'dark'
+  const axisTextColor = isDark ? '#ffffff' : '#000000'
+  const gridColor = isDark ? '#374151' : '#e5e7eb'
 
   // Process schedule data to create monthly balance projections
   const processMonthlyBalances = () => {
@@ -144,10 +153,10 @@ export function ChartAreaInteractive({ schedules }: ChartAreaInteractiveProps) {
                       <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.4}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                   <XAxis 
                     dataKey="month" 
-                    tick={{ fontSize: 9 }}
+                    tick={{ fontSize: 9, fill: axisTextColor }}
                     tickLine={false}
                     axisLine={false}
                     angle={0}
@@ -156,16 +165,16 @@ export function ChartAreaInteractive({ schedules }: ChartAreaInteractiveProps) {
                     interval={0}
                   />
                   <YAxis 
-                    tick={{ fontSize: 8 }}
+                    tick={{ fontSize: 8, fill: axisTextColor }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(value) => {
                       if (value >= 1000000) {
-                        return `$${(value / 1000000).toFixed(1)}M`
+                        return `${currencySymbol}${(value / 1000000).toFixed(1)}M`
                       } else if (value >= 1000) {
-                        return `$${(value / 1000).toFixed(0)}K`
+                        return `${currencySymbol}${(value / 1000).toFixed(0)}K`
                       }
-                      return `$${value.toLocaleString()}`
+                      return `${currencySymbol}${value.toLocaleString()}`
                     }}
                     width={45}
                   />
@@ -176,12 +185,13 @@ export function ChartAreaInteractive({ schedules }: ChartAreaInteractiveProps) {
                   />
                   <Tooltip
                     formatter={(value: any, name: any) => {
-                      return [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 'Remaining Balance']
+                      return [`${currencySymbol}${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 'Remaining Balance']
                     }}
                     labelFormatter={(label: any) => label}
                     contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #e5e7eb',
+                      backgroundColor: 'hsl(var(--popover))',
+                      color: 'hsl(var(--popover-foreground))',
+                      border: '1px solid hsl(var(--border))',
                       borderRadius: '6px',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                     }}
@@ -229,10 +239,10 @@ export function ChartAreaInteractive({ schedules }: ChartAreaInteractiveProps) {
                       <stop offset="100%" stopColor="#4ade80" stopOpacity={0.4}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                   <XAxis 
                     dataKey="month" 
-                    tick={{ fontSize: 9 }}
+                    tick={{ fontSize: 9, fill: axisTextColor }}
                     tickLine={false}
                     axisLine={false}
                     angle={0}
@@ -241,16 +251,16 @@ export function ChartAreaInteractive({ schedules }: ChartAreaInteractiveProps) {
                     interval={0}
                   />
                   <YAxis 
-                    tick={{ fontSize: 8 }}
+                    tick={{ fontSize: 8, fill: axisTextColor }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(value) => {
                       if (value >= 1000000) {
-                        return `$${(value / 1000000).toFixed(1)}M`
+                        return `${currencySymbol}${(value / 1000000).toFixed(1)}M`
                       } else if (value >= 1000) {
-                        return `$${(value / 1000).toFixed(0)}K`
+                        return `${currencySymbol}${(value / 1000).toFixed(0)}K`
                       }
-                      return `$${value.toLocaleString()}`
+                      return `${currencySymbol}${value.toLocaleString()}`
                     }}
                     width={45}
                   />
@@ -261,12 +271,13 @@ export function ChartAreaInteractive({ schedules }: ChartAreaInteractiveProps) {
                   />
                   <Tooltip
                     formatter={(value: any, name: any) => {
-                      return [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 'Remaining Balance']
+                      return [`${currencySymbol}${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 'Remaining Balance']
                     }}
                     labelFormatter={(label: any) => label}
                     contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #e5e7eb',
+                      backgroundColor: 'hsl(var(--popover))',
+                      color: 'hsl(var(--popover-foreground))',
+                      border: '1px solid hsl(var(--border))',
                       borderRadius: '6px',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                     }}
