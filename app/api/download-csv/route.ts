@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     // Create CSV content with metadata
     const csvContent = [
-      `# ${formData.type === 'prepayment' ? 'Prepayment' : 'Unearned Revenue'} Schedule`,
+      `# ${formData.type === 'prepayment' ? 'Prepaid Expense' : 'Unearned Revenue'} Schedule`,
       `# Vendor: ${formData.vendor}`,
       `# Invoice Date: ${formData.invoiceDate}`,
       `# Total Amount: $${Number(formData.totalAmount).toFixed(2)}`,

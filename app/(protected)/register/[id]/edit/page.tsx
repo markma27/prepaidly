@@ -147,13 +147,13 @@ export default function EditSchedulePage() {
         <header className="bg-white shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center py-6">
-              <Link href="/register" className="mr-4">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
+              <Link href="/register">
+                <Button className="gap-2 bg-black text-white hover:bg-gray-800">
+                  <ArrowLeft className="h-4 w-4" />
                   Back to Register
                 </Button>
               </Link>
-              <div>
+              <div className="ml-8">
                 <h1 className="text-2xl font-bold text-gray-900">Loading Schedule...</h1>
               </div>
             </div>
@@ -174,13 +174,13 @@ export default function EditSchedulePage() {
         <header className="bg-white shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center py-6">
-              <Link href="/register" className="mr-4">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
+              <Link href="/register">
+                <Button className="gap-2 bg-black text-white hover:bg-gray-800">
+                  <ArrowLeft className="h-4 w-4" />
                   Back to Register
                 </Button>
               </Link>
-              <div>
+              <div className="ml-8">
                 <h1 className="text-2xl font-bold text-gray-900">Schedule Not Found</h1>
               </div>
             </div>
@@ -195,13 +195,13 @@ export default function EditSchedulePage() {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center py-6">
-            <Link href="/register" className="mr-4">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
+            <Link href="/register">
+              <Button className="gap-2 bg-black text-white hover:bg-gray-800">
+                <ArrowLeft className="h-4 w-4" />
                 Back to Register
               </Button>
             </Link>
-            <div>
+            <div className="ml-8">
               <h1 className="text-2xl font-bold text-gray-900">Edit Schedule</h1>
               <p className="text-gray-600">Modify your {formData.type} schedule for {formData.vendor}</p>
             </div>

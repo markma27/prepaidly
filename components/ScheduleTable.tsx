@@ -34,7 +34,7 @@ export default function ScheduleTable({
       <CardHeader>
         <CardTitle>Schedule Preview</CardTitle>
         <div className="text-sm text-gray-600 space-y-1">
-          <p><strong>Type:</strong> {scheduleType === 'prepayment' ? 'Prepayment' : 'Unearned Revenue'}</p>
+          <p><strong>Type:</strong> {scheduleType === 'prepayment' ? 'Prepaid Expense' : 'Unearned Revenue'}</p>
           <p><strong>Vendor:</strong> {vendor}</p>
           <p><strong>Total Amount:</strong> {formatCurrency(totalAmount)}</p>
           <p><strong>Number of Periods:</strong> {schedule.length}</p>

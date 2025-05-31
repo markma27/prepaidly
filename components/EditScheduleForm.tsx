@@ -9,7 +9,7 @@ import { CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -256,18 +256,42 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
           {/* Schedule Type */}
           <div className="space-y-2">
             <Label htmlFor="type">Schedule Type</Label>
-            <Select 
-              value={watchedType} 
-              onValueChange={(value) => setValue('type', value as 'prepayment' | 'unearned')}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select schedule type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="prepayment">Prepayment</SelectItem>
-                <SelectItem value="unearned">Unearned Revenue</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                type="button"
+                variant={watchedType === 'prepayment' ? 'default' : 'outline'}
+                onClick={() => setValue('type', 'prepayment')}
+                className={`h-auto p-4 justify-start ${
+                  watchedType === 'prepayment' 
+                    ? 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100' 
+                    : 'hover:bg-blue-50 hover:border-blue-200'
+                }`}
+              >
+                <div className="text-left">
+                  <div className="font-medium">Prepaid Expense</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Expenses paid in advance
+                  </div>
+                </div>
+              </Button>
+              <Button
+                type="button"
+                variant={watchedType === 'unearned' ? 'default' : 'outline'}
+                onClick={() => setValue('type', 'unearned')}
+                className={`h-auto p-4 justify-start ${
+                  watchedType === 'unearned' 
+                    ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-100' 
+                    : 'hover:bg-green-50 hover:border-green-200'
+                }`}
+              >
+                <div className="text-left">
+                  <div className="font-medium">Unearned Revenue</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Revenue received in advance
+                  </div>
+                </div>
+              </Button>
+            </div>
             {errors.type && (
               <p className="text-sm text-red-600">{errors.type.message}</p>
             )}
@@ -288,7 +312,7 @@ export default function EditScheduleForm({ initialData, onScheduleGenerated }: E
 
           {/* Vendor */}
           <div className="space-y-2">
-            <Label htmlFor="vendor">Vendor/Company</Label>
+            <Label htmlFor="vendor">Contact</Label>
             <Input
               id="vendor"
               {...register('vendor')}

@@ -69,7 +69,7 @@ const columns: ColumnDef<Schedule>[] = [
   },
   {
     accessorKey: "vendor",
-    header: "Vendor",
+    header: "Contact",
     cell: ({ row }) => {
       return (
         <div className="font-medium">{row.original.vendor}</div>

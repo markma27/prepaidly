@@ -1,4 +1,4 @@
-import { startOfMonth, endOfMonth, addMonths, format, isBefore, isAfter } from 'date-fns'
+import { startOfMonth, endOfMonth, addMonths, format, isBefore, isAfter, differenceInDays } from 'date-fns'
 
 export interface ScheduleEntry {
   period: string // ISO date string (YYYY-MM-DD)
@@ -30,38 +30,80 @@ export function generateStraightLineSchedule(params: ScheduleGenerationParams): 
   }
   
   const entries: ScheduleEntry[] = []
-  let currentDate = startOfMonth(serviceStart)
   let cumulativeAmount = 0
   
-  // Calculate the number of months in the service period
-  const months: Date[] = []
-  while (!isAfter(currentDate, endOfMonth(serviceEnd))) {
-    months.push(new Date(currentDate))
-    currentDate = addMonths(currentDate, 1)
+  // Calculate total days in the service period for partial month calculations
+  const totalDays = differenceInDays(serviceEnd, serviceStart) + 1
+  const dailyRate = totalAmount / totalDays
+  
+  // First pass: determine all periods and identify partial vs full months
+  const periods: { monthStart: Date; isPartial: boolean; days: number }[] = []
+  let currentMonth = startOfMonth(serviceStart)
+  
+  while (!isAfter(currentMonth, endOfMonth(serviceEnd))) {
+    const monthStart = new Date(currentMonth)
+    const monthEnd = endOfMonth(currentMonth)
+    
+    // Determine the actual start and end dates for this month within the service period
+    const periodStart = isBefore(serviceStart, monthStart) ? monthStart : serviceStart
+    const periodEnd = isAfter(serviceEnd, monthEnd) ? monthEnd : serviceEnd
+    
+    // Calculate days in this month that fall within the service period
+    const daysInPeriod = differenceInDays(periodEnd, periodStart) + 1
+    const daysInMonth = differenceInDays(monthEnd, monthStart) + 1
+    const isPartial = daysInPeriod < daysInMonth
+    
+    periods.push({
+      monthStart,
+      isPartial,
+      days: daysInPeriod
+    })
+    
+    currentMonth = addMonths(currentMonth, 1)
   }
   
-  if (months.length === 0) {
-    throw new Error('Invalid date range: no complete months found')
-  }
+  // Calculate amounts: partial months use daily rate, full months get equal share of remainder
+  let totalPartialAmount = 0
+  let fullMonthCount = 0
   
-  // Calculate monthly amount (straight-line allocation)
-  const monthlyAmount = Math.round((totalAmount / months.length) * 100) / 100
+  periods.forEach(period => {
+    if (period.isPartial) {
+      totalPartialAmount += dailyRate * period.days
+    } else {
+      fullMonthCount++
+    }
+  })
   
-  // Handle rounding differences
+  // Amount for each full month: divide remaining amount equally among full months
+  const remainingAmountForFullMonths = totalAmount - totalPartialAmount
+  const fullMonthAmount = fullMonthCount > 0 
+    ? Math.round((remainingAmountForFullMonths / fullMonthCount) * 100) / 100
+    : 0
+  
+  // Generate the schedule entries
   let remainingAmount = totalAmount
   
-  months.forEach((month, index) => {
-    const isLastMonth = index === months.length - 1
+  periods.forEach((period, index) => {
+    const isLastMonth = index === periods.length - 1
+    let monthlyAmount: number
     
-    // For the last month, use the remaining amount to handle rounding
-    const entryAmount = isLastMonth ? remainingAmount : monthlyAmount
+    if (isLastMonth) {
+      // Last month gets the remaining amount to handle rounding
+      monthlyAmount = remainingAmount
+    } else if (period.isPartial) {
+      // Partial months use daily rate
+      monthlyAmount = Math.round((dailyRate * period.days) * 100) / 100
+    } else {
+      // Full months use the calculated full month amount
+      monthlyAmount = fullMonthAmount
+    }
     
-    cumulativeAmount += entryAmount
-    remainingAmount -= entryAmount
+    cumulativeAmount += monthlyAmount
+    remainingAmount -= monthlyAmount
     
     entries.push({
-      period: format(month, 'yyyy-MM-dd'),
-      amount: Math.round(entryAmount * 100) / 100,
+      period: format(period.monthStart, 'yyyy-MM-dd'),
+      amount: Math.round(monthlyAmount * 100) / 100,
       cumulative: Math.round(cumulativeAmount * 100) / 100,
       remaining: Math.round(remainingAmount * 100) / 100,
     })
