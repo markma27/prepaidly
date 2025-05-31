@@ -38,7 +38,7 @@ export default async function RegisterPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return format(new Date(dateString), 'MMM dd, yyyy')
+    return format(new Date(dateString), 'dd MMM yyyy')
   }
 
   return (
@@ -133,9 +133,11 @@ export default async function RegisterPage() {
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </Link>
-                            <Button variant="ghost" size="sm" disabled>
-                              <Edit className="h-4 w-4" />
-                            </Button>
+                            <Link href={`/register/${schedule.id}/edit`}>
+                              <Button variant="ghost" size="sm">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </Link>
                             <Button variant="ghost" size="sm" disabled>
                               <Download className="h-4 w-4" />
                             </Button>
