@@ -1,13 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import NewScheduleForm from '@/components/NewScheduleForm'
 import ScheduleTable from '@/components/ScheduleTable'
 import { ScheduleEntry, generateStraightLineSchedule } from '@/lib/generateStraightLineSchedule'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Download, Save, Check } from 'lucide-react'
+import { Download, Save, Check } from 'lucide-react'
 
 type ScheduleFormData = {
   type: 'prepayment' | 'unearned'
@@ -200,25 +198,12 @@ export default function NewSchedulePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center py-6">
-            <Link href="/dashboard">
-              <Button className="gap-2 bg-foreground text-background hover:bg-foreground/90">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Dashboard
-              </Button>
-            </Link>
-            <div className="ml-8">
-              <h1 className="text-2xl font-bold text-foreground">Create New Schedule</h1>
-                              <p className="text-muted-foreground">Generate a prepayment or unearned revenue schedule</p>
-            </div>
-          </div>
+    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-foreground">Create New Schedule</h1>
+          <p className="text-muted-foreground">Generate a prepayment or unearned revenue schedule</p>
         </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Form Column */}
           <div className="space-y-6">
@@ -316,7 +301,7 @@ export default function NewSchedulePage() {
             )}
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 } 

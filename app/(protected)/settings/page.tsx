@@ -1,24 +1,16 @@
-import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabaseClient'
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
 import SettingsForm from '@/components/SettingsForm'
 
 export default async function SettingsPage() {
   const supabase = await createServerSupabaseClient()
   
   const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
-    redirect('/login')
-  }
 
   // Fetch user settings
   const { data: userSettings, error } = await supabase
     .from('user_settings')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', user?.id)
     .single()
 
   if (error && error.code !== 'PGRST116') {
@@ -43,27 +35,16 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center py-6">
-            <Link href="/dashboard">
-              <Button className="gap-2 bg-foreground text-background hover:bg-foreground/90">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Dashboard
-              </Button>
-            </Link>
-            <div className="ml-8">
-              <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-              <p className="text-muted-foreground">Manage your account preferences and integrations</p>
-            </div>
-          </div>
+    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+          <p className="text-muted-foreground">Manage your account preferences and integrations</p>
         </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <SettingsForm initialSettings={userSettings} />
-      </main>
+        <div className="max-w-4xl">
+          <SettingsForm initialSettings={userSettings} />
+        </div>
+      </div>
     </div>
   )
 } 

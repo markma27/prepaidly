@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Save, Check } from 'lucide-react'
+import { Save, Check } from 'lucide-react'
 import EditScheduleForm from '@/components/EditScheduleForm'
 import ScheduleTable from '@/components/ScheduleTable'
 import { ScheduleEntry, generateStraightLineSchedule } from '@/lib/generateStraightLineSchedule'
@@ -236,73 +234,39 @@ export default function EditSchedulePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="bg-card shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center py-6">
-              <Link href="/register">
-                <Button className="gap-2 bg-foreground text-background hover:bg-foreground/90">
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Register
-                </Button>
-              </Link>
-              <div className="ml-8">
-                <h1 className="text-2xl font-bold text-foreground">Loading Schedule...</h1>
-              </div>
-            </div>
+      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-foreground">Loading Schedule...</h1>
           </div>
-        </header>
-        <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
           </div>
-        </main>
+        </div>
       </div>
     )
   }
 
   if (!originalData || !formData) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="bg-card shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center py-6">
-              <Link href="/register">
-                <Button className="gap-2 bg-foreground text-background hover:bg-foreground/90">
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Register
-                </Button>
-              </Link>
-              <div className="ml-8">
-                <h1 className="text-2xl font-bold text-foreground">Schedule Not Found</h1>
-              </div>
-            </div>
+      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-foreground">Schedule Not Found</h1>
+            <p className="text-muted-foreground">The requested schedule could not be found.</p>
           </div>
-        </header>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center py-6">
-            <Link href="/register">
-              <Button className="gap-2 bg-foreground text-background hover:bg-foreground/90">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Register
-              </Button>
-            </Link>
-            <div className="ml-8">
-              <h1 className="text-2xl font-bold text-foreground">Edit Schedule</h1>
-              <p className="text-muted-foreground">Modify your {formData.type} schedule for {formData.vendor}</p>
-            </div>
-          </div>
+    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-foreground">Edit Schedule</h1>
+          <p className="text-muted-foreground">Modify your {formData.type} schedule for {formData.vendor}</p>
         </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Form Column */}
           <div className="space-y-6">
@@ -384,7 +348,7 @@ export default function EditSchedulePage() {
             )}
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 } 

@@ -1,18 +1,12 @@
-import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabaseClient'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
 import SearchableScheduleTable from '@/components/SearchableScheduleTable'
 
 export default async function RegisterPage() {
   const supabase = await createServerSupabaseClient()
   
   const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
-    redirect('/login')
-  }
 
   // Fetch all schedules for the user
   const { data: schedules, error } = await supabase
@@ -21,7 +15,7 @@ export default async function RegisterPage() {
       *,
       schedule_entries (*)
     `)
-    .eq('user_id', user.id)
+    .eq('user_id', user?.id)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -32,7 +26,7 @@ export default async function RegisterPage() {
   const { data: userSettings } = await supabase
     .from('user_settings')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', user?.id)
     .single()
 
   const userCurrency = userSettings?.currency || 'USD'
@@ -50,25 +44,13 @@ export default async function RegisterPage() {
   const currencySymbol = currencySymbols[userCurrency] || '$'
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center py-6">
-            <Link href="/dashboard">
-              <Button className="gap-2 bg-foreground text-background hover:bg-foreground/90">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Dashboard
-              </Button>
-            </Link>
-            <div className="ml-8">
-              <h1 className="text-2xl font-bold text-foreground">Schedule Register</h1>
-              <p className="text-muted-foreground">View and manage your saved schedules</p>
-            </div>
-          </div>
+    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-foreground">Schedule Register</h1>
+          <p className="text-muted-foreground">View and manage your saved schedules</p>
         </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="mb-6 flex justify-between items-center">
           <div>
             <h2 className="text-xl font-semibold text-foreground">
@@ -90,7 +72,7 @@ export default async function RegisterPage() {
           currency={userCurrency}
           currencySymbol={currencySymbol}
         />
-      </main>
+      </div>
     </div>
   )
 } 
