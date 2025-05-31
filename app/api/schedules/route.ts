@@ -12,6 +12,7 @@ interface SaveScheduleRequest {
     serviceStart: string
     serviceEnd: string
     description?: string
+    referenceNumber: string
   }
 }
 
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
         service_start: formData.serviceStart,
         service_end: formData.serviceEnd,
         description: formData.description || null,
+        reference_number: formData.referenceNumber,
       })
       .select()
       .single()

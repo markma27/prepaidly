@@ -91,6 +91,7 @@ export default async function RegisterPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Vendor</TableHead>
+                      <TableHead>Reference</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Total Amount</TableHead>
                       <TableHead>Service Period</TableHead>
@@ -104,6 +105,9 @@ export default async function RegisterPage() {
                       <TableRow key={schedule.id}>
                         <TableCell className="font-medium">
                           {schedule.vendor}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {schedule.reference_number}
                         </TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

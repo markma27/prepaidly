@@ -11,6 +11,7 @@ create table public.schedules (
   service_start date not null,
   service_end date not null,
   description text,
+  reference_number text not null,
   created_at timestamptz default now()
 );
 
@@ -75,4 +76,7 @@ create policy "Users can only delete their own schedule entries" on public.sched
       where schedules.id = schedule_entries.schedule_id
       and schedules.user_id = auth.uid()
     )
-  ); 
+  );
+
+-- Migration to add reference_number column (run this if table already exists)
+-- ALTER TABLE public.schedules ADD COLUMN reference_number text; 

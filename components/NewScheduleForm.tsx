@@ -1,41 +1,72 @@
 'use client'
 
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useState, useEffect } from 'react'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
+import { format, addMonths, parseISO } from 'date-fns'
+import { CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { cn } from '@/lib/utils'
 import { generateStraightLineSchedule, ScheduleEntry } from '@/lib/generateStraightLineSchedule'
 
 const scheduleSchema = z.object({
   type: z.enum(['prepayment', 'unearned'], {
     required_error: 'Please select a schedule type',
   }),
+  referenceNumber: z.string().min(1, 'Reference number is required'),
   vendor: z.string().min(1, 'Vendor name is required'),
-  invoiceDate: z.string().min(1, 'Invoice date is required'),
+  invoiceDate: z.date({
+    required_error: 'Invoice date is required',
+  }),
   totalAmount: z.string().min(1, 'Total amount is required').refine(
     (val) => !isNaN(Number(val)) && Number(val) > 0,
     'Total amount must be a positive number'
   ),
-  serviceStart: z.string().min(1, 'Service start date is required'),
-  serviceEnd: z.string().min(1, 'Service end date is required'),
+  serviceStart: z.date({
+    required_error: 'Service start date is required',
+  }),
+  serviceEnd: z.date({
+    required_error: 'Service end date is required',
+  }),
   description: z.string().optional(),
 })
 
 type ScheduleFormData = z.infer<typeof scheduleSchema>
 
 interface NewScheduleFormProps {
-  onScheduleGenerated: (schedule: ScheduleEntry[], formData: ScheduleFormData) => void
+  onScheduleGenerated: (schedule: ScheduleEntry[], formData: {
+    type: 'prepayment' | 'unearned'
+    referenceNumber: string
+    vendor: string
+    invoiceDate: string
+    totalAmount: string
+    serviceStart: string
+    serviceEnd: string
+    description?: string
+  }) => void
 }
 
 export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Local state for date inputs to allow free typing
+  const [invoiceDateInput, setInvoiceDateInput] = useState('')
+  const [serviceStartInput, setServiceStartInput] = useState('')
+  const [serviceEndInput, setServiceEndInput] = useState('')
+  
+  // Local state for date validation errors
+  const [invoiceDateError, setInvoiceDateError] = useState('')
+  const [serviceStartError, setServiceStartError] = useState('')
+  const [serviceEndError, setServiceEndError] = useState('')
 
   const {
     register,
@@ -43,19 +74,132 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
     formState: { errors },
     setValue,
     watch,
+    control,
   } = useForm<ScheduleFormData>({
     resolver: zodResolver(scheduleSchema),
   })
 
   const watchedType = watch('type')
+  const watchedInvoiceDate = watch('invoiceDate')
+  const watchedServiceStart = watch('serviceStart')
+
+  // Helper function to parse date from string with strict validation
+  const parseDate = (value: string): Date | null => {
+    if (!value.trim()) return null
+    
+    try {
+      let parsedDate: Date | null = null
+      
+      if (value.match(/^\d{1,2}\s+[A-Za-z]{3,}\s+\d{4}$/)) {
+        // Format: "15 May 2025" - validate month name is real
+        const parts = value.split(/\s+/)
+        const day = parseInt(parts[0])
+        const monthName = parts[1]
+        const year = parseInt(parts[2])
+        
+        // Check if month name is valid
+        const validMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+                           'January', 'February', 'March', 'April', 'May', 'June',
+                           'July', 'August', 'September', 'October', 'November', 'December']
+        
+        if (!validMonths.some(m => m.toLowerCase().startsWith(monthName.toLowerCase()))) {
+          return null
+        }
+        
+        parsedDate = new Date(value)
+      } else if (value.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
+        // Format: "2025-05-15" or "2025-5-15"
+        const parts = value.split('-')
+        const year = parseInt(parts[0])
+        const month = parseInt(parts[1]) - 1
+        const day = parseInt(parts[2])
+        
+        // Validate ranges
+        if (year < 1900 || year > 2100 || month < 0 || month > 11 || day < 1 || day > 31) {
+          return null
+        }
+        
+        parsedDate = new Date(year, month, day)
+      } else if (value.match(/^\d{1,2}\/\d{1,2}\/(\d{2}|\d{4})$/)) {
+        // Format: "15/5/25", "15/05/25", "15/5/2025", "15/05/2025"
+        const parts = value.split('/')
+        let day = parseInt(parts[0])
+        let month = parseInt(parts[1]) - 1 // Month is 0-indexed
+        let year = parseInt(parts[2])
+        
+        // Validate ranges
+        if (month < 0 || month > 11 || day < 1 || day > 31) {
+          return null
+        }
+        
+        // Convert 2-digit year to 4-digit
+        if (year < 100) {
+          year += year < 50 ? 2000 : 1900 // 00-49 = 2000-2049, 50-99 = 1950-1999
+        }
+        
+        if (year < 1900 || year > 2100) {
+          return null
+        }
+        
+        parsedDate = new Date(year, month, day)
+      } else {
+        // Reject invalid formats - no fallback parsing
+        return null
+      }
+      
+      // Final validation: check if the constructed date is valid and matches input
+      if (!parsedDate || isNaN(parsedDate.getTime())) {
+        return null
+      }
+      
+      // Additional check: ensure the date components match what was input
+      // This catches cases like Feb 30 which creates a valid Date but wrong month
+      if (value.match(/^\d{1,2}\/\d{1,2}\/(\d{2}|\d{4})$/)) {
+        const parts = value.split('/')
+        const inputDay = parseInt(parts[0])
+        const inputMonth = parseInt(parts[1])
+        
+        if (parsedDate.getDate() !== inputDay || (parsedDate.getMonth() + 1) !== inputMonth) {
+          return null
+        }
+      }
+      
+      return parsedDate
+    } catch {
+      return null
+    }
+  }
+
+  // Update input states when form values change
+  useEffect(() => {
+    const invoiceDate = watch('invoiceDate')
+    if (invoiceDate && !invoiceDateInput) {
+      setInvoiceDateInput(format(invoiceDate, 'dd MMM yyyy'))
+    }
+  }, [watch('invoiceDate')])
+
+  useEffect(() => {
+    const serviceStart = watch('serviceStart')
+    if (serviceStart && !serviceStartInput) {
+      setServiceStartInput(format(serviceStart, 'dd MMM yyyy'))
+    }
+  }, [watch('serviceStart')])
+
+  useEffect(() => {
+    const serviceEnd = watch('serviceEnd')
+    if (serviceEnd && !serviceEndInput) {
+      setServiceEndInput(format(serviceEnd, 'dd MMM yyyy'))
+    }
+  }, [watch('serviceEnd')])
 
   const onSubmit = async (data: ScheduleFormData) => {
     setIsLoading(true)
     setError(null)
 
     try {
-      const serviceStart = new Date(data.serviceStart)
-      const serviceEnd = new Date(data.serviceEnd)
+      const serviceStart = data.serviceStart
+      const serviceEnd = data.serviceEnd
       const totalAmount = Number(data.totalAmount)
 
       // Validate date range
@@ -70,7 +214,15 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
         totalAmount,
       })
 
-      onScheduleGenerated(schedule, data)
+      // Convert dates to strings for the API
+      const formDataForAPI = {
+        ...data,
+        invoiceDate: format(data.invoiceDate, 'yyyy-MM-dd'),
+        serviceStart: format(data.serviceStart, 'yyyy-MM-dd'),
+        serviceEnd: format(data.serviceEnd, 'yyyy-MM-dd'),
+      }
+
+      onScheduleGenerated(schedule, formDataForAPI)
     } catch (err: any) {
       setError(err.message || 'An error occurred while generating the schedule')
     } finally {
@@ -102,6 +254,19 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
             )}
           </div>
 
+          {/* Reference Number */}
+          <div className="space-y-2">
+            <Label htmlFor="referenceNumber">Reference Number</Label>
+            <Input
+              id="referenceNumber"
+              {...register('referenceNumber')}
+              placeholder="Enter reference number (e.g., INV-2024-001)"
+            />
+            {errors.referenceNumber && (
+              <p className="text-sm text-red-600">{errors.referenceNumber.message}</p>
+            )}
+          </div>
+
           {/* Vendor */}
           <div className="space-y-2">
             <Label htmlFor="vendor">Vendor/Company</Label>
@@ -117,14 +282,69 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
 
           {/* Invoice Date */}
           <div className="space-y-2">
-            <Label htmlFor="invoiceDate">Invoice Date</Label>
-            <Input
-              id="invoiceDate"
-              type="date"
-              {...register('invoiceDate')}
+            <Label>Invoice Date</Label>
+            <Controller
+              name="invoiceDate"
+              control={control}
+              render={({ field }) => (
+                <div className="relative">
+                  <Input
+                    placeholder="Enter date (e.g., 15 May 2025)"
+                    value={invoiceDateInput}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setInvoiceDateInput(value)
+                      setInvoiceDateError('')
+                      
+                      // Try to parse and update the form field
+                      const parsedDate = parseDate(value)
+                      if (parsedDate) {
+                        field.onChange(parsedDate)
+                      } else if (!value.trim()) {
+                        field.onChange(undefined)
+                      }
+                    }}
+                    onBlur={() => {
+                      // On blur, format the date if valid or show error
+                      const parsedDate = parseDate(invoiceDateInput)
+                      if (parsedDate) {
+                        setInvoiceDateInput(format(parsedDate, 'dd MMM yyyy'))
+                        setInvoiceDateError('')
+                      } else if (invoiceDateInput.trim()) {
+                        setInvoiceDateError('Invalid date format. Use "15 May 2025" or "15/5/25"')
+                      }
+                    }}
+                    className="pr-10"
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                      >
+                        <CalendarIcon className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => {
+                          field.onChange(date)
+                          if (date) {
+                            setInvoiceDateInput(format(date, 'dd MMM yyyy'))
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
             />
-            {errors.invoiceDate && (
-              <p className="text-sm text-red-600">{errors.invoiceDate.message}</p>
+            {(errors.invoiceDate || invoiceDateError) && (
+              <p className="text-sm text-red-600">{errors.invoiceDate?.message || invoiceDateError}</p>
             )}
           </div>
 
@@ -146,28 +366,171 @@ export default function NewScheduleForm({ onScheduleGenerated }: NewScheduleForm
 
           {/* Service Start Date */}
           <div className="space-y-2">
-            <Label htmlFor="serviceStart">Service Start Date</Label>
-            <Input
-              id="serviceStart"
-              type="date"
-              {...register('serviceStart')}
+            <Label>Service Start Date</Label>
+            <Controller
+              name="serviceStart"
+              control={control}
+              render={({ field }) => (
+                <div className="relative">
+                  <Input
+                    placeholder="Enter date (e.g., 16 May 2025)"
+                    value={serviceStartInput}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setServiceStartInput(value)
+                      setServiceStartError('')
+                      
+                      // Try to parse and update the form field
+                      const parsedDate = parseDate(value)
+                      if (parsedDate) {
+                        field.onChange(parsedDate)
+                      } else if (!value.trim()) {
+                        field.onChange(undefined)
+                      }
+                    }}
+                    onBlur={() => {
+                      // On blur, format the date if valid or show error
+                      const parsedDate = parseDate(serviceStartInput)
+                      if (parsedDate) {
+                        setServiceStartInput(format(parsedDate, 'dd MMM yyyy'))
+                        setServiceStartError('')
+                      } else if (serviceStartInput.trim()) {
+                        setServiceStartError('Invalid date format. Use "16 May 2025" or "16/5/25"')
+                      }
+                    }}
+                    className="pr-10"
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                      >
+                        <CalendarIcon className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => {
+                          field.onChange(date)
+                          if (date) {
+                            setServiceStartInput(format(date, 'dd MMM yyyy'))
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
             />
-            {errors.serviceStart && (
-              <p className="text-sm text-red-600">{errors.serviceStart.message}</p>
+            {(errors.serviceStart || serviceStartError) && (
+              <p className="text-sm text-red-600">{errors.serviceStart?.message || serviceStartError}</p>
             )}
           </div>
 
           {/* Service End Date */}
           <div className="space-y-2">
-            <Label htmlFor="serviceEnd">Service End Date</Label>
-            <Input
-              id="serviceEnd"
-              type="date"
-              {...register('serviceEnd')}
+            <Label>Service End Date</Label>
+            <Controller
+              name="serviceEnd"
+              control={control}
+              render={({ field }) => (
+                <div className="relative">
+                  <Input
+                    placeholder="Enter date or +12 for 12 months from invoice date"
+                    value={serviceEndInput}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setServiceEndInput(value)
+                      
+                      // Clear any previous error
+                      setServiceEndError('')
+                      
+                      // Handle regular date input (but skip shortcuts)
+                      const isShortcut = value.match(/^\+\d/)
+                      if (!isShortcut) {
+                        const parsedDate = parseDate(value)
+                        if (parsedDate) {
+                          field.onChange(parsedDate)
+                        } else if (!value.trim()) {
+                          field.onChange(undefined)
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      // Check for shortcut pattern (+number) on blur
+                      const shortcutMatch = serviceEndInput.match(/^\+(\d+)$/)
+                      if (shortcutMatch) {
+                        const months = parseInt(shortcutMatch[1])
+                        console.log('Shortcut detected on blur:', serviceEndInput, 'months:', months)
+                        
+                        // Try to get service start date from form or parse from input
+                        let serviceStartDate: Date | null = watchedServiceStart
+                        if (!serviceStartDate && serviceStartInput) {
+                          serviceStartDate = parseDate(serviceStartInput)
+                        }
+                        
+                        console.log('Service start date:', serviceStartDate)
+                        
+                        if (serviceStartDate) {
+                          // Calculate end date as (service start date + months - 1 day)
+                          const endDate = addMonths(serviceStartDate, months)
+                          endDate.setDate(endDate.getDate() - 1)
+                          field.onChange(endDate)
+                          setServiceEndInput(format(endDate, 'dd MMM yyyy'))
+                          console.log('End date calculated:', format(endDate, 'dd MMM yyyy'))
+                          return
+                        }
+                      }
+                      
+                      // On blur, format the date if valid (for regular dates) or show error
+                      const parsedDate = parseDate(serviceEndInput)
+                      if (parsedDate) {
+                        setServiceEndInput(format(parsedDate, 'dd MMM yyyy'))
+                        setServiceEndError('')
+                      } else if (serviceEndInput.trim() && !serviceEndInput.match(/^\+\d/)) {
+                        setServiceEndError('Invalid date format. Use "15 May 2026" or "+12" for shortcuts')
+                      }
+                    }}
+                    className="pr-10"
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                      >
+                        <CalendarIcon className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => {
+                          field.onChange(date)
+                          if (date) {
+                            setServiceEndInput(format(date, 'dd MMM yyyy'))
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
             />
-            {errors.serviceEnd && (
-              <p className="text-sm text-red-600">{errors.serviceEnd.message}</p>
+            {(errors.serviceEnd || serviceEndError) && (
+              <p className="text-sm text-red-600">{errors.serviceEnd?.message || serviceEndError}</p>
             )}
+            <p className="text-xs text-gray-500">
+              Tip: Type "+12" for 12 months from service start date, then press Tab or click away
+            </p>
           </div>
 
           {/* Description */}

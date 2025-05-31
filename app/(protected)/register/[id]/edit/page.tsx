@@ -18,6 +18,7 @@ type ScheduleFormData = {
   serviceStart: string
   serviceEnd: string
   description?: string
+  referenceNumber: string
 }
 
 type ScheduleData = {
@@ -29,6 +30,7 @@ type ScheduleData = {
   service_start: string
   service_end: string
   description?: string
+  reference_number: string
   schedule_entries: ScheduleEntry[]
 }
 
@@ -68,6 +70,7 @@ export default function EditSchedulePage() {
           serviceStart: scheduleData.service_start,
           serviceEnd: scheduleData.service_end,
           description: scheduleData.description || '',
+          referenceNumber: scheduleData.reference_number,
         }
         
         setFormData(initialFormData)

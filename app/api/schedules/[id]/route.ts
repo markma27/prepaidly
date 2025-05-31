@@ -12,6 +12,7 @@ interface UpdateScheduleRequest {
     serviceStart: string
     serviceEnd: string
     description?: string
+    referenceNumber: string
   }
 }
 
@@ -114,6 +115,7 @@ export async function PUT(
         service_start: formData.serviceStart,
         service_end: formData.serviceEnd,
         description: formData.description || null,
+        reference_number: formData.referenceNumber,
       })
       .eq('id', params.id)
       .eq('user_id', user.id)
