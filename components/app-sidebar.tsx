@@ -8,8 +8,6 @@ import {
   Frame,
   GalleryVerticalEnd,
   Map,
-  PieChart,
-  Settings2,
   SquareTerminal,
   Calendar,
   CreditCard,
@@ -19,6 +17,7 @@ import {
   User,
   Sliders,
 } from "lucide-react"
+import { IconChartPie, IconSettings } from "@tabler/icons-react"
 
 import { Separator } from "@/components/ui/separator"
 import {
@@ -34,7 +33,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
-import { UserNav } from './user-nav'
+import { NavUser } from './nav-user'
 import { NavSecondary } from './nav-secondary'
 import SidebarEntitySelector from './SidebarEntitySelector'
 import Link from 'next/link'
@@ -95,7 +94,7 @@ export function AppSidebar({
       {
         title: "Analytics",
         url: `/analytics?entity=${entityParam}`,
-        icon: PieChart,
+        icon: IconChartPie,
       },
     ],
   }
@@ -155,7 +154,7 @@ export function AppSidebar({
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link href={`/entities?entity=${entityParam}`} className="cursor-pointer">
-                    <Settings2 />
+                    <IconSettings />
                     <span>Entity Management</span>
                   </Link>
                 </SidebarMenuButton>
@@ -166,7 +165,13 @@ export function AppSidebar({
       </SidebarContent>
       
       <SidebarFooter>
-        <UserNav user={user} userProfile={userProfile} />
+        <NavUser user={{
+          name: userProfile?.first_name && userProfile?.last_name 
+            ? `${userProfile.first_name} ${userProfile.last_name}`
+            : userProfile?.first_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || "User",
+          email: user?.email || "user@example.com",
+          avatar: userProfile?.avatar_url || user?.user_metadata?.avatar_url || "/avatars/default.jpg"
+        }} />
       </SidebarFooter>
     </Sidebar>
   )
