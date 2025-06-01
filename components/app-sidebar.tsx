@@ -1,23 +1,19 @@
 "use client"
 
 import {
-  AudioWaveform,
-  BookOpen,
-  Bot,
   Command,
-  Frame,
-  GalleryVerticalEnd,
-  Map,
-  SquareTerminal,
   Calendar,
   CreditCard,
   BarChart3,
-  Users,
-  LogOut,
-  User,
-  Sliders,
 } from "lucide-react"
-import { IconChartPie, IconSettings } from "@tabler/icons-react"
+import { 
+  IconUsers,
+  IconSettings,
+  IconHelp,
+  IconListDetails,
+  IconDashboard,
+  IconPlus,
+} from "@tabler/icons-react"
 
 import { Separator } from "@/components/ui/separator"
 import {
@@ -29,9 +25,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { NavUser } from './nav-user'
 import { NavSecondary } from './nav-secondary'
@@ -76,31 +69,42 @@ export function AppSidebar({
       {
         title: "Dashboard",
         url: `/dashboard?entity=${entityParam}`,
-        icon: BarChart3,
+        icon: IconDashboard,
         isActive: true,
       },
       {
         title: "New Schedule", 
         url: `/new-schedule?entity=${entityParam}`,
-        icon: Calendar,
+        icon: IconPlus,
       },
       {
         title: "Schedule Register",
-        url: `/schedule-register?entity=${entityParam}`,
-        icon: CreditCard,
+        url: `/register?entity=${entityParam}`,
+        icon: IconListDetails,
       },
     ],
     navSecondary: [
+      // Only show User Management for admins and super_admins
+      ...(currentUserRole && ['super_admin', 'admin'].includes(currentUserRole) ? [{
+        title: "User Management",
+        url: `/users?entity=${entityParam}`,
+        icon: IconUsers,
+        disabled: false,
+      }] : []),
       {
-        title: "Analytics",
-        url: `/analytics?entity=${entityParam}`,
-        icon: IconChartPie,
+        title: "Settings",
+        url: `/settings?entity=${entityParam}`,
+        icon: IconSettings,
+        disabled: false,
+      },
+      {
+        title: "Help & Support",
+        url: "#",
+        icon: IconHelp,
+        disabled: true,
       },
     ],
   }
-
-  // Role-based access control
-  const hasSettingsAccess = currentUserRole === 'admin' || currentUserRole === 'super_admin'
 
   return (
     <Sidebar variant={variant} collapsible="icon">
@@ -143,25 +147,10 @@ export function AppSidebar({
           </SidebarMenu>
         </SidebarGroup>
         
-        <SidebarGroup>
-          <NavSecondary items={data.navSecondary} className="mt-auto" />
-        </SidebarGroup>
-
-        {/* Entity Management - Admin Only */}
-        {hasSettingsAccess && (
-          <SidebarGroup>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href={`/entities?entity=${entityParam}`} className="cursor-pointer">
-                    <IconSettings />
-                    <span>Entity Management</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroup>
-        )}
+        {/* Secondary Navigation at the bottom */}
+        <div className="mt-auto">
+          <NavSecondary items={data.navSecondary} currentEntityId={entityParam} className="mt-4" />
+        </div>
       </SidebarContent>
       
       <SidebarFooter>

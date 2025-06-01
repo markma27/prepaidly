@@ -132,7 +132,7 @@ export default function SidebarEntitySelector({
     return (
       <div className="px-3 py-2 border-b">
         <div className="flex items-center space-x-3 animate-pulse p-2">
-          <div className="w-8 h-8 bg-muted rounded-md"></div>
+          <div className="w-8 h-8 bg-muted rounded-lg"></div>
           <div className="flex-1">
             <div className="h-3 bg-muted rounded w-24 mb-1"></div>
             <div className="h-2 bg-muted rounded w-16"></div>
@@ -168,7 +168,7 @@ export default function SidebarEntitySelector({
           >
             <div className="flex items-center space-x-3 w-full">
               <div className={cn(
-                "w-8 h-8 rounded-md flex items-center justify-center text-white text-xs font-semibold transition-all duration-200",
+                "w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold transition-all duration-200",
                 currentEntity ? getEntityColor(currentEntity) : 'bg-muted'
               )}>
                 {isEntitySwitching ? (
@@ -235,7 +235,7 @@ export default function SidebarEntitySelector({
               >
                 <div className="flex items-center space-x-3 w-full">
                   <div className={cn(
-                    "w-8 h-8 rounded-md flex items-center justify-center text-white text-xs font-semibold",
+                    "w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold",
                     getEntityColor(entity)
                   )}>
                     {getEntityInitials(entity.name)}
