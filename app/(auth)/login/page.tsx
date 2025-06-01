@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { Loader2 } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -15,6 +16,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSignUp, setIsSignUp] = useState(false)
+  const [loginStep, setLoginStep] = useState<'idle' | 'authenticating' | 'redirecting'>('idle')
   const router = useRouter()
   const supabase = createClient()
 
@@ -22,6 +24,7 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setLoginStep('authenticating')
 
     try {
       if (isSignUp) {
@@ -31,12 +34,17 @@ export default function LoginPage() {
         })
         if (error) throw error
         setError('Check your email for the confirmation link!')
+        setLoading(false)
+        setLoginStep('idle')
       } else {
         const { data: authData, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
         if (error) throw error
+        
+        // Show redirecting state
+        setLoginStep('redirecting')
         
         // After successful login, get user's last entity and redirect to appropriate dashboard
         if (authData.user) {
@@ -53,6 +61,9 @@ export default function LoginPage() {
             // Save to localStorage for future logins
             localStorage.setItem('selectedEntityId', entityId)
             
+            // Add a small delay to show the redirecting state
+            await new Promise(resolve => setTimeout(resolve, 500))
+            
             // Redirect to entity dashboard
             router.push(`/dashboard?entity=${entityId}`)
           } catch (entityError) {
@@ -64,8 +75,19 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       setError(error.message || 'An error occurred')
-    } finally {
       setLoading(false)
+      setLoginStep('idle')
+    }
+  }
+
+  const getLoadingMessage = () => {
+    switch (loginStep) {
+      case 'authenticating':
+        return 'Signing in...'
+      case 'redirecting':
+        return 'Redirecting to dashboard...'
+      default:
+        return ''
     }
   }
 
@@ -74,6 +96,20 @@ export default function LoginPage() {
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
+      
+      {/* Loading overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="space-y-1">
+              <div className="text-lg font-medium">{getLoadingMessage()}</div>
+              <div className="text-sm text-muted-foreground">Please wait...</div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
@@ -96,6 +132,7 @@ export default function LoginPage() {
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
                 required
               />
             </div>
@@ -107,6 +144,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
                 required
               />
             </div>
@@ -116,14 +154,22 @@ export default function LoginPage() {
               </div>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Loading...' : (isSignUp ? 'Create Account' : 'Sign In')}
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {getLoadingMessage()}
+                </div>
+              ) : (
+                isSignUp ? 'Create Account' : 'Sign In'
+              )}
             </Button>
           </form>
           <div className="mt-4 text-center">
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-blue-600 hover:text-blue-800 cursor-pointer"
+              disabled={loading}
+              className="text-sm text-blue-600 hover:text-blue-800 cursor-pointer disabled:opacity-50"
             >
               {isSignUp 
                 ? 'Already have an account? Sign in'

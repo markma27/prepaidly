@@ -13,6 +13,7 @@ import { Building2, ChevronDown, Search, Plus, Settings, RefreshCw, Loader2 } fr
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useEntitySwitching } from './EntitySwitchingContext'
 
 interface Entity {
   id: string
@@ -25,17 +26,14 @@ interface Entity {
 
 interface SidebarEntitySelectorProps {
   currentEntityId?: string
-  onEntityChange?: (entityId: string) => void
-  isEntitySwitching?: boolean
 }
 
 export default function SidebarEntitySelector({ 
-  currentEntityId, 
-  onEntityChange,
-  isEntitySwitching 
+  currentEntityId
 }: SidebarEntitySelectorProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const { isEntitySwitching, switchEntity } = useEntitySwitching()
   const [entities, setEntities] = useState<Entity[]>([])
   const [currentEntity, setCurrentEntity] = useState<Entity | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -59,24 +57,11 @@ export default function SidebarEntitySelector({
   useEffect(() => {
     if (currentEntityId && entities.length > 0) {
       const entity = entities.find(e => e.id === currentEntityId)
-      if (entity && entity.id !== currentEntity?.id) {
-        // Only update entity if not currently switching
-        if (!isEntitySwitching) {
-          setCurrentEntity(entity)
-        }
-      }
-    }
-  }, [currentEntityId, entities, currentEntity?.id, isEntitySwitching])
-
-  // Update entity when switching completes
-  useEffect(() => {
-    if (!isEntitySwitching && currentEntityId && entities.length > 0) {
-      const entity = entities.find(e => e.id === currentEntityId)
-      if (entity && entity.id !== currentEntity?.id) {
+      if (entity) {
         setCurrentEntity(entity)
       }
     }
-  }, [isEntitySwitching, currentEntityId, entities, currentEntity?.id])
+  }, [currentEntityId, entities])
 
   const fetchUserEntities = async () => {
     try {
@@ -107,18 +92,11 @@ export default function SidebarEntitySelector({
       return
     }
     
-    const entity = entities.find(e => e.id === entityId)
-    if (entity) {
-      // Don't update currentEntity immediately - let it stay as current until loading completes
-      setIsOpen(false)
-      setSearchQuery('')
-      
-      // Store the selected entity in localStorage for persistence
-      localStorage.setItem('selectedEntityId', entityId)
-      
-      // Call the parent handler which should handle navigation
-      onEntityChange?.(entityId)
-    }
+    setIsOpen(false)
+    setSearchQuery('')
+    
+    // Use context to switch entity
+    switchEntity(entityId)
   }
 
   const filteredEntities = entities.filter(entity =>
@@ -152,8 +130,8 @@ export default function SidebarEntitySelector({
 
   if (isLoading) {
     return (
-      <div className="px-3 py-2">
-        <div className="flex items-center space-x-3 animate-pulse">
+      <div className="px-3 py-2 border-b">
+        <div className="flex items-center space-x-3 animate-pulse p-2">
           <div className="w-8 h-8 bg-muted rounded-md"></div>
           <div className="flex-1">
             <div className="h-3 bg-muted rounded w-24 mb-1"></div>
@@ -166,8 +144,8 @@ export default function SidebarEntitySelector({
 
   if (!currentEntity && entities.length === 0) {
     return (
-      <div className="px-3 py-2">
-        <div className="flex items-center space-x-3 text-muted-foreground">
+      <div className="px-3 py-2 border-b">
+        <div className="flex items-center space-x-3 text-muted-foreground p-2">
           <Building2 className="h-4 w-4" />
           <span className="text-sm">No organisations</span>
         </div>
@@ -185,7 +163,7 @@ export default function SidebarEntitySelector({
             className={cn(
               "w-full justify-start p-2 h-auto hover:bg-accent/50",
               "focus-visible:ring-1 focus-visible:ring-ring",
-              isEntitySwitching && "opacity-50"
+              "transition-all duration-200"
             )}
           >
             <div className="flex items-center space-x-3 w-full">
@@ -201,10 +179,10 @@ export default function SidebarEntitySelector({
               </div>
               <div className="flex-1 text-left">
                 <div className="font-medium text-sm text-foreground flex items-center gap-2">
-                  <span className="transition-opacity duration-200">
+                  <span className="transition-all duration-200">
                     {isEntitySwitching 
                       ? 'Switching...' 
-                      : currentEntity?.name || (currentEntityId ? 'Loading...' : 'Select Organisation')
+                      : currentEntity?.name || 'Select Organisation'
                     }
                   </span>
                   {currentEntity?.is_demo && !isEntitySwitching && (

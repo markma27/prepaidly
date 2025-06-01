@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { AppSidebar } from './app-sidebar'
 
 interface User {
@@ -23,12 +23,9 @@ interface AppSidebarWrapperProps {
 
 export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
   const searchParams = useSearchParams()
-  const router = useRouter()
-  const pathname = usePathname()
   const [currentEntityId, setCurrentEntityId] = useState<string>('')
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [isEntitySwitching, setIsEntitySwitching] = useState(false)
 
   useEffect(() => {
     // Get entity from URL params or localStorage
@@ -101,34 +98,6 @@ export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
     }
   }, [user?.id])
 
-  const handleEntityChange = async (entityId: string) => {
-    // Only proceed if different entity
-    if (entityId === currentEntityId) return
-    
-    // Start loading state
-    setIsEntitySwitching(true)
-    
-    try {
-      // Update state immediately to prevent UI flash
-      setCurrentEntityId(entityId)
-      localStorage.setItem('selectedEntityId', entityId)
-      
-      // Add a small delay to show loading state
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      // Always navigate to dashboard when switching entities for better UX
-      router.push(`/dashboard?entity=${entityId}`)
-      
-      // Wait for the navigation and dashboard loading to complete
-      setTimeout(() => {
-        setIsEntitySwitching(false)
-      }, 800)
-    } catch (error) {
-      console.error('Error switching entity:', error)
-      setIsEntitySwitching(false)
-    }
-  }
-
   return (
     <AppSidebar 
       user={user}
@@ -136,8 +105,6 @@ export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
       variant={variant}
       currentEntityId={currentEntityId}
       currentUserRole={currentUserRole}
-      onEntityChange={handleEntityChange}
-      isEntitySwitching={isEntitySwitching}
     />
   )
 } 

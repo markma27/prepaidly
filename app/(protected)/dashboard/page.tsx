@@ -1,9 +1,11 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabaseClient'
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
 import { DataTable } from "@/components/data-table"
 import { SectionCards } from "@/components/section-cards"
 import DashboardWithEntitySelector from "@/components/DashboardWithEntitySelector"
+import { DashboardSkeleton } from '@/components/DashboardSkeleton'
 
 export default async function DashboardPage({
   searchParams,
@@ -115,13 +117,38 @@ export default async function DashboardPage({
   const recentSchedules = schedules?.slice(0, 5) || []
 
   return (
-    <DashboardWithEntitySelector 
-      initialEntityId={selectedEntityId}
-      schedules={schedules || []}
-      recentSchedules={recentSchedules}
-      currency={userCurrency}
-      currencySymbol={currencySymbol}
-      userSettings={userSettings}
-    />
+    <Suspense fallback={<DashboardLoadingSkeleton />}>
+      <DashboardWithEntitySelector 
+        initialEntityId={selectedEntityId}
+        schedules={schedules || []}
+        recentSchedules={recentSchedules}
+        currency={userCurrency}
+        currencySymbol={currencySymbol}
+        userSettings={userSettings}
+      />
+    </Suspense>
+  )
+}
+
+function DashboardLoadingSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-500">
+      {/* Immediate loading feedback */}
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="mb-6 animate-pulse">
+          <div className="h-8 w-32 bg-muted rounded mb-2"></div>
+          <div className="h-4 w-96 bg-muted rounded"></div>
+        </div>
+      </div>
+
+      {/* Quick skeleton cards */}
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 bg-muted rounded-lg animate-pulse"></div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }

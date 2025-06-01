@@ -1,48 +1,23 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useEntitySwitching } from './EntitySwitchingContext'
 
 interface EntitySwitchingWrapperProps {
   children: React.ReactNode
-  currentEntityId?: string
 }
 
 export function EntitySwitchingWrapper({ 
-  children, 
-  currentEntityId 
+  children
 }: EntitySwitchingWrapperProps) {
-  const searchParams = useSearchParams()
-  const [isEntitySwitching, setIsEntitySwitching] = useState(false)
-  const [lastEntityId, setLastEntityId] = useState(currentEntityId)
-
-  useEffect(() => {
-    const entityParam = searchParams.get('entity')
-    
-    // Check if entity is changing
-    if (entityParam && entityParam !== lastEntityId && lastEntityId) {
-      setIsEntitySwitching(true)
-      
-      // Show loading for a brief period (synchronized with sidebar)
-      const timer = setTimeout(() => {
-        setIsEntitySwitching(false)
-        setLastEntityId(entityParam)
-      }, 800)
-      
-      return () => clearTimeout(timer)
-    } else if (entityParam && !lastEntityId) {
-      // First load
-      setLastEntityId(entityParam)
-    }
-  }, [searchParams, lastEntityId])
+  const { isEntitySwitching } = useEntitySwitching()
 
   if (isEntitySwitching) {
     return (
       <div className="flex flex-1 flex-col">
         <div className="@container/main flex flex-1 flex-col gap-2">
-          <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-300">
+          <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-500">
             {/* Loading Message */}
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-center py-16">
@@ -72,7 +47,7 @@ export function EntitySwitchingWrapper({
 
   return (
     <div className={cn(
-      "flex flex-1 flex-col transition-all duration-300",
+      "flex flex-1 flex-col transition-all duration-500",
       "animate-in fade-in slide-in-from-bottom-2"
     )}>
       <div className="@container/main flex flex-1 flex-col gap-2">

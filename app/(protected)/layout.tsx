@@ -3,6 +3,8 @@ import { createServerSupabaseClient } from '@/lib/supabaseClient'
 import { AppSidebarWrapper } from "@/components/AppSidebarWrapper"
 import { DynamicSiteHeaderWrapper } from "@/components/dynamic-site-header-wrapper"
 import { EntitySwitchingWrapper } from "@/components/EntitySwitchingWrapper"
+import { EntitySwitchingProvider } from "@/components/EntitySwitchingContext"
+import { LoadingProvider } from "@/components/LoadingContext"
 import {
   SidebarInset,
   SidebarProvider,
@@ -22,21 +24,25 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebarWrapper variant="inset" user={user} />
-      <SidebarInset>
-        <DynamicSiteHeaderWrapper user={user} />
-        <EntitySwitchingWrapper>
-          {children}
-        </EntitySwitchingWrapper>
-      </SidebarInset>
-    </SidebarProvider>
+    <LoadingProvider>
+      <EntitySwitchingProvider>
+        <SidebarProvider
+          style={
+            {
+              "--sidebar-width": "calc(var(--spacing) * 72)",
+              "--header-height": "calc(var(--spacing) * 12)",
+            } as React.CSSProperties
+          }
+        >
+          <AppSidebarWrapper variant="inset" user={user} />
+          <SidebarInset>
+            <DynamicSiteHeaderWrapper user={user} />
+            <EntitySwitchingWrapper>
+              {children}
+            </EntitySwitchingWrapper>
+          </SidebarInset>
+        </SidebarProvider>
+      </EntitySwitchingProvider>
+    </LoadingProvider>
   )
 } 
