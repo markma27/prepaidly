@@ -13,6 +13,8 @@ import {
   IconReport,
   IconSettings,
   IconTrendingUp,
+  IconUser,
+  IconUsers,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -35,16 +37,33 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
     email?: string
     user_metadata?: any
   }
+  userProfile?: {
+    first_name?: string
+    last_name?: string
+    avatar_url?: string
+  } | null
   currentEntityId?: string
+  currentUserRole?: string
   onEntityChange?: (entityId: string) => void
 }
 
-export function AppSidebar({ user, currentEntityId, onEntityChange, ...props }: AppSidebarProps) {
+export function AppSidebar({ user, userProfile, currentEntityId, currentUserRole, onEntityChange, ...props }: AppSidebarProps) {
+  // Create display name from profile data if available, otherwise fallback to user metadata or email
+  const getDisplayName = () => {
+    if (userProfile?.first_name && userProfile?.last_name) {
+      return `${userProfile.first_name} ${userProfile.last_name}`
+    }
+    if (userProfile?.first_name) {
+      return userProfile.first_name
+    }
+    return user?.user_metadata?.full_name || user?.email?.split('@')[0] || "User"
+  }
+
   const data = {
     user: {
-      name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || "User",
+      name: getDisplayName(),
       email: user?.email || "user@example.com",
-      avatar: user?.user_metadata?.avatar_url || "/avatars/default.jpg",
+      avatar: userProfile?.avatar_url || user?.user_metadata?.avatar_url || "/avatars/default.jpg",
     },
     navMain: [
       {
@@ -70,6 +89,19 @@ export function AppSidebar({ user, currentEntityId, onEntityChange, ...props }: 
       },
     ],
     navSecondary: [
+      // Only show User Management for admins and super_admins
+      ...(currentUserRole && ['super_admin', 'admin'].includes(currentUserRole) ? [{
+        title: "User Management",
+        url: "/users",
+        icon: IconUsers,
+        disabled: false,
+      }] : []),
+      {
+        title: "Profile",
+        url: "/profile",
+        icon: IconUser,
+        disabled: false,
+      },
       {
         title: "Settings",
         url: "/settings",

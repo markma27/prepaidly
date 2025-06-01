@@ -9,9 +9,14 @@ interface DynamicSiteHeaderProps {
     email?: string
     user_metadata?: any
   }
+  userProfile?: {
+    first_name?: string
+    last_name?: string
+    avatar_url?: string
+  } | null
 }
 
-export function DynamicSiteHeader({ user }: DynamicSiteHeaderProps) {
+export function DynamicSiteHeader({ user, userProfile }: DynamicSiteHeaderProps) {
   const pathname = usePathname()
   
   const getPageTitle = (path: string) => {
@@ -31,5 +36,5 @@ export function DynamicSiteHeader({ user }: DynamicSiteHeaderProps) {
     }
   }
 
-  return <SiteHeader user={user} title={getPageTitle(pathname)} />
+  return <SiteHeader user={user} userProfile={userProfile} title={getPageTitle(pathname)} />
 } 

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabaseClient'
 import { AppSidebarWrapper } from "@/components/AppSidebarWrapper"
-import { DynamicSiteHeader } from "@/components/dynamic-site-header"
+import { DynamicSiteHeaderWrapper } from "@/components/dynamic-site-header-wrapper"
 import {
   SidebarInset,
   SidebarProvider,
@@ -31,7 +31,7 @@ export default async function ProtectedLayout({
     >
       <AppSidebarWrapper variant="inset" user={user} />
       <SidebarInset>
-        <DynamicSiteHeader user={user} />
+                    <DynamicSiteHeaderWrapper user={user} />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             {children}
