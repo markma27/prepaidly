@@ -13,6 +13,7 @@ import {
 
 export function NavMain({
   items,
+  currentEntityId,
 }: {
   items: {
     title: string
@@ -20,6 +21,7 @@ export function NavMain({
     icon?: Icon
     disabled?: boolean
   }[]
+  currentEntityId?: string
 }) {
   return (
     <SidebarGroup>
@@ -37,7 +39,7 @@ export function NavMain({
                   <span>{item.title}</span>
                 </SidebarMenuButton>
               ) : (
-                <Link href={item.url}>
+                <Link href={currentEntityId ? `${item.url}?entity=${currentEntityId}` : item.url}>
                   <SidebarMenuButton tooltip={item.title} className="w-full">
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>

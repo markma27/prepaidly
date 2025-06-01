@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabaseClient'
 import { ScheduleEntry } from '@/lib/generateStraightLineSchedule'
+import { logAuditEntry } from '@/lib/auditLogger'
 
 interface UpdateScheduleRequest {
   schedule: ScheduleEntry[]
@@ -34,7 +35,7 @@ export async function GET(
       )
     }
 
-    // Get the specific schedule with its entries
+    // Get the specific schedule with its entries (entity-aware)
     const { data: schedule, error } = await supabase
       .from('schedules')
       .select(`
@@ -42,8 +43,25 @@ export async function GET(
         schedule_entries (*)
       `)
       .eq('id', params.id)
-      .eq('user_id', user.id)
       .single()
+
+    // Verify user has access to this schedule's entity
+    if (schedule) {
+      const { data: userAccess } = await supabase
+        .from('entity_users')
+        .select('id')
+        .eq('entity_id', schedule.entity_id)
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single()
+
+      if (!userAccess) {
+        return NextResponse.json(
+          { error: 'Schedule not found' },
+          { status: 404 }
+        )
+      }
+    }
 
     if (error) {
       console.error('Error fetching schedule:', error)
@@ -90,15 +108,30 @@ export async function PUT(
       )
     }
 
-    // Verify the schedule belongs to the user
+    // Fetch existing schedule data for comparison
     const { data: existingSchedule, error: checkError } = await supabase
       .from('schedules')
-      .select('id')
+      .select('*')
       .eq('id', params.id)
-      .eq('user_id', user.id)
       .single()
 
     if (checkError || !existingSchedule) {
+      return NextResponse.json(
+        { error: 'Schedule not found' },
+        { status: 404 }
+      )
+    }
+
+    // Verify user has access to this schedule's entity
+    const { data: userAccess } = await supabase
+      .from('entity_users')
+      .select('id')
+      .eq('entity_id', existingSchedule.entity_id)
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .single()
+
+    if (!userAccess) {
       return NextResponse.json(
         { error: 'Schedule not found' },
         { status: 404 }
@@ -120,7 +153,6 @@ export async function PUT(
         reference_number: formData.referenceNumber,
       })
       .eq('id', params.id)
-      .eq('user_id', user.id)
       .select()
       .single()
 
@@ -166,6 +198,57 @@ export async function PUT(
         { status: 500 }
       )
     }
+
+    // Create detailed change log
+    const changes: string[] = []
+    
+    if (existingSchedule.type !== formData.type) {
+      changes.push(`Type: ${existingSchedule.type} → ${formData.type}`)
+    }
+    if (existingSchedule.vendor !== formData.vendor) {
+      changes.push(`Contact: "${existingSchedule.vendor}" → "${formData.vendor}"`)
+    }
+    if (existingSchedule.total_amount !== parseFloat(formData.totalAmount)) {
+      changes.push(`Amount: ${existingSchedule.total_amount} → ${formData.totalAmount}`)
+    }
+    if (existingSchedule.service_start !== formData.serviceStart) {
+      changes.push(`Service start: ${existingSchedule.service_start} → ${formData.serviceStart}`)
+    }
+    if (existingSchedule.service_end !== formData.serviceEnd) {
+      changes.push(`Service end: ${existingSchedule.service_end} → ${formData.serviceEnd}`)
+    }
+    if (existingSchedule.reference_number !== formData.referenceNumber) {
+      changes.push(`Reference: "${existingSchedule.reference_number}" → "${formData.referenceNumber}"`)
+    }
+    if ((existingSchedule.description || '') !== (formData.description || '')) {
+      changes.push(`Description: "${existingSchedule.description || ''}" → "${formData.description || ''}"`)
+    }
+    if (existingSchedule.account_id !== formData.accountId) {
+      changes.push(`Account ID: ${existingSchedule.account_id} → ${formData.accountId}`)
+    }
+
+    const detailsText = changes.length > 0 
+      ? `Schedule updated with changes: ${changes.join(', ')}`
+      : `Schedule regenerated with same values`
+
+    // Log audit entry for schedule update
+    await logAuditEntry({
+      scheduleId: params.id,
+      entityId: existingSchedule.entity_id,
+      action: 'Schedule Updated',
+      actionType: 'updated',
+      details: detailsText,
+      userId: user.id,
+      userEmail: user.email || undefined,
+      newValues: {
+        type: formData.type,
+        vendor: formData.vendor,
+        total_amount: formData.totalAmount,
+        service_start: formData.serviceStart,
+        service_end: formData.serviceEnd,
+        reference_number: formData.referenceNumber
+      }
+    })
 
     return NextResponse.json({
       success: true,

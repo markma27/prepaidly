@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabaseClient'
 import { ScheduleEntry } from '@/lib/generateStraightLineSchedule'
+import { logAuditEntry } from '@/lib/auditLogger'
 
 interface SaveScheduleRequest {
   schedule: ScheduleEntry[]
@@ -15,6 +16,7 @@ interface SaveScheduleRequest {
     description?: string
     referenceNumber: string
   }
+  entityId: string
 }
 
 export async function POST(request: NextRequest) {
@@ -31,12 +33,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { schedule, formData }: SaveScheduleRequest = await request.json()
+    const { schedule, formData, entityId }: SaveScheduleRequest = await request.json()
 
-    if (!schedule || !formData) {
+    if (!schedule || !formData || !entityId) {
       return NextResponse.json(
-        { error: 'Missing schedule or form data' },
+        { error: 'Missing schedule, form data, or entity ID' },
         { status: 400 }
+      )
+    }
+
+    // Verify user has access to the specified entity
+    const { data: userAccess } = await supabase
+      .from('entity_users')
+      .select('id')
+      .eq('entity_id', entityId)
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .single()
+
+    if (!userAccess) {
+      return NextResponse.json(
+        { error: 'Access denied to specified entity' },
+        { status: 403 }
       )
     }
 
@@ -45,6 +63,7 @@ export async function POST(request: NextRequest) {
       .from('schedules')
       .insert({
         user_id: user.id,
+        entity_id: entityId,
         type: formData.type,
         account_id: formData.accountId,
         vendor: formData.vendor,
@@ -90,6 +109,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Log audit entry for schedule creation
+    await logAuditEntry({
+      scheduleId: scheduleRecord.id,
+      entityId: entityId,
+      action: 'Schedule Created',
+      actionType: 'created',
+      details: `${formData.type === 'prepayment' ? 'Prepaid Expense' : 'Unearned Revenue'} schedule created for ${formData.vendor} with total amount ${formData.totalAmount}`,
+      userId: user.id,
+      userEmail: user.email || undefined,
+      newValues: {
+        type: formData.type,
+        vendor: formData.vendor,
+        total_amount: formData.totalAmount,
+        service_start: formData.serviceStart,
+        service_end: formData.serviceEnd,
+        reference_number: formData.referenceNumber
+      }
+    })
+
     return NextResponse.json({
       success: true,
       schedule: scheduleRecord,
@@ -119,14 +157,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get all schedules for the user
+    // Get user's entities and their schedules
+    // For now, get Demo Company schedules (later we'll add entity switching)
+    const entityId = '00000000-0000-0000-0000-000000000001' // Demo Company
+
     const { data: schedules, error } = await supabase
       .from('schedules')
       .select(`
         *,
         schedule_entries (*)
       `)
-      .eq('user_id', user.id)
+      .eq('entity_id', entityId)
       .order('created_at', { ascending: false })
 
     if (error) {

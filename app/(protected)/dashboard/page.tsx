@@ -3,8 +3,13 @@ import { createServerSupabaseClient } from '@/lib/supabaseClient'
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
 import { DataTable } from "@/components/data-table"
 import { SectionCards } from "@/components/section-cards"
+import DashboardWithEntitySelector from "@/components/DashboardWithEntitySelector"
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ entity?: string }>
+}) {
   const supabase = await createServerSupabaseClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -13,11 +18,43 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
-  // Fetch user's schedules for dashboard metrics with ordering
+  // Await searchParams as required by Next.js 15
+  const params = await searchParams
+  
+  // Get the selected entity from URL params or default to Demo Company
+  let selectedEntityId = params.entity || '00000000-0000-0000-0000-000000000001'
+
+  // Verify user has access to the selected entity
+  const { data: userAccess } = await supabase
+    .from('entity_users')
+    .select('id')
+    .eq('entity_id', selectedEntityId)
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .single()
+
+  // If user doesn't have access, get their first available entity
+  if (!userAccess) {
+    const { data: userEntities } = await supabase
+      .from('entity_users')
+      .select('entity_id')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .limit(1)
+
+    if (userEntities && userEntities.length > 0) {
+      selectedEntityId = userEntities[0].entity_id
+    } else {
+      // User has no entities - should not happen if migration worked
+      redirect('/entities')
+    }
+  }
+
+  // Fetch schedules for the selected entity
   const { data: schedules, error } = await supabase
     .from('schedules')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('entity_id', selectedEntityId)
     .order('created_at', { ascending: false })
 
   // Fetch user's settings for currency display and account lookup
@@ -45,22 +82,13 @@ export default async function DashboardPage() {
   const recentSchedules = schedules?.slice(0, 7) || []
 
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-      <SectionCards 
-        schedules={schedules || []} 
-        currency={userCurrency}
-        currencySymbol={currencySymbol}
-      />
-      <ChartAreaInteractive 
-        schedules={schedules || []} 
-        currency={userCurrency}
-        currencySymbol={currencySymbol}
-      />
-      <DataTable 
-        data={recentSchedules} 
-        currencySymbol={currencySymbol}
-        userSettings={userSettings}
-      />
-    </div>
+    <DashboardWithEntitySelector 
+      initialEntityId={selectedEntityId}
+      schedules={schedules || []}
+      recentSchedules={recentSchedules}
+      currency={userCurrency}
+      currencySymbol={currencySymbol}
+      userSettings={userSettings}
+    />
   )
 }

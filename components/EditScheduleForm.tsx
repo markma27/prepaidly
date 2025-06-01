@@ -638,9 +638,6 @@ function EditScheduleForm({ initialData, currency = 'USD', currencySymbol = '$',
             {errors.serviceEnd && (
               <p className="text-sm text-red-600">{errors.serviceEnd.message}</p>
             )}
-            <p className="text-xs text-gray-500">
-              Tip: Type "+12" for 12 months from service start date, then press Tab or click away
-            </p>
           </div>
 
           {/* Description */}
@@ -650,7 +647,7 @@ function EditScheduleForm({ initialData, currency = 'USD', currencySymbol = '$',
               id="description"
               {...register('description')}
               placeholder="Enter a description for this schedule"
-              rows={3}
+              rows={1}
             />
             {errors.description && (
               <p className="text-sm text-red-600">{errors.description.message}</p>

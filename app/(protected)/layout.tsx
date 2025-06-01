@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabaseClient'
-import { AppSidebar } from "@/components/app-sidebar"
+import { AppSidebarWrapper } from "@/components/AppSidebarWrapper"
 import { DynamicSiteHeader } from "@/components/dynamic-site-header"
 import {
   SidebarInset,
@@ -29,7 +29,7 @@ export default async function ProtectedLayout({
         } as React.CSSProperties
       }
     >
-      <AppSidebar variant="inset" user={user} />
+      <AppSidebarWrapper variant="inset" user={user} />
       <SidebarInset>
         <DynamicSiteHeader user={user} />
         <div className="flex flex-1 flex-col">

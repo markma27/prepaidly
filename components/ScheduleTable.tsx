@@ -34,11 +34,11 @@ export default function ScheduleTable({
     <Card>
       <CardHeader>
         <CardTitle>Schedule Preview</CardTitle>
-        <div className="text-sm text-gray-600 space-y-1">
-          <p><strong>Type:</strong> {scheduleType === 'prepayment' ? 'Prepaid Expense' : 'Unearned Revenue'}</p>
-          <p><strong>Vendor:</strong> {vendor}</p>
-          <p><strong>Total Amount:</strong> {formatCurrency(totalAmount)}</p>
-          <p><strong>Number of Periods:</strong> {schedule.length}</p>
+        <div className="text-sm text-foreground/80 dark:text-foreground/90 space-y-1">
+          <p><strong className="text-foreground">Type:</strong> {scheduleType === 'prepayment' ? 'Prepaid Expense' : 'Unearned Revenue'}</p>
+          <p><strong className="text-foreground">Vendor:</strong> {vendor}</p>
+          <p><strong className="text-foreground">Total Amount:</strong> {formatCurrency(totalAmount)}</p>
+          <p><strong className="text-foreground">Number of Periods:</strong> {schedule.length}</p>
         </div>
       </CardHeader>
       <CardContent>

@@ -1,21 +1,63 @@
+import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabaseClient'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import SearchableScheduleTable from '@/components/SearchableScheduleTable'
+import RegisterWithEntitySelector from '@/components/RegisterWithEntitySelector'
 
-export default async function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ entity?: string }>
+}) {
   const supabase = await createServerSupabaseClient()
   
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Fetch all schedules for the user
+  if (!user) {
+    redirect('/login')
+  }
+
+  // Await searchParams as required by Next.js 15
+  const params = await searchParams
+
+  // Get the selected entity from URL params or default to Demo Company
+  let selectedEntityId = params.entity || '00000000-0000-0000-0000-000000000001'
+
+  // Verify user has access to the selected entity
+  const { data: userAccess } = await supabase
+    .from('entity_users')
+    .select('id')
+    .eq('entity_id', selectedEntityId)
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .single()
+
+  // If user doesn't have access, get their first available entity
+  if (!userAccess) {
+    const { data: userEntities } = await supabase
+      .from('entity_users')
+      .select('entity_id')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .limit(1)
+
+    if (userEntities && userEntities.length > 0) {
+      selectedEntityId = userEntities[0].entity_id
+    } else {
+      // User has no entities - should not happen if migration worked
+      redirect('/entities')
+    }
+  }
+
+  // Fetch all schedules for the selected entity
   const { data: schedules, error } = await supabase
     .from('schedules')
     .select(`
       *,
       schedule_entries (*)
     `)
-    .eq('user_id', user?.id)
+    .eq('entity_id', selectedEntityId)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -44,36 +86,12 @@ export default async function RegisterPage() {
   const currencySymbol = currencySymbols[userCurrency] || '$'
 
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-      <div className="px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground">Schedule Register</h1>
-          <p className="text-muted-foreground">View and manage your saved schedules</p>
-        </div>
-
-        <div className="mb-6 flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">
-              All Schedules ({schedules?.length || 0})
-            </h2>
-            <p className="text-muted-foreground">
-              Your saved prepayment and unearned revenue schedules
-            </p>
-          </div>
-          <Link href="/new-schedule">
-            <Button>
-              Create New Schedule
-            </Button>
-          </Link>
-        </div>
-
-        <SearchableScheduleTable 
-          schedules={schedules || []} 
-          currency={userCurrency}
-          currencySymbol={currencySymbol}
-          userSettings={userSettings}
-        />
-      </div>
-    </div>
+    <RegisterWithEntitySelector
+      initialEntityId={selectedEntityId}
+      schedules={schedules || []}
+      currency={userCurrency}
+      currencySymbol={currencySymbol}
+      userSettings={userSettings}
+    />
   )
 } 

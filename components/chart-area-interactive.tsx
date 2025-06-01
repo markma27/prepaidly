@@ -189,11 +189,15 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                     }}
                     labelFormatter={(label: any) => label}
                     contentStyle={{
-                      backgroundColor: 'hsl(var(--popover))',
-                      color: 'hsl(var(--popover-foreground))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      backgroundColor: isDark ? 'rgba(39, 39, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                      color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
+                      border: isDark ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(0, 0, 0, 0.2)',
+                      borderRadius: '8px',
+                      boxShadow: isDark ? '0 8px 32px rgba(0, 0, 0, 0.6)' : '0 8px 32px rgba(0, 0, 0, 0.15)',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      padding: '8px 12px',
+                      backdropFilter: 'blur(8px)'
                     }}
                     cursor={false}
                   />
@@ -275,11 +279,15 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                     }}
                     labelFormatter={(label: any) => label}
                     contentStyle={{
-                      backgroundColor: 'hsl(var(--popover))',
-                      color: 'hsl(var(--popover-foreground))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      backgroundColor: isDark ? 'rgba(39, 39, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                      color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
+                      border: isDark ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(0, 0, 0, 0.2)',
+                      borderRadius: '8px',
+                      boxShadow: isDark ? '0 8px 32px rgba(0, 0, 0, 0.6)' : '0 8px 32px rgba(0, 0, 0, 0.15)',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      padding: '8px 12px',
+                      backdropFilter: 'blur(8px)'
                     }}
                     cursor={false}
                   />

@@ -18,6 +18,7 @@ import {
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
+import SidebarEntitySelector from "@/components/SidebarEntitySelector"
 import {
   Sidebar,
   SidebarContent,
@@ -34,9 +35,11 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
     email?: string
     user_metadata?: any
   }
+  currentEntityId?: string
+  onEntityChange?: (entityId: string) => void
 }
 
-export function AppSidebar({ user, ...props }: AppSidebarProps) {
+export function AppSidebar({ user, currentEntityId, onEntityChange, ...props }: AppSidebarProps) {
   const data = {
     user: {
       name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || "User",
@@ -111,7 +114,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="/dashboard">
+              <a href={currentEntityId ? `/dashboard?entity=${currentEntityId}` : "/dashboard"}>
                 <IconTrendingUp className="!size-5" />
                 <span className="text-base font-semibold">Prepaidly.io</span>
               </a>
@@ -120,7 +123,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <SidebarEntitySelector 
+          currentEntityId={currentEntityId}
+          onEntityChange={onEntityChange}
+        />
+        <NavMain items={data.navMain} currentEntityId={currentEntityId} />
         <div className="mt-auto">
           <div className="px-3 py-2">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">

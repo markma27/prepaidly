@@ -611,9 +611,6 @@ function NewScheduleForm({ currency = 'USD', currencySymbol = '$', userAccounts,
             {(errors.serviceEnd || serviceEndError) && (
               <p className="text-sm text-red-600">{errors.serviceEnd?.message || serviceEndError}</p>
             )}
-            <p className="text-xs text-gray-500">
-              Tip: Type "+12" for 12 months from service start date, then press Tab or click away
-            </p>
           </div>
 
           {/* Description */}
@@ -623,7 +620,7 @@ function NewScheduleForm({ currency = 'USD', currencySymbol = '$', userAccounts,
               id="description"
               {...register('description')}
               placeholder="Enter a description for this schedule"
-              rows={3}
+              rows={1}
             />
             {errors.description && (
               <p className="text-sm text-red-600">{errors.description.message}</p>

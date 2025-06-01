@@ -207,15 +207,15 @@ export function DataTable({ data, currencySymbol = '$', userSettings }: { data: 
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/register">
-              <Button variant="outline" size="sm">
+            <Link href="/register" className="cursor-pointer">
+              <Button variant="outline" size="sm" className="cursor-pointer">
                 View All
               </Button>
             </Link>
-            <Link href="/new-schedule">
-              <Button size="sm">
+            <Link href="/register" className="cursor-pointer">
+              <Button size="sm" className="cursor-pointer">
                 <IconPlus className="mr-1 size-3" />
-                New Schedule
+                Go to Register
               </Button>
             </Link>
           </div>
@@ -281,10 +281,10 @@ export function DataTable({ data, currencySymbol = '$', userSettings }: { data: 
               <p className="text-sm text-muted-foreground mb-4 max-w-sm">
                 Get started by creating your first prepayment or unearned revenue schedule.
               </p>
-              <Link href="/new-schedule">
-                <Button>
+              <Link href="/register" className="cursor-pointer">
+                <Button className="cursor-pointer">
                   <IconPlus className="mr-1 size-4" />
-                  Create First Schedule
+                  Go to Register
                 </Button>
               </Link>
             </div>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Save, Check } from 'lucide-react'
 import EditScheduleForm from '@/components/EditScheduleForm'
 import ScheduleTable from '@/components/ScheduleTable'
+import AuditTrail from '@/components/AuditTrail'
 import { ScheduleEntry, generateStraightLineSchedule } from '@/lib/generateStraightLineSchedule'
 
 type ScheduleFormData = {
@@ -317,7 +318,7 @@ export default function EditSchedulePage() {
               <Button 
                 onClick={handleUpdateSchedule}
                 disabled={isSaving || saveStatus === 'success'}
-                className="w-full sm:w-auto"
+                className="w-full sm:w-auto cursor-pointer"
                 variant={saveStatus === 'success' ? 'default' : 'default'}
               >
                 {isSaving ? (
@@ -372,9 +373,9 @@ export default function EditSchedulePage() {
               />
             ) : (
               <div className="flex items-center justify-center h-64 bg-white dark:bg-card rounded-lg border">
-                <div className="text-center text-muted-foreground">
-                  <div className="text-lg font-medium mb-2">Schedule Preview</div>
-                  <div className="text-sm">
+                <div className="text-center">
+                  <div className="text-lg font-medium mb-2 text-foreground/90">Schedule Preview</div>
+                  <div className="text-sm text-foreground/70 dark:text-foreground/80">
                     Update the form to regenerate the schedule preview
                   </div>
                 </div>
@@ -382,6 +383,12 @@ export default function EditSchedulePage() {
             )}
           </div>
         </div>
+        
+        {/* Audit Trail Section */}
+        <AuditTrail 
+          scheduleId={scheduleId} 
+          isVisible={!!originalData}
+        />
       </div>
     </div>
   )
