@@ -130,7 +130,7 @@ export default function SidebarEntitySelector({
 
   if (isLoading) {
     return (
-      <div className="px-3 py-2 border-b">
+      <div className="px-2 py-2 border-b">
         <div className="flex items-center space-x-3 animate-pulse p-2">
           <div className="w-8 h-8 bg-muted rounded-lg"></div>
           <div className="flex-1">
@@ -144,7 +144,7 @@ export default function SidebarEntitySelector({
 
   if (!currentEntity && entities.length === 0) {
     return (
-      <div className="px-3 py-2 border-b">
+      <div className="px-2 py-2 border-b">
         <div className="flex items-center space-x-3 text-muted-foreground p-2">
           <Building2 className="h-4 w-4" />
           <span className="text-sm">No organisations</span>
@@ -154,7 +154,7 @@ export default function SidebarEntitySelector({
   }
 
   return (
-    <div className="px-3 py-2 border-b">
+    <div className="px-2 py-2 border-b">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -168,7 +168,7 @@ export default function SidebarEntitySelector({
           >
             <div className="flex items-center space-x-3 w-full">
               <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold transition-all duration-200",
+                "w-8 h-8 min-w-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold transition-all duration-200",
                 currentEntity ? getEntityColor(currentEntity) : 'bg-muted'
               )}>
                 {isEntitySwitching ? (
@@ -235,7 +235,7 @@ export default function SidebarEntitySelector({
               >
                 <div className="flex items-center space-x-3 w-full">
                   <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold",
+                    "w-8 h-8 min-w-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold",
                     getEntityColor(entity)
                   )}>
                     {getEntityInitials(entity.name)}
