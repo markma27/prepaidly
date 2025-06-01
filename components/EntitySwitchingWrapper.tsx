@@ -25,7 +25,7 @@ export function EntitySwitchingWrapper({
     if (entityParam && entityParam !== lastEntityId && lastEntityId) {
       setIsEntitySwitching(true)
       
-      // Show loading for a brief period
+      // Show loading for a brief period (synchronized with sidebar)
       const timer = setTimeout(() => {
         setIsEntitySwitching(false)
         setLastEntityId(entityParam)
@@ -49,7 +49,7 @@ export function EntitySwitchingWrapper({
                 <div className="flex flex-col items-center gap-4 text-muted-foreground">
                   <Loader2 className="h-8 w-8 animate-spin" />
                   <div className="text-center">
-                    <div className="text-lg font-medium mb-1">Switching organization...</div>
+                    <div className="text-lg font-medium mb-1">Switching organisation...</div>
                     <div className="text-sm">Loading dashboard data</div>
                   </div>
                 </div>

@@ -10,7 +10,7 @@ export function DashboardSkeleton() {
         <div className="flex items-center justify-center py-8">
           <div className="flex items-center gap-3 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="text-lg font-medium">Switching organization...</span>
+            <span className="text-lg font-medium">Switching organisation...</span>
           </div>
         </div>
       </div>

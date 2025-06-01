@@ -60,10 +60,23 @@ export default function SidebarEntitySelector({
     if (currentEntityId && entities.length > 0) {
       const entity = entities.find(e => e.id === currentEntityId)
       if (entity && entity.id !== currentEntity?.id) {
+        // Only update entity if not currently switching
+        if (!isEntitySwitching) {
+          setCurrentEntity(entity)
+        }
+      }
+    }
+  }, [currentEntityId, entities, currentEntity?.id, isEntitySwitching])
+
+  // Update entity when switching completes
+  useEffect(() => {
+    if (!isEntitySwitching && currentEntityId && entities.length > 0) {
+      const entity = entities.find(e => e.id === currentEntityId)
+      if (entity && entity.id !== currentEntity?.id) {
         setCurrentEntity(entity)
       }
     }
-  }, [currentEntityId, entities, currentEntity?.id])
+  }, [isEntitySwitching, currentEntityId, entities, currentEntity?.id])
 
   const fetchUserEntities = async () => {
     try {
@@ -96,7 +109,7 @@ export default function SidebarEntitySelector({
     
     const entity = entities.find(e => e.id === entityId)
     if (entity) {
-      setCurrentEntity(entity)
+      // Don't update currentEntity immediately - let it stay as current until loading completes
       setIsOpen(false)
       setSearchQuery('')
       

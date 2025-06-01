@@ -119,10 +119,10 @@ export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
       // Always navigate to dashboard when switching entities for better UX
       router.push(`/dashboard?entity=${entityId}`)
       
-      // Wait a bit more for the navigation to complete
+      // Wait for the navigation and dashboard loading to complete
       setTimeout(() => {
         setIsEntitySwitching(false)
-      }, 500)
+      }, 800)
     } catch (error) {
       console.error('Error switching entity:', error)
       setIsEntitySwitching(false)
