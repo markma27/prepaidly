@@ -32,12 +32,35 @@ export default function LoginPage() {
         if (error) throw error
         setError('Check your email for the confirmation link!')
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
         if (error) throw error
-        router.push('/dashboard')
+        
+        // After successful login, get user's last entity and redirect to appropriate dashboard
+        if (authData.user) {
+          try {
+            // Check for saved entity in localStorage first
+            let entityId = localStorage.getItem('selectedEntityId')
+            
+            // If no saved entity (first-time login), always go to Demo Company
+            if (!entityId) {
+              entityId = '00000000-0000-0000-0000-000000000001' // Demo Company
+              console.log('First-time login detected, redirecting to Demo Company')
+            }
+            
+            // Save to localStorage for future logins
+            localStorage.setItem('selectedEntityId', entityId)
+            
+            // Redirect to entity dashboard
+            router.push(`/dashboard?entity=${entityId}`)
+          } catch (entityError) {
+            console.error('Error during login redirect:', entityError)
+            // Fallback to basic dashboard (which will redirect to entity dashboard)
+            router.push('/dashboard')
+          }
+        }
       }
     } catch (error: any) {
       setError(error.message || 'An error occurred')

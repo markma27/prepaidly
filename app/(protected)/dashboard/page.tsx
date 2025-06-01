@@ -21,8 +21,14 @@ export default async function DashboardPage({
   // Await searchParams as required by Next.js 15
   const params = await searchParams
   
-  // Get the selected entity from URL params or default to Demo Company
-  let selectedEntityId = params.entity || '00000000-0000-0000-0000-000000000001'
+  // If no entity is specified, redirect to Demo Company (for first-time users)
+  if (!params.entity) {
+    // Always redirect to Demo Company for first-time access or direct dashboard access
+    const entityId = '00000000-0000-0000-0000-000000000001' // Demo Company
+    redirect(`/dashboard?entity=${entityId}`)
+  }
+
+  const selectedEntityId = params.entity
 
   // Verify user has access to the selected entity
   const { data: userAccess } = await supabase
@@ -33,7 +39,7 @@ export default async function DashboardPage({
     .eq('is_active', true)
     .single()
 
-  // If user doesn't have access, get their first available entity
+  // If user doesn't have access, get their first available entity and redirect
   if (!userAccess) {
     const { data: userEntities } = await supabase
       .from('entity_users')
@@ -43,7 +49,7 @@ export default async function DashboardPage({
       .limit(1)
 
     if (userEntities && userEntities.length > 0) {
-      selectedEntityId = userEntities[0].entity_id
+      redirect(`/dashboard?entity=${userEntities[0].entity_id}`)
     } else {
       // User has no entities - should not happen if migration worked
       redirect('/entities')
