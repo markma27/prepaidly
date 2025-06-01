@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { AppSidebar } from './app-sidebar'
+import { Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface User {
   id: string
@@ -28,6 +30,7 @@ export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
   const [currentEntityId, setCurrentEntityId] = useState<string>('')
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [isEntitySwitching, setIsEntitySwitching] = useState(false)
 
   useEffect(() => {
     // Get entity from URL params or localStorage
@@ -100,26 +103,60 @@ export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
     }
   }, [user?.id])
 
-  const handleEntityChange = (entityId: string) => {
+  const handleEntityChange = async (entityId: string) => {
     // Only proceed if different entity
     if (entityId === currentEntityId) return
     
-    // Update state immediately to prevent UI flash
-    setCurrentEntityId(entityId)
-    localStorage.setItem('selectedEntityId', entityId)
+    // Start loading state
+    setIsEntitySwitching(true)
     
-    // Always navigate to dashboard when switching entities for better UX
-    router.push(`/dashboard?entity=${entityId}`)
+    try {
+      // Update state immediately to prevent UI flash
+      setCurrentEntityId(entityId)
+      localStorage.setItem('selectedEntityId', entityId)
+      
+      // Add a small delay to show loading state
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Always navigate to dashboard when switching entities for better UX
+      router.push(`/dashboard?entity=${entityId}`)
+      
+      // Wait a bit more for the navigation to complete
+      setTimeout(() => {
+        setIsEntitySwitching(false)
+      }, 500)
+    } catch (error) {
+      console.error('Error switching entity:', error)
+      setIsEntitySwitching(false)
+    }
   }
 
   return (
-    <AppSidebar 
-      user={user}
-      userProfile={userProfile}
-      variant={variant}
-      currentEntityId={currentEntityId}
-      currentUserRole={currentUserRole}
-      onEntityChange={handleEntityChange}
-    />
+    <div className="relative">
+      {/* Loading overlay */}
+      {isEntitySwitching && (
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Switching organization...</span>
+          </div>
+        </div>
+      )}
+      
+      <div className={cn(
+        "transition-opacity duration-300",
+        isEntitySwitching ? "opacity-50" : "opacity-100"
+      )}>
+        <AppSidebar 
+          user={user}
+          userProfile={userProfile}
+          variant={variant}
+          currentEntityId={currentEntityId}
+          currentUserRole={currentUserRole}
+          onEntityChange={handleEntityChange}
+          isEntitySwitching={isEntitySwitching}
+        />
+      </div>
+    </div>
   )
 } 

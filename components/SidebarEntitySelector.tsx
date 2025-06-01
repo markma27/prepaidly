@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Badge } from '@/components/ui/badge'
-import { Building2, ChevronDown, Search, Plus, Settings, RefreshCw } from 'lucide-react'
+import { Building2, ChevronDown, Search, Plus, Settings, RefreshCw, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -26,11 +26,13 @@ interface Entity {
 interface SidebarEntitySelectorProps {
   currentEntityId?: string
   onEntityChange?: (entityId: string) => void
+  isEntitySwitching?: boolean
 }
 
 export default function SidebarEntitySelector({ 
   currentEntityId, 
-  onEntityChange 
+  onEntityChange,
+  isEntitySwitching 
 }: SidebarEntitySelectorProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -166,31 +168,44 @@ export default function SidebarEntitySelector({
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
+            disabled={isEntitySwitching}
             className={cn(
               "w-full justify-start p-2 h-auto hover:bg-accent/50",
-              "focus-visible:ring-1 focus-visible:ring-ring"
+              "focus-visible:ring-1 focus-visible:ring-ring",
+              isEntitySwitching && "opacity-50"
             )}
           >
             <div className="flex items-center space-x-3 w-full">
               <div className={cn(
-                "w-8 h-8 rounded-md flex items-center justify-center text-white text-xs font-semibold",
+                "w-8 h-8 rounded-md flex items-center justify-center text-white text-xs font-semibold transition-all duration-200",
                 currentEntity ? getEntityColor(currentEntity) : 'bg-muted'
               )}>
-                {currentEntity ? getEntityInitials(currentEntity.name) : '?'}
+                {isEntitySwitching ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                ) : (
+                  currentEntity ? getEntityInitials(currentEntity.name) : '?'
+                )}
               </div>
               <div className="flex-1 text-left">
                 <div className="font-medium text-sm text-foreground flex items-center gap-2">
-                  <span>
-                    {currentEntity?.name || (currentEntityId ? 'Loading...' : 'Select Organisation')}
+                  <span className="transition-opacity duration-200">
+                    {isEntitySwitching 
+                      ? 'Switching...' 
+                      : currentEntity?.name || (currentEntityId ? 'Loading...' : 'Select Organisation')
+                    }
                   </span>
-                  {currentEntity?.is_demo && (
-                    <Badge variant="secondary" className="text-xs h-4 px-1.5 bg-blue-100 text-blue-700 border-blue-200">
+                  {currentEntity?.is_demo && !isEntitySwitching && (
+                    <Badge variant="secondary" className="text-xs h-4 px-1.5 bg-blue-100 text-blue-700 border-blue-200 transition-opacity duration-200">
                       Demo
                     </Badge>
                   )}
                 </div>
               </div>
-              <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
+              {isEntitySwitching ? (
+                <Loader2 className="h-4 w-4 text-muted-foreground ml-auto animate-spin" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto transition-transform duration-200" />
+              )}
             </div>
           </Button>
         </PopoverTrigger>

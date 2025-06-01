@@ -45,9 +45,10 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   currentEntityId?: string
   currentUserRole?: string
   onEntityChange?: (entityId: string) => void
+  isEntitySwitching?: boolean
 }
 
-export function AppSidebar({ user, userProfile, currentEntityId, currentUserRole, onEntityChange, ...props }: AppSidebarProps) {
+export function AppSidebar({ user, userProfile, currentEntityId, currentUserRole, onEntityChange, isEntitySwitching, ...props }: AppSidebarProps) {
   // Create display name from profile data if available, otherwise fallback to user metadata or email
   const getDisplayName = () => {
     if (userProfile?.first_name && userProfile?.last_name) {
@@ -158,6 +159,7 @@ export function AppSidebar({ user, userProfile, currentEntityId, currentUserRole
         <SidebarEntitySelector 
           currentEntityId={currentEntityId}
           onEntityChange={onEntityChange}
+          isEntitySwitching={isEntitySwitching}
         />
         <NavMain items={data.navMain} currentEntityId={currentEntityId} />
         <div className="mt-auto">
