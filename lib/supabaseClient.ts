@@ -1,19 +1,27 @@
 import { createBrowserClient, createServerClient } from '@supabase/ssr'
 
-// Environment variables validation
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
-}
+// Get environment variables with fallbacks for build time
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
+// Only validate in runtime (not during build)
+const isBuildTime = process.env.NODE_ENV === 'production' && !process.env.VERCEL
+
+if (!isBuildTime) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
+  }
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  }
 }
 
 // Client-side Supabase client
 export const createClient = () => {
   return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    supabaseUrl,
+    supabaseAnonKey
   )
 }
 
@@ -23,8 +31,8 @@ export const createServerSupabaseClient = async () => {
   const cookieStore = await cookies()
   
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
