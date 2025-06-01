@@ -2,7 +2,11 @@ import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabaseClient'
 import EntityManagement from '@/components/EntityManagement'
 
-export default async function EntitiesPage() {
+export default async function EntitiesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ create?: string }>
+}) {
   const supabase = await createServerSupabaseClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -59,10 +63,14 @@ export default async function EntitiesPage() {
     console.warn('No entities found for user:', user.id)
   }
 
+  // Await searchParams as required by Next.js 15
+  const params = await searchParams
+
   return (
     <EntityManagement 
       entities={transformedEntities}
       userEmail={user.email || ''}
+      shouldOpenCreateDialog={params.create === 'true'}
     />
   )
 } 

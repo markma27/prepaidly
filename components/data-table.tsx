@@ -56,7 +56,7 @@ interface UserSettings {
   [key: string]: any
 }
 
-export function DataTable({ data, currencySymbol = '$', userSettings }: { data: Schedule[], currencySymbol?: string, userSettings?: UserSettings }) {
+export function DataTable({ data, currencySymbol = '$', userSettings, currentEntityId }: { data: Schedule[], currencySymbol?: string, userSettings?: UserSettings, currentEntityId?: string }) {
   const router = useRouter()
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "created_at", desc: true }
@@ -203,7 +203,7 @@ export function DataTable({ data, currencySymbol = '$', userSettings }: { data: 
           <div>
             <CardTitle>Recent Schedules</CardTitle>
             <CardDescription>
-              Your 7 most recently created prepayment and unearned revenue schedules
+              Your 5 most recently created prepayment and unearned revenue schedules
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -212,10 +212,10 @@ export function DataTable({ data, currencySymbol = '$', userSettings }: { data: 
                 View All
               </Button>
             </Link>
-            <Link href="/register" className="cursor-pointer">
+            <Link href={currentEntityId ? `/new-schedule?entity=${currentEntityId}` : '/new-schedule'} className="cursor-pointer">
               <Button size="sm" className="cursor-pointer">
                 <IconPlus className="mr-1 size-3" />
-                Go to Register
+                Create New Schedule
               </Button>
             </Link>
           </div>

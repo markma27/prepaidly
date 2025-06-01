@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Save, Check, AlertCircle, Settings, DollarSign, Clock, FileText, Zap, Plus, Trash2 } from 'lucide-react'
+import { Save, Check, AlertCircle, Settings, DollarSign, Clock, FileText, Zap, Plus, Trash2, Building2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 type AccountItem = {
@@ -33,6 +34,7 @@ type UserSettings = {
 
 interface SettingsFormProps {
   initialSettings: UserSettings
+  currentEntityId?: string
 }
 
 const currencies = [
@@ -62,7 +64,7 @@ const timezones = [
   'Pacific/Auckland',
 ]
 
-export default function SettingsForm({ initialSettings }: SettingsFormProps) {
+export default function SettingsForm({ initialSettings, currentEntityId }: SettingsFormProps) {
   const router = useRouter()
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
@@ -71,6 +73,13 @@ export default function SettingsForm({ initialSettings }: SettingsFormProps) {
     prepaid: { [key: string]: { name?: string; account?: string } }
     unearned: { [key: string]: { name?: string; account?: string } }
   }>({ prepaid: {}, unearned: {} })
+
+  // Entity information state
+  const [entityInfo, setEntityInfo] = useState({
+    name: '',
+    description: ''
+  })
+  const [isLoadingEntity, setIsLoadingEntity] = useState(true)
 
   const [settings, setSettings] = useState({
     currency: initialSettings?.currency || 'USD',
@@ -89,6 +98,33 @@ export default function SettingsForm({ initialSettings }: SettingsFormProps) {
       client_id: initialSettings?.xero_integration?.client_id || '',
     }
   })
+
+  // Fetch entity information
+  useEffect(() => {
+    if (currentEntityId) {
+      fetchEntityInfo()
+    }
+  }, [currentEntityId])
+
+  const fetchEntityInfo = async () => {
+    try {
+      const response = await fetch('/api/entities')
+      if (response.ok) {
+        const result = await response.json()
+        const entity = result.entities?.find((e: any) => e.id === currentEntityId)
+        if (entity) {
+          setEntityInfo({
+            name: entity.name || '',
+            description: entity.description || ''
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching entity info:', error)
+    } finally {
+      setIsLoadingEntity(false)
+    }
+  }
 
   // Helper functions for managing accounts
   const addPrepaidAccount = () => {
@@ -268,12 +304,35 @@ export default function SettingsForm({ initialSettings }: SettingsFormProps) {
     setSaveStatus('idle')
 
     try {
+      // Save entity information first
+      if (currentEntityId && (entityInfo.name.trim() || entityInfo.description.trim())) {
+        const entityResponse = await fetch(`/api/entities/${currentEntityId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: entityInfo.name.trim(),
+            description: entityInfo.description.trim()
+          }),
+        })
+
+        if (!entityResponse.ok) {
+          const entityResult = await entityResponse.json()
+          throw new Error(entityResult.error || 'Failed to save entity information')
+        }
+      }
+
+      // Save settings
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({
+          ...settings,
+          entityId: currentEntityId
+        }),
       })
 
       const result = await response.json()
@@ -283,7 +342,7 @@ export default function SettingsForm({ initialSettings }: SettingsFormProps) {
       }
 
       setSaveStatus('success')
-      setSaveMessage('Settings saved successfully')
+      setSaveMessage('Settings and entity information saved successfully')
       
       // Auto-hide success message after 3 seconds
       setTimeout(() => {
@@ -291,9 +350,9 @@ export default function SettingsForm({ initialSettings }: SettingsFormProps) {
       }, 3000)
 
     } catch (error: any) {
-      console.error('Error saving settings:', error)
+      console.error('Error saving:', error)
       setSaveStatus('error')
-      setSaveMessage(error.message || 'Failed to save settings. Please try again.')
+      setSaveMessage(error.message || 'Failed to save. Please try again.')
     } finally {
       setIsSaving(false)
     }
@@ -301,6 +360,85 @@ export default function SettingsForm({ initialSettings }: SettingsFormProps) {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+          <p className="text-muted-foreground">Manage your account preferences and integrations</p>
+        </div>
+        <Button 
+          onClick={handleSave}
+          disabled={isSaving || saveStatus === 'success'}
+          className="min-w-32"
+        >
+          {isSaving ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              Saving...
+            </>
+          ) : saveStatus === 'success' ? (
+            <>
+              <Check className="h-4 w-4 mr-2" />
+              Saved!
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Entity Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Entity Information
+          </CardTitle>
+          <CardDescription>
+            Manage your organization's basic information and description
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoadingEntity ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="h-4 w-20 bg-muted rounded animate-pulse"></div>
+                <div className="h-10 bg-muted rounded animate-pulse"></div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-muted rounded animate-pulse"></div>
+                <div className="h-20 bg-muted rounded animate-pulse"></div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="entity-name">Organization Name</Label>
+                <Input
+                  id="entity-name"
+                  value={entityInfo.name}
+                  onChange={(e) => setEntityInfo(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter your organization name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="entity-description">Description</Label>
+                <Textarea
+                  id="entity-description"
+                  value={entityInfo.description}
+                  onChange={(e) => setEntityInfo(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Brief description of your organization (optional)"
+                  rows={3}
+                />
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Currency & Localization */}
       <Card>
         <CardHeader>
@@ -536,31 +674,7 @@ export default function SettingsForm({ initialSettings }: SettingsFormProps) {
         </CardContent>
       </Card>
 
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <Button 
-          onClick={handleSave}
-          disabled={isSaving || saveStatus === 'success'}
-          className="min-w-32"
-        >
-          {isSaving ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Saving...
-            </>
-          ) : saveStatus === 'success' ? (
-            <>
-              <Check className="h-4 w-4 mr-2" />
-              Saved!
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Save Settings
-            </>
-          )}
-        </Button>
-      </div>
+
 
       {/* Status Messages */}
       {saveStatus === 'success' && (

@@ -57,12 +57,39 @@ export default async function DashboardPage({
     .eq('entity_id', selectedEntityId)
     .order('created_at', { ascending: false })
 
-  // Fetch user's settings for currency display and account lookup
-  const { data: userSettings } = await supabase
-    .from('user_settings')
+  // Fetch entity-specific settings for currency display and account lookup
+  let { data: userSettings, error: settingsError } = await supabase
+    .from('entity_settings')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('entity_id', selectedEntityId)
     .single()
+
+  // If entity settings don't exist, try to get user settings and migrate
+  if (settingsError && settingsError.code === 'PGRST116') {
+    const { data: oldUserSettings } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
+
+    if (oldUserSettings) {
+      // Create entity settings from user settings
+      const { data: newEntitySettings } = await supabase
+        .from('entity_settings')
+        .insert({
+          entity_id: selectedEntityId,
+          currency: oldUserSettings.currency,
+          timezone: oldUserSettings.timezone,
+          prepaid_accounts: oldUserSettings.prepaid_accounts,
+          unearned_accounts: oldUserSettings.unearned_accounts,
+          xero_integration: oldUserSettings.xero_integration,
+        })
+        .select()
+        .single()
+
+      userSettings = newEntitySettings
+    }
+  }
 
   const userCurrency = userSettings?.currency || 'USD'
   // Map currency to symbol
@@ -79,7 +106,7 @@ export default async function DashboardPage({
   const currencySymbol = currencySymbols[userCurrency] || '$'
 
   // Get recent schedules for data table
-  const recentSchedules = schedules?.slice(0, 7) || []
+  const recentSchedules = schedules?.slice(0, 5) || []
 
   return (
     <DashboardWithEntitySelector 

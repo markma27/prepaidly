@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Badge } from '@/components/ui/badge'
-import { Building2, ChevronDown, Search, Plus, Settings } from 'lucide-react'
+import { Building2, ChevronDown, Search, Plus, Settings, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -44,12 +44,24 @@ export default function SidebarEntitySelector({
     fetchUserEntities()
   }, [])
 
+  // Add a window focus listener to refresh entities when user returns to tab
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchUserEntities()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [])
+
   useEffect(() => {
     if (currentEntityId && entities.length > 0) {
       const entity = entities.find(e => e.id === currentEntityId)
-      setCurrentEntity(entity || null)
+      if (entity && entity.id !== currentEntity?.id) {
+        setCurrentEntity(entity)
+      }
     }
-  }, [currentEntityId, entities])
+  }, [currentEntityId, entities, currentEntity?.id])
 
   const fetchUserEntities = async () => {
     try {
@@ -142,7 +154,7 @@ export default function SidebarEntitySelector({
       <div className="px-3 py-2">
         <div className="flex items-center space-x-3 text-muted-foreground">
           <Building2 className="h-4 w-4" />
-          <span className="text-sm">No organizations</span>
+          <span className="text-sm">No organisations</span>
         </div>
       </div>
     )
@@ -167,15 +179,12 @@ export default function SidebarEntitySelector({
                 {currentEntity ? getEntityInitials(currentEntity.name) : '?'}
               </div>
               <div className="flex-1 text-left">
-                <div className="font-medium text-sm text-foreground">
-                  {currentEntity?.name || 'Select Organization'}
-                </div>
-                <div className="flex items-center space-x-1">
-                  <span className="text-xs text-muted-foreground">
-                    {currentEntity?.is_demo ? 'Demo Company' : currentEntity?.role}
+                <div className="font-medium text-sm text-foreground flex items-center gap-2">
+                  <span>
+                    {currentEntity?.name || (currentEntityId ? 'Loading...' : 'Select Organisation')}
                   </span>
                   {currentEntity?.is_demo && (
-                    <Badge variant="secondary" className="text-xs h-4 px-1">
+                    <Badge variant="secondary" className="text-xs h-4 px-1.5 bg-blue-100 text-blue-700 border-blue-200">
                       Demo
                     </Badge>
                   )}
@@ -187,14 +196,24 @@ export default function SidebarEntitySelector({
         </PopoverTrigger>
         <PopoverContent className="w-80 p-0" align="start" side="right">
           <div className="p-3 border-b">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search organizations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search organisations..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchUserEntities()}
+                className="px-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
             </div>
           </div>
           <div className="max-h-64 overflow-y-auto">
@@ -216,13 +235,10 @@ export default function SidebarEntitySelector({
                     {getEntityInitials(entity.name)}
                   </div>
                   <div className="flex-1 text-left">
-                    <div className="font-medium text-sm">{entity.name}</div>
-                    <div className="flex items-center space-x-1">
-                      <span className="text-xs text-muted-foreground">
-                        {entity.is_demo ? 'Demo Company' : entity.role}
-                      </span>
+                    <div className="font-medium text-sm flex items-center gap-2">
+                      <span>{entity.name}</span>
                       {entity.is_demo && (
-                        <Badge variant="secondary" className="text-xs h-4 px-1">
+                        <Badge variant="secondary" className="text-xs h-4 px-1.5 bg-blue-100 text-blue-700 border-blue-200">
                           Demo
                         </Badge>
                       )}
@@ -233,23 +249,28 @@ export default function SidebarEntitySelector({
             ))}
             {filteredEntities.length === 0 && (
               <div className="p-3 text-center text-sm text-muted-foreground">
-                No organizations found
+                No organisations found
               </div>
             )}
           </div>
           <div className="border-t p-2 space-y-1">
-            <Link href="/entities" onClick={() => setIsOpen(false)}>
+            <Link href="/entities" onClick={() => setIsOpen(false)} className="cursor-pointer">
               <Button variant="ghost" className="w-full justify-start text-sm">
                 <Settings className="h-4 w-4 mr-2" />
-                Manage organizations
+                Manage organisations
               </Button>
             </Link>
-            <Link href="/entities" onClick={() => setIsOpen(false)}>
-              <Button variant="ghost" className="w-full justify-start text-sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add new organization
-              </Button>
-            </Link>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start text-sm"
+              onClick={() => {
+                setIsOpen(false)
+                router.push('/entities?create=true')
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add new organisation
+            </Button>
           </div>
         </PopoverContent>
       </Popover>

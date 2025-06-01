@@ -57,7 +57,11 @@ export default function EditSchedulePage() {
   useEffect(() => {
     const fetchUserSettings = async () => {
       try {
-        const response = await fetch('/api/settings')
+        // Get current entity from URL
+        const urlParams = new URLSearchParams(window.location.search)
+        const entityId = urlParams.get('entity') || '00000000-0000-0000-0000-000000000001'
+        
+        const response = await fetch(`/api/settings?entity=${entityId}`)
         if (response.ok) {
           const result = await response.json()
           const settings = result.settings

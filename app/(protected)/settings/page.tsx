@@ -1,17 +1,86 @@
+import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabaseClient'
 import SettingsForm from '@/components/SettingsForm'
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ entity?: string }>
+}) {
   const supabase = await createServerSupabaseClient()
   
   const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    redirect('/login')
+  }
 
-  // Fetch user settings
-  const { data: userSettings, error } = await supabase
-    .from('user_settings')
-    .select('*')
-    .eq('user_id', user?.id)
+  // Await searchParams as required by Next.js 15
+  const params = await searchParams
+  
+  // Get the selected entity from URL params or default to Demo Company
+  let selectedEntityId = params.entity || '00000000-0000-0000-0000-000000000001'
+
+  // Verify user has access to the selected entity
+  const { data: userAccess } = await supabase
+    .from('entity_users')
+    .select('id')
+    .eq('entity_id', selectedEntityId)
+    .eq('user_id', user.id)
+    .eq('is_active', true)
     .single()
+
+  // If user doesn't have access, get their first available entity
+  if (!userAccess) {
+    const { data: userEntities } = await supabase
+      .from('entity_users')
+      .select('entity_id')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .limit(1)
+
+    if (userEntities && userEntities.length > 0) {
+      selectedEntityId = userEntities[0].entity_id
+    } else {
+      // User has no entities - should not happen if migration worked
+      redirect('/entities')
+    }
+  }
+
+  // Fetch entity-specific settings
+  let { data: userSettings, error } = await supabase
+    .from('entity_settings')
+    .select('*')
+    .eq('entity_id', selectedEntityId)
+    .single()
+
+  // If entity settings don't exist, try to get user settings and migrate
+  if (error && error.code === 'PGRST116') {
+    const { data: oldUserSettings } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', user?.id)
+      .single()
+
+    if (oldUserSettings) {
+      // Create entity settings from user settings
+      const { data: newEntitySettings } = await supabase
+        .from('entity_settings')
+        .insert({
+          entity_id: selectedEntityId,
+          currency: oldUserSettings.currency,
+          timezone: oldUserSettings.timezone,
+          prepaid_accounts: oldUserSettings.prepaid_accounts,
+          unearned_accounts: oldUserSettings.unearned_accounts,
+          xero_integration: oldUserSettings.xero_integration,
+        })
+        .select()
+        .single()
+
+      userSettings = newEntitySettings
+      error = null
+    }
+  }
 
   if (error && error.code !== 'PGRST116') {
     console.error('Error fetching user settings:', error)
@@ -37,12 +106,8 @@ export default async function SettingsPage() {
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
       <div className="px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-          <p className="text-muted-foreground">Manage your account preferences and integrations</p>
-        </div>
         <div className="max-w-4xl">
-          <SettingsForm initialSettings={userSettings} />
+          <SettingsForm initialSettings={userSettings} currentEntityId={selectedEntityId} />
         </div>
       </div>
     </div>

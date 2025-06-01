@@ -97,6 +97,7 @@ export default function DashboardWithEntitySelector({
           data={recentSchedules} 
           currencySymbol={currencySymbol}
           userSettings={userSettings || undefined}
+          currentEntityId={currentEntityId}
         />
       </div>
     </div>

@@ -1,27 +1,63 @@
 # Prepaidly.io
 
-A SaaS tool for managing prepayment & unearned revenue schedules. Built with Next.js 14, TypeScript, Tailwind CSS, and Supabase.
+A **multi-tenant SaaS application** for managing prepayment & unearned revenue schedules. Built with Next.js 14, TypeScript, Tailwind CSS, and Supabase with enterprise-grade security.
+
+## 🏢 Multi-Tenant SaaS Architecture
+
+**Prepaidly.io is designed as a multi-tenant SaaS platform** where multiple organizations (entities) and their users share the same infrastructure while maintaining complete data isolation and security. Every feature is built with multi-tenancy and data security as core requirements.
+
+## 🔒 Security & Data Isolation
+
+**SECURITY IS OUR TOP PRIORITY** - This application handles sensitive financial data for multiple organizations:
+
+- **Complete tenant isolation** - Organizations cannot access each other's data
+- **Row-level security** on all database operations  
+- **Entity-based access controls** at all application layers
+- **Encrypted data** at rest and in transit
+- **Comprehensive audit trails** for compliance
+- **Role-based permissions** (Super Admin, Admin, User) per entity
 
 ## Features
 
-- 🔐 **Authentication**: Secure user authentication with Supabase
+- 🔐 **Multi-Tenant Authentication**: Secure organization-based user authentication with Supabase
+- 🏢 **Entity Management**: Organizations can manage multiple entities/subsidiaries with proper isolation
+- 👥 **Role-Based Access Control**: Granular permissions (Super Admin, Admin, User) per entity
 - 📊 **Schedule Generation**: Create straight-line amortization schedules for prepayments and unearned revenue
-- 📋 **Interactive Forms**: User-friendly forms with validation using React Hook Form and Zod
-- 📈 **Schedule Preview**: Real-time preview of generated schedules in a table format
-- 📥 **CSV Export**: Download schedules as CSV files for record keeping
+- 📋 **Secure Forms**: User-friendly forms with validation using React Hook Form and Zod
+- 📈 **Entity-Scoped Preview**: Real-time preview of generated schedules with proper data isolation
+- 📥 **Secure CSV Export**: Download entity-specific schedules with access controls
 - 🎨 **Modern UI**: Beautiful interface built with Tailwind CSS and shadcn/ui components
+- 🔍 **Audit Trails**: Complete logging of user actions for compliance requirements
 
 ## Tech Stack
 
 - **Framework**: Next.js 14 with App Router
-- **Language**: TypeScript
+- **Language**: TypeScript (strict mode)
 - **Styling**: Tailwind CSS
 - **UI Components**: shadcn/ui
-- **Database**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth
+- **Database**: Supabase (PostgreSQL) with Row-Level Security (RLS)
+- **Authentication**: Supabase Auth with multi-tenant support
 - **Form Handling**: React Hook Form
 - **Validation**: Zod
 - **Date Handling**: date-fns
+- **Security**: PostgreSQL RLS, encrypted data, secure session management
+
+## 🚨 Important Security Notes
+
+### For Developers
+- **Every new component MUST implement proper entity-based access controls**
+- **All database queries MUST use Row-Level Security policies**
+- **User permissions MUST be validated at every layer (UI, API, Database)**
+- **Data exports MUST be scoped to the current entity only**
+- **No feature ships without security review and testing**
+
+### Multi-Tenant Considerations
+When developing new features, always consider:
+1. **Data Isolation**: Can one organization access another's data?
+2. **Entity Context**: Is the current entity properly enforced?
+3. **Permission Validation**: Are user roles properly checked?
+4. **Audit Logging**: Are actions properly logged for compliance?
+5. **Export Security**: Are downloads properly scoped and secure?
 
 ## Getting Started
 
@@ -29,7 +65,7 @@ A SaaS tool for managing prepayment & unearned revenue schedules. Built with Nex
 
 - Node.js 18+ 
 - npm or yarn
-- A Supabase account
+- A Supabase account with proper security configuration
 
 ### Installation
 
@@ -44,10 +80,12 @@ A SaaS tool for managing prepayment & unearned revenue schedules. Built with Nex
    npm install
    ```
 
-3. **Set up Supabase**
+3. **Set up Supabase with Security**
    - Create a new project at [supabase.com](https://supabase.com)
+   - **CRITICAL**: Enable Row Level Security on all tables
    - Go to Settings > API to get your project URL and anon key
    - Run the SQL schema from `schema.sql` in your Supabase SQL editor
+   - **Verify RLS policies are properly configured**
 
 4. **Configure environment variables**
    Create a `.env.local` file in the root directory:
@@ -64,60 +102,102 @@ A SaaS tool for managing prepayment & unearned revenue schedules. Built with Nex
 6. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
 
-## Database Schema
+## Database Schema & Security
 
-The application uses two main tables:
+The application uses a **multi-tenant architecture** with strict data isolation:
 
-### `schedules`
-- Stores the main schedule information (vendor, dates, amounts, etc.)
-- Links to authenticated users via `user_id`
+### Core Tables
+- **`entities`** - Organizations/companies using the platform
+- **`entity_users`** - User memberships and roles within entities  
+- **`entity_settings`** - Entity-specific configuration and preferences
+- **`schedules`** - Schedule information scoped to specific entities
+- **`schedule_entries`** - Individual period entries linked to schedules
 
-### `schedule_entries`
-- Stores individual period entries for each schedule
-- Contains period date, amount, cumulative, and remaining values
+### Security Implementation
+- **Row Level Security (RLS)** enabled on ALL tables
+- **Entity-based isolation** - users can only access data for their entities
+- **Role-based permissions** enforced at database and application levels
+- **Audit trails** for all data modifications
+- **Encrypted storage** for sensitive financial data
 
-Row Level Security (RLS) is enabled to ensure users can only access their own data.
+### 🔒 RLS Policy Examples
+```sql
+-- Users can only view schedules for entities they belong to
+CREATE POLICY "Entity isolation for schedules" ON schedules
+  FOR ALL USING (
+    entity_id IN (
+      SELECT entity_id FROM entity_users 
+      WHERE user_id = auth.uid() AND is_active = true
+    )
+  );
+```
 
 ## Usage
 
 1. **Sign Up/Login**: Create an account or sign in with existing credentials
-2. **Create Schedule**: Click "New Schedule" from the dashboard
-3. **Fill Details**: Enter vendor information, dates, and amounts
-4. **Generate**: Click "Generate Schedule" to create the amortization schedule
-5. **Preview**: Review the generated schedule in the table
-6. **Download**: Export the schedule as a CSV file
+2. **Select Entity**: Choose the organization/entity you want to work with
+3. **Create Schedule**: Click "New Schedule" from the entity-specific dashboard
+4. **Fill Details**: Enter vendor information, dates, and amounts
+5. **Generate**: Click "Generate Schedule" to create the amortization schedule
+6. **Preview**: Review the generated schedule with entity context
+7. **Download**: Export the schedule as a CSV file (entity-scoped)
 
 ## Project Structure
 
 ```
 ├── app/
 │   ├── (auth)/
-│   │   └── login/page.tsx          # Authentication page
+│   │   └── login/page.tsx              # Multi-tenant authentication
 │   ├── (protected)/
-│   │   └── new-schedule/page.tsx   # New schedule creation
+│   │   ├── dashboard/page.tsx          # Entity-specific dashboard
+│   │   ├── entities/page.tsx           # Entity management
+│   │   ├── new-schedule/page.tsx       # Secure schedule creation
+│   │   ├── register/page.tsx           # Entity-scoped schedule registry
+│   │   └── settings/page.tsx           # Entity settings management
 │   ├── api/
-│   │   ├── auth/logout/route.ts    # Logout endpoint
-│   │   └── download-csv/route.ts   # CSV download endpoint
-│   ├── dashboard/page.tsx          # Main dashboard
-│   └── page.tsx                    # Home page (redirects)
+│   │   ├── entities/route.ts           # Entity management API
+│   │   ├── settings/route.ts           # Entity settings API
+│   │   └── schedules/route.ts          # Schedule management API
 ├── components/
-│   ├── ui/                         # shadcn/ui components
-│   ├── NewScheduleForm.tsx         # Schedule creation form
-│   └── ScheduleTable.tsx           # Schedule display table
+│   ├── ui/                             # shadcn/ui components
+│   ├── EntityManagement.tsx           # Multi-tenant entity management
+│   ├── SidebarEntitySelector.tsx      # Secure entity switching
+│   ├── SettingsForm.tsx               # Entity-specific settings
+│   └── NewScheduleForm.tsx             # Secure schedule creation
 ├── lib/
-│   ├── supabaseClient.ts           # Supabase configuration
-│   ├── generateStraightLineSchedule.ts  # Schedule generation logic
-│   └── utils.ts                    # Utility functions
-└── schema.sql                      # Database schema
+│   ├── supabaseClient.ts               # Multi-tenant Supabase config
+│   ├── generateStraightLineSchedule.ts # Calculation logic
+│   └── utils.ts                        # Utility functions
+└── docs/
+    └── PRD-prepaidly.md                # Product requirements with security focus
 ```
+
+## 🔒 Security Best Practices for Contributors
+
+### Code Review Checklist
+- [ ] Are all database queries using RLS policies?
+- [ ] Is entity context properly validated?
+- [ ] Are user permissions checked at all layers?
+- [ ] Is sensitive data properly encrypted?
+- [ ] Are audit logs generated for data access?
+- [ ] Is the feature tested for data isolation?
+
+### Development Guidelines
+1. **Always use entity-scoped queries** - Never query across entities
+2. **Validate permissions at every endpoint** - Don't trust client-side checks
+3. **Log all data access and modifications** - Required for audit compliance
+4. **Test with multiple entities** - Ensure proper data isolation
+5. **Review security implications** - Consider attack vectors and data leakage
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. **Ensure security requirements are met** - Review the security checklist
+4. **Test multi-tenant isolation** - Verify no cross-entity data access
+5. Commit your changes (`git commit -m 'Add some amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request with security considerations documented
 
 ## License
 
@@ -126,3 +206,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 For support, email support@prepaidly.io or create an issue in this repository.
+
+**🔒 Security Issues**: Report security vulnerabilities privately to security@prepaidly.io

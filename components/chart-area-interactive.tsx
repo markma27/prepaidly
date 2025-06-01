@@ -148,10 +148,6 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                   barCategoryGap="10%"
                 >
                   <defs>
-                    <linearGradient id="prepaidGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                      <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.4}/>
-                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                   <XAxis 
@@ -165,7 +161,7 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                     interval={0}
                   />
                   <YAxis 
-                    tick={{ fontSize: 8, fill: axisTextColor }}
+                    tick={{ fontSize: 9, fill: axisTextColor }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(value) => {
@@ -180,8 +176,13 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                   />
                   <Bar 
                     dataKey="prepaid_balance" 
-                    fill="url(#prepaidGradient)"
+                    fill="rgba(59, 130, 246, 0.3)"
+                    stroke="#3b82f6"
+                    strokeWidth={1}
                     radius={[4, 4, 0, 0]}
+                    animationBegin={0}
+                    animationDuration={400}
+                    animationEasing="ease-out"
                   />
                   <Tooltip
                     formatter={(value: any, name: any) => {
@@ -190,7 +191,7 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                     labelFormatter={(label: any) => label}
                     contentStyle={{
                       backgroundColor: isDark ? 'rgba(39, 39, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                      color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
+                      color: isDark ? '#ffffff' : '#1f2937',
                       border: isDark ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(0, 0, 0, 0.2)',
                       borderRadius: '8px',
                       boxShadow: isDark ? '0 8px 32px rgba(0, 0, 0, 0.6)' : '0 8px 32px rgba(0, 0, 0, 0.15)',
@@ -199,13 +200,19 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                       padding: '8px 12px',
                       backdropFilter: 'blur(8px)'
                     }}
+                    itemStyle={{
+                      color: isDark ? '#ffffff' : '#1f2937'
+                    }}
+                    labelStyle={{
+                      color: isDark ? '#ffffff' : '#1f2937'
+                    }}
                     cursor={false}
                   />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+            <div className="flex h-[260px] items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <div className="text-lg font-medium mb-2">No prepaid expenses</div>
                 <div className="text-sm">Create a prepaid expense schedule to see projections</div>
@@ -238,10 +245,6 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                   barCategoryGap="10%"
                 >
                   <defs>
-                    <linearGradient id="unearnedGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22c55e" stopOpacity={0.8}/>
-                      <stop offset="100%" stopColor="#4ade80" stopOpacity={0.4}/>
-                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                   <XAxis 
@@ -255,7 +258,7 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                     interval={0}
                   />
                   <YAxis 
-                    tick={{ fontSize: 8, fill: axisTextColor }}
+                    tick={{ fontSize: 9, fill: axisTextColor }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(value) => {
@@ -270,8 +273,13 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                   />
                   <Bar 
                     dataKey="unearned_balance" 
-                    fill="url(#unearnedGradient)"
+                    fill="rgba(34, 197, 94, 0.3)"
+                    stroke="#22c55e"
+                    strokeWidth={1}
                     radius={[4, 4, 0, 0]}
+                    animationBegin={0}
+                    animationDuration={400}
+                    animationEasing="ease-out"
                   />
                   <Tooltip
                     formatter={(value: any, name: any) => {
@@ -280,7 +288,7 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                     labelFormatter={(label: any) => label}
                     contentStyle={{
                       backgroundColor: isDark ? 'rgba(39, 39, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                      color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
+                      color: isDark ? '#ffffff' : '#1f2937',
                       border: isDark ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(0, 0, 0, 0.2)',
                       borderRadius: '8px',
                       boxShadow: isDark ? '0 8px 32px rgba(0, 0, 0, 0.6)' : '0 8px 32px rgba(0, 0, 0, 0.15)',
@@ -289,13 +297,19 @@ export function ChartAreaInteractive({ schedules, currency = 'USD', currencySymb
                       padding: '8px 12px',
                       backdropFilter: 'blur(8px)'
                     }}
+                    itemStyle={{
+                      color: isDark ? '#ffffff' : '#1f2937'
+                    }}
+                    labelStyle={{
+                      color: isDark ? '#ffffff' : '#1f2937'
+                    }}
                     cursor={false}
                   />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+            <div className="flex h-[260px] items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <div className="text-lg font-medium mb-2">No unearned revenue</div>
                 <div className="text-sm">Create an unearned revenue schedule to see projections</div>

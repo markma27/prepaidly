@@ -138,7 +138,7 @@ export default function EntitySelector({
       </div>
       
       {showManageButton && (
-        <Link href="/entities">
+        <Link href="/entities" className="cursor-pointer">
           <Button variant="outline" size="sm" className="h-8 w-8 p-0">
             <Settings className="h-4 w-4" />
             <span className="sr-only">Manage entities</span>

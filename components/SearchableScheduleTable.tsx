@@ -239,7 +239,7 @@ export default function SearchableScheduleTable({
                 <p className="text-sm text-muted-foreground mb-4 max-w-sm">
                   Get started by creating your first prepayment or unearned revenue schedule.
                 </p>
-                <Link href="/register">
+                <Link href="/register" className="cursor-pointer">
                   <Button>
                     Go to Register
                   </Button>

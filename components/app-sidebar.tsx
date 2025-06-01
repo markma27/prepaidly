@@ -134,9 +134,9 @@ export function AppSidebar({ user, currentEntityId, onEntityChange, ...props }: 
               Reports (Coming Soon)
             </h4>
           </div>
-          <NavSecondary items={data.reports} />
+          <NavSecondary items={data.reports} currentEntityId={currentEntityId} />
         </div>
-        <NavSecondary items={data.navSecondary} className="mt-4" />
+        <NavSecondary items={data.navSecondary} currentEntityId={currentEntityId} className="mt-4" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

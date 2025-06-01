@@ -104,7 +104,7 @@ export default function AuditTrail({ scheduleId, isVisible = false }: AuditTrail
       <CardContent className="p-0">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors border-b border-border/50"
+          className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors border-b border-border/50 cursor-pointer"
         >
           <div className="flex items-center gap-2">
             {isExpanded ? (

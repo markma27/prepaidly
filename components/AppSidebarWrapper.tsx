@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { AppSidebar } from './app-sidebar'
 
 interface User {
@@ -17,6 +17,8 @@ interface AppSidebarWrapperProps {
 
 export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   const [currentEntityId, setCurrentEntityId] = useState<string>('')
 
   useEffect(() => {
@@ -42,15 +44,12 @@ export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
     // Only proceed if different entity
     if (entityId === currentEntityId) return
     
+    // Update state immediately to prevent UI flash
     setCurrentEntityId(entityId)
     localStorage.setItem('selectedEntityId', entityId)
     
-    // Navigate to current page with new entity using Next.js router
-    const currentPath = window.location.pathname
-    const newUrl = `${currentPath}?entity=${entityId}`
-    
-    // Force a page navigation to refresh with new entity data
-    window.location.href = newUrl
+    // Always navigate to dashboard when switching entities for better UX
+    router.push(`/dashboard?entity=${entityId}`)
   }
 
   return (

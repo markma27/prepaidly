@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,6 +13,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import * as DialogPrimitives from '@/components/ui/dialog'
 
 const {
@@ -41,9 +49,10 @@ interface Entity {
 interface EntityManagementProps {
   entities: Entity[]
   userEmail: string
+  shouldOpenCreateDialog?: boolean
 }
 
-export default function EntityManagement({ entities, userEmail }: EntityManagementProps) {
+export default function EntityManagement({ entities, userEmail, shouldOpenCreateDialog }: EntityManagementProps) {
   const router = useRouter()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
@@ -52,6 +61,13 @@ export default function EntityManagement({ entities, userEmail }: EntityManageme
     name: '',
     description: ''
   })
+
+  // Open create dialog if shouldOpenCreateDialog is true
+  useEffect(() => {
+    if (shouldOpenCreateDialog) {
+      setIsCreateDialogOpen(true)
+    }
+  }, [shouldOpenCreateDialog])
 
   const handleCreateEntity = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -121,7 +137,7 @@ export default function EntityManagement({ entities, userEmail }: EntityManageme
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Entity Management</h1>
-            <p className="text-muted-foreground">Manage your organizations and team access</p>
+            <p className="text-muted-foreground">Manage your organisations and team access</p>
           </div>
           
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -136,7 +152,7 @@ export default function EntityManagement({ entities, userEmail }: EntityManageme
                 <DialogHeader>
                   <DialogTitle>Create New Entity</DialogTitle>
                   <DialogDescription>
-                    Create a new organization or company entity. You'll be the super admin.
+                    Create a new organisation or company entity. You'll be the super admin.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -155,7 +171,7 @@ export default function EntityManagement({ entities, userEmail }: EntityManageme
                     <Label htmlFor="description">Description</Label>
                     <Textarea
                       id="description"
-                      placeholder="Brief description of your organization..."
+                      placeholder="Brief description of your organisation..."
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={3}
@@ -185,90 +201,102 @@ export default function EntityManagement({ entities, userEmail }: EntityManageme
           </Dialog>
         </div>
 
-        {/* Entities Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {entities.map((entity) => (
-            <Card key={entity.id} className="relative">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-muted rounded-lg">
-                      <Building2 className="h-5 w-5 text-foreground" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{entity.name}</CardTitle>
-                      <CardDescription className="text-sm">{entity.slug}</CardDescription>
-                    </div>
-                  </div>
-                  {entity.is_demo && (
-                    <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">
-                      Demo
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {entity.description && (
-                  <p className="text-sm text-muted-foreground mb-4">{entity.description}</p>
-                )}
-                
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Your Role</span>
-                    <div className="flex items-center space-x-2">
-                      {getRoleIcon(entity.role)}
-                      <Badge className={getRoleBadgeColor(entity.role)}>
-                        {entity.role.replace('_', ' ')}
-                      </Badge>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Joined</span>
-                    <span className="text-sm">
-                      {new Date(entity.joined_at).toLocaleDateString('en-GB', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Created</span>
-                    <span className="text-sm">
-                      {new Date(entity.created_at).toLocaleDateString('en-GB', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-4 border-t">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full"
-                    onClick={() => router.push(`/dashboard?entity=${entity.id}`)}
-                  >
-                    Switch to this entity
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {entities.length === 0 && (
+        {/* Entities Table */}
+        {entities.length > 0 ? (
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[300px] py-3 text-left pl-9">Entity</TableHead>
+                  <TableHead className="w-[100px] py-3 text-center">Status</TableHead>
+                  <TableHead className="w-[150px] py-3 text-center">Your Role</TableHead>
+                  <TableHead className="w-[120px] py-3 text-center">Joined</TableHead>
+                  <TableHead className="w-[120px] py-3 text-center">Created</TableHead>
+                  <TableHead className="w-[180px] py-3 text-center">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entities.map((entity) => (
+                  <TableRow key={entity.id} className="h-16">
+                    <TableCell className="py-4 pl-8">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex-shrink-0 p-2 bg-muted rounded-lg">
+                          <Building2 className="h-4 w-4 text-foreground" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-foreground truncate">{entity.name}</div>
+                          {entity.description && (
+                            <div className="text-xs text-muted-foreground mt-1 max-w-[250px] truncate" title={entity.description}>
+                              {entity.description}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-4">
+                      <div className="flex justify-center items-center">
+                        {entity.is_demo ? (
+                          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">
+                            Demo
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            Live
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-4">
+                      <div className="flex justify-center items-center space-x-2">
+                        {getRoleIcon(entity.role)}
+                        <Badge className={getRoleBadgeColor(entity.role)}>
+                          {entity.role.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-4">
+                      <div className="text-sm font-medium text-center">
+                        {new Date(entity.joined_at).toLocaleDateString('en-GB', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-4">
+                      <div className="text-sm font-medium text-center">
+                        {new Date(entity.created_at).toLocaleDateString('en-GB', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-4">
+                      <div className="flex justify-center items-center">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="hover:bg-primary hover:text-primary-foreground transition-colors"
+                          onClick={() => router.push(`/dashboard?entity=${entity.id}`)}
+                        >
+                          Switch to this entity
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        ) : (
           <Card className="p-8 text-center">
             <div className="flex flex-col items-center space-y-4">
               <Building2 className="h-12 w-12 text-muted-foreground" />
               <div>
                 <h3 className="text-lg font-medium">No entities found</h3>
                 <p className="text-muted-foreground">
-                  Create your first organization to get started
+                  Create your first organisation to get started
                 </p>
               </div>
               <Button onClick={() => setIsCreateDialogOpen(true)}>
