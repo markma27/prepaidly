@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
 import { DataTable } from "@/components/data-table"
 import { SectionCards } from "@/components/section-cards"
-import { DashboardSkeleton } from "@/components/DashboardSkeleton"
 import { cn } from '@/lib/utils'
 
 
@@ -49,26 +48,18 @@ export default function DashboardWithEntitySelector({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [currentEntityId, setCurrentEntityId] = useState(initialEntityId)
-  const [isContentLoading, setIsContentLoading] = useState(false)
 
   // Update entity from URL params
   useEffect(() => {
     const entityParam = searchParams.get('entity')
     if (entityParam && entityParam !== currentEntityId) {
-      setIsContentLoading(true)
-      
-      // Add a small delay to show the loading animation
-      setTimeout(() => {
-        setCurrentEntityId(entityParam)
-        setIsContentLoading(false)
-      }, 300)
+      setCurrentEntityId(entityParam)
     }
   }, [searchParams, currentEntityId])
 
   const handleEntityChange = (entityId: string) => {
     if (entityId === currentEntityId) return
     
-    setIsContentLoading(true)
     setCurrentEntityId(entityId)
     
     // Update URL with new entity
@@ -77,14 +68,9 @@ export default function DashboardWithEntitySelector({
     router.push(`/dashboard?${newSearchParams.toString()}`)
   }
 
-  // Show skeleton during loading
-  if (isContentLoading) {
-    return <DashboardSkeleton />
-  }
-
   return (
     <div className={cn(
-      "flex flex-col gap-4 py-4 md:gap-6 md:py-6 transition-all duration-500 animate-in fade-in"
+      "flex flex-col gap-4 py-4 md:gap-6 md:py-6"
     )}>
       {/* Header */}
       <div className="px-4 sm:px-6 lg:px-8">

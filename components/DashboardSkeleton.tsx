@@ -1,11 +1,22 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Loader2 } from "lucide-react"
 
 export function DashboardSkeleton() {
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-500">
-      {/* Header Skeleton */}
+      {/* Loading Message */}
       <div className="px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-center py-8">
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-lg font-medium">Switching organization...</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Header Skeleton */}
+      <div className="px-4 sm:px-6 lg:px-8 opacity-50">
         <div className="mb-6">
           <Skeleton className="h-8 w-32 mb-2" />
           <Skeleton className="h-4 w-96" />
@@ -13,7 +24,7 @@ export function DashboardSkeleton() {
       </div>
 
       {/* Cards Skeleton */}
-      <div className="px-4 sm:px-6 lg:px-8">
+      <div className="px-4 sm:px-6 lg:px-8 opacity-50">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i} className="animate-pulse">
@@ -31,7 +42,7 @@ export function DashboardSkeleton() {
       </div>
       
       {/* Chart Skeleton */}
-      <div className="px-4 sm:px-6 lg:px-8">
+      <div className="px-4 sm:px-6 lg:px-8 opacity-50">
         <Card className="animate-pulse">
           <CardHeader>
             <Skeleton className="h-6 w-48 mb-2" />
@@ -44,7 +55,7 @@ export function DashboardSkeleton() {
       </div>
       
       {/* Table Skeleton */}
-      <div className="px-4 sm:px-6 lg:px-8">
+      <div className="px-4 sm:px-6 lg:px-8 opacity-50">
         <Card className="animate-pulse">
           <CardHeader>
             <Skeleton className="h-6 w-40 mb-2" />

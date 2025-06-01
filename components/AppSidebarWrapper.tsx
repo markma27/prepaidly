@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { AppSidebar } from './app-sidebar'
-import { Loader2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface User {
   id: string
@@ -132,31 +130,14 @@ export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
   }
 
   return (
-    <div className="relative">
-      {/* Loading overlay */}
-      {isEntitySwitching && (
-        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Switching organization...</span>
-          </div>
-        </div>
-      )}
-      
-      <div className={cn(
-        "transition-opacity duration-300",
-        isEntitySwitching ? "opacity-50" : "opacity-100"
-      )}>
-        <AppSidebar 
-          user={user}
-          userProfile={userProfile}
-          variant={variant}
-          currentEntityId={currentEntityId}
-          currentUserRole={currentUserRole}
-          onEntityChange={handleEntityChange}
-          isEntitySwitching={isEntitySwitching}
-        />
-      </div>
-    </div>
+    <AppSidebar 
+      user={user}
+      userProfile={userProfile}
+      variant={variant}
+      currentEntityId={currentEntityId}
+      currentUserRole={currentUserRole}
+      onEntityChange={handleEntityChange}
+      isEntitySwitching={isEntitySwitching}
+    />
   )
 } 
