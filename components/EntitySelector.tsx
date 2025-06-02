@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -32,6 +33,7 @@ export default function EntitySelector({
   onEntityChange,
   showManageButton = true 
 }: EntitySelectorProps) {
+  const router = useRouter()
   const [entities, setEntities] = useState<Entity[]>([])
   const [currentEntity, setCurrentEntity] = useState<Entity | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -78,8 +80,8 @@ export default function EntitySelector({
       // Store the selected entity in localStorage for persistence
       localStorage.setItem('selectedEntityId', entityId)
       
-      // Refresh the page to load data for the new entity
-      window.location.reload()
+      // Navigate to dashboard with new entity instead of reloading page
+      router.push(`/dashboard?entity=${entityId}`)
     }
   }
 

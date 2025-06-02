@@ -12,10 +12,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { email, role, entityId } = await request.json()
+    const { email, firstName, lastName, role, entityId } = await request.json()
 
     // Validate input
-    if (!email || !role || !entityId) {
+    if (!email || !firstName || !lastName || !role || !entityId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -93,6 +93,8 @@ export async function POST(request: NextRequest) {
       .insert([{
         entity_id: entityId,
         email: email.toLowerCase(),
+        first_name: firstName,
+        last_name: lastName,
         role,
         invited_by: user.id,
         token,
@@ -117,6 +119,8 @@ export async function POST(request: NextRequest) {
     try {
       await sendInvitationEmail({
         email: email.toLowerCase(),
+        firstName,
+        lastName,
         token,
         entityName: entity?.name || 'Unknown Entity',
         role,
@@ -155,12 +159,16 @@ export async function POST(request: NextRequest) {
 // Placeholder function for sending invitation emails
 async function sendInvitationEmail({
   email,
+  firstName,
+  lastName,
   token,
   entityName,
   role,
   inviterName
 }: {
   email: string
+  firstName: string
+  lastName: string
   token: string
   entityName: string
   role: string
@@ -170,6 +178,8 @@ async function sendInvitationEmail({
   // For now, we'll just log the invitation details
   console.log('Invitation email would be sent:', {
     to: email,
+    firstName,
+    lastName,
     subject: `You're invited to join ${entityName} on Prepaidly.io`,
     invitationLink: `${process.env.NEXT_PUBLIC_APP_URL}/invite/${token}`,
     entityName,

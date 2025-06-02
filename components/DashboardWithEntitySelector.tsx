@@ -81,7 +81,7 @@ export default function DashboardWithEntitySelector({
       </div>
 
       {/* Dashboard Content */}
-      <div className="px-4 sm:px-6 lg:px-8 animate-in slide-in-from-bottom-4 duration-700 delay-100">
+      <div className="px-4 sm:px-6 lg:px-8">
         <SectionCards 
           schedules={schedules}
           currency={currency}
@@ -89,7 +89,7 @@ export default function DashboardWithEntitySelector({
         />
       </div>
       
-      <div className="px-4 sm:px-6 lg:px-8 animate-in slide-in-from-bottom-4 duration-700 delay-200">
+      <div className="px-4 sm:px-6 lg:px-8">
         <ChartAreaInteractive 
           schedules={schedules} 
           currency={currency}
@@ -97,7 +97,7 @@ export default function DashboardWithEntitySelector({
         />
       </div>
       
-      <div className="px-4 sm:px-6 lg:px-8 animate-in slide-in-from-bottom-4 duration-700 delay-300">
+      <div className="px-4 sm:px-6 lg:px-8">
         <DataTable 
           data={recentSchedules} 
           currencySymbol={currencySymbol}

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { type Icon } from "@tabler/icons-react"
-import Link from "next/link"
+import { SidebarLink } from "./SidebarLink"
 
 import {
   SidebarGroup,
@@ -41,12 +41,12 @@ export function NavSecondary({
                   <span>{item.title}</span>
                 </SidebarMenuButton>
               ) : (
-                <Link href={currentEntityId ? `${item.url}?entity=${currentEntityId}` : item.url}>
-                  <SidebarMenuButton tooltip={item.title} className="w-full">
+                <SidebarMenuButton asChild>
+                  <SidebarLink href={item.url} className="w-full">
                     <item.icon />
                     <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </Link>
+                  </SidebarLink>
+                </SidebarMenuButton>
               )}
             </SidebarMenuItem>
           ))}

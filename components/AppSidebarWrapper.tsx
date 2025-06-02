@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { AppSidebar } from './app-sidebar'
+import { withAuthErrorHandling } from '@/lib/authErrorHandler'
 
 interface User {
   id: string
@@ -51,7 +52,7 @@ export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
     const fetchUserRole = async () => {
       if (!currentEntityId || !user?.id) return
       
-      try {
+      await withAuthErrorHandling(async () => {
         const response = await fetch(`/api/users/role-info?entityId=${currentEntityId}`)
         if (response.ok) {
           const result = await response.json()
@@ -59,10 +60,10 @@ export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
         } else {
           setCurrentUserRole('')
         }
-      } catch (error) {
+      }).catch(error => {
         console.error('Error fetching user role:', error)
         setCurrentUserRole('')
-      }
+      })
     }
 
     fetchUserRole()
@@ -73,15 +74,15 @@ export function AppSidebarWrapper({ user, variant }: AppSidebarWrapperProps) {
     const fetchUserProfile = async () => {
       if (!user?.id) return
       
-      try {
+      await withAuthErrorHandling(async () => {
         const response = await fetch('/api/users/profile-info')
         if (response.ok) {
           const result = await response.json()
           setUserProfile(result.profile)
         }
-      } catch (error) {
+      }).catch(error => {
         console.error('Error fetching user profile:', error)
-      }
+      })
     }
 
     fetchUserProfile()

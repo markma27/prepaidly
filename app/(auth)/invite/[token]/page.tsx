@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabaseClient'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { InvitationAcceptance } from '@/components/InvitationAcceptance'
 
 interface InvitationDetails {
@@ -70,12 +71,12 @@ export default async function InvitePage({
             <p className="text-muted-foreground mb-6">
               This invitation link is invalid or has expired. Please contact your administrator for a new invitation.
             </p>
-            <a 
+            <Link 
               href="/login" 
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 cursor-pointer"
             >
               Go to Login
-            </a>
+            </Link>
           </div>
         </div>
       </div>

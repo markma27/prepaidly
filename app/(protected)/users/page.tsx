@@ -15,6 +15,8 @@ interface User {
 interface Invitation {
   id: string
   email: string
+  first_name?: string
+  last_name?: string
   role: string
   invited_by_name: string
   created_at: string
@@ -66,6 +68,9 @@ async function getCurrentEntity(searchParams: any) {
 async function getEntityUsers(entityId: string) {
   const supabase = await createServerSupabaseClient()
   
+  // Get the current user for permission checks
+  const { data: { user: currentUser } } = await supabase.auth.getUser()
+  
   // First get entity users
   const { data: entityUsers, error: entityError } = await supabase
     .from('entity_users')
@@ -104,24 +109,31 @@ async function getEntityUsers(entityId: string) {
     (profiles || []).map(p => [p.id, p])
   )
 
-  // Try to get auth users data (this might fail if admin access is not available)
-  let authUsersMap = new Map()
+  // Try to get email addresses from auth.admin (might fail)
+  let emailMap = new Map()
   try {
     const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
     if (!authError && authUsers) {
-      authUsersMap = new Map(
+      emailMap = new Map(
         authUsers.users.map(u => [u.id, u.email])
       )
     }
   } catch (error) {
-    console.warn('Could not fetch auth users data:', error)
+    console.warn('Could not fetch auth users data, trying alternative approach:', error)
   }
 
   return entityUsers.map(user => {
     const profile = profilesMap.get(user.user_id)
+    let email = emailMap.get(user.user_id)
+    
+    // If we couldn't get email from admin API and this is the current user, use their email
+    if (!email && currentUser && user.user_id === currentUser.id) {
+      email = currentUser.email
+    }
+    
     return {
       id: user.user_id,
-      email: authUsersMap.get(user.user_id) || 'Unknown',
+      email: email || 'Email not available',
       first_name: profile?.first_name || '',
       last_name: profile?.last_name || '',
       role: user.role,
@@ -134,19 +146,49 @@ async function getEntityUsers(entityId: string) {
 async function getEntityInvitations(entityId: string) {
   const supabase = await createServerSupabaseClient()
   
-  const { data: invitations, error } = await supabase
-    .from('entity_invitations')
-    .select(`
-      id,
-      email,
-      role,
-      created_at,
-      expires_at,
-      invited_by
-    `)
-    .eq('entity_id', entityId)
-    .eq('accepted', false)
-    .order('created_at', { ascending: false })
+  // Try to fetch with new columns first, fallback to old structure if migration not applied
+  let invitations: any[] = []
+  let error: any = null
+  
+  try {
+    const { data, error: fetchError } = await supabase
+      .from('entity_invitations')
+      .select(`
+        id,
+        email,
+        first_name,
+        last_name,
+        role,
+        created_at,
+        expires_at,
+        invited_by
+      `)
+      .eq('entity_id', entityId)
+      .eq('accepted', false)
+      .order('created_at', { ascending: false })
+    
+    invitations = data || []
+    error = fetchError
+  } catch (migrationError) {
+    // Fallback to old structure if new columns don't exist
+    console.warn('New columns not found, falling back to old structure:', migrationError)
+    const { data, error: fallbackError } = await supabase
+      .from('entity_invitations')
+      .select(`
+        id,
+        email,
+        role,
+        created_at,
+        expires_at,
+        invited_by
+      `)
+      .eq('entity_id', entityId)
+      .eq('accepted', false)
+      .order('created_at', { ascending: false })
+    
+    invitations = data || []
+    error = fallbackError
+  }
 
   if (error) {
     console.error('Error fetching invitations:', error)
@@ -177,6 +219,8 @@ async function getEntityInvitations(entityId: string) {
     return {
       id: inv.id,
       email: inv.email,
+      first_name: inv.first_name || null,
+      last_name: inv.last_name || null,
       role: inv.role,
       invited_by_name: inviterProfile?.first_name && inviterProfile?.last_name 
         ? `${inviterProfile.first_name} ${inviterProfile.last_name}`

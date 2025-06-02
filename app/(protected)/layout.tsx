@@ -5,6 +5,8 @@ import { DynamicSiteHeaderWrapper } from "@/components/dynamic-site-header-wrapp
 import { EntitySwitchingWrapper } from "@/components/EntitySwitchingWrapper"
 import { EntitySwitchingProvider } from "@/components/EntitySwitchingContext"
 import { LoadingProvider } from "@/components/LoadingContext"
+import { PageTransition } from "@/components/PageTransition"
+import { LoadingProgress } from "@/components/LoadingProgress"
 import {
   SidebarInset,
   SidebarProvider,
@@ -26,6 +28,7 @@ export default async function ProtectedLayout({
   return (
     <LoadingProvider>
       <EntitySwitchingProvider>
+        <LoadingProgress />
         <SidebarProvider
           style={
             {
@@ -38,7 +41,9 @@ export default async function ProtectedLayout({
           <SidebarInset>
             <DynamicSiteHeaderWrapper user={user} />
             <EntitySwitchingWrapper>
-              {children}
+              <PageTransition>
+                {children}
+              </PageTransition>
             </EntitySwitchingWrapper>
           </SidebarInset>
         </SidebarProvider>

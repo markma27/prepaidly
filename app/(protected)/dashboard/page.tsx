@@ -132,10 +132,10 @@ export default async function DashboardPage({
 
 function DashboardLoadingSkeleton() {
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-500">
+    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
       {/* Immediate loading feedback */}
       <div className="px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 animate-pulse">
+        <div className="mb-6">
           <div className="h-8 w-32 bg-muted rounded mb-2"></div>
           <div className="h-4 w-96 bg-muted rounded"></div>
         </div>
@@ -145,7 +145,7 @@ function DashboardLoadingSkeleton() {
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-24 bg-muted rounded-lg animate-pulse"></div>
+            <div key={i} className="h-24 bg-muted rounded-lg"></div>
           ))}
         </div>
       </div>

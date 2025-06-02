@@ -326,14 +326,7 @@ export default function NewSchedulePage() {
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground">Create New Schedule</h1>
           <p className="text-muted-foreground">Generate a prepayment or unearned revenue schedule</p>
-          {currentEntityName && (
-            <div className="mt-2 flex items-center text-sm text-muted-foreground">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                {currentEntityName}
-              </span>
-              <span className="ml-2">Schedule will be created for this entity</span>
-            </div>
-          )}
+
         </div>
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Form Column */}

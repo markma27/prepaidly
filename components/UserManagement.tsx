@@ -54,6 +54,8 @@ interface User {
 interface Invitation {
   id: string
   email: string
+  first_name?: string
+  last_name?: string
   role: string
   invited_by_name: string
   created_at: string
@@ -82,6 +84,8 @@ export function UserManagement({
   const [inviteSuccess, setInviteSuccess] = useState('')
   const [inviteForm, setInviteForm] = useState({
     email: '',
+    firstName: '',
+    lastName: '',
     role: 'user' as 'admin' | 'user'
   })
 
@@ -99,6 +103,8 @@ export function UserManagement({
         },
         body: JSON.stringify({
           email: inviteForm.email,
+          firstName: inviteForm.firstName,
+          lastName: inviteForm.lastName,
           role: inviteForm.role,
           entityId
         }),
@@ -111,7 +117,7 @@ export function UserManagement({
       }
 
       setInviteSuccess('Invitation sent successfully!')
-      setInviteForm({ email: '', role: 'user' })
+      setInviteForm({ email: '', firstName: '', lastName: '', role: 'user' })
       
       // Refresh the page to show new invitation
       setTimeout(() => {
@@ -275,6 +281,31 @@ export function UserManagement({
             </DialogHeader>
             
             <form onSubmit={handleInviteUser} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input
+                    id="firstName"
+                    type="text"
+                    value={inviteForm.firstName}
+                    onChange={(e) => setInviteForm(prev => ({ ...prev, firstName: e.target.value }))}
+                    placeholder="John"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    type="text"
+                    value={inviteForm.lastName}
+                    onChange={(e) => setInviteForm(prev => ({ ...prev, lastName: e.target.value }))}
+                    placeholder="Doe"
+                    required
+                  />
+                </div>
+              </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
                 <Input
@@ -339,17 +370,17 @@ export function UserManagement({
       </div>
 
       <Tabs defaultValue="users" className="w-full">
-        <TabsList>
-          <TabsTrigger value="users">Active Users ({users.length})</TabsTrigger>
-          <TabsTrigger value="invitations">Pending Invitations ({invitations.length})</TabsTrigger>
+        <TabsList className="grid w-full max-w-lg grid-cols-2 h-10">
+          <TabsTrigger value="users" className="text-sm">Active Users ({users.length})</TabsTrigger>
+          <TabsTrigger value="invitations" className="text-sm">Pending Invitations ({invitations.length})</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="users">
-          <Card>
+        <TabsContent value="users" className="mt-4">
+          <Card className="border-t-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead className="pl-8">Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead className="text-center">Role</TableHead>
                   <TableHead className="text-center">Status</TableHead>
@@ -360,7 +391,7 @@ export function UserManagement({
               <TableBody>
                 {users.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium pl-8">
                       {formatUserName(user)}
                       {user.id === currentUserId && (
                         <Badge variant="outline" className="ml-2 text-xs">You</Badge>
@@ -421,11 +452,12 @@ export function UserManagement({
           </Card>
         </TabsContent>
 
-        <TabsContent value="invitations">
-          <Card>
+        <TabsContent value="invitations" className="mt-4">
+          <Card className="border-t-0">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead className="text-center">Role</TableHead>
                   <TableHead className="text-center">Invited By</TableHead>
@@ -437,7 +469,13 @@ export function UserManagement({
               <TableBody>
                 {invitations.map((invitation) => (
                   <TableRow key={invitation.id}>
-                    <TableCell className="font-medium">{invitation.email}</TableCell>
+                    <TableCell className="font-medium">
+                      {invitation.first_name && invitation.last_name 
+                        ? `${invitation.first_name} ${invitation.last_name}`
+                        : invitation.first_name || invitation.email.split('@')[0]
+                      }
+                    </TableCell>
+                    <TableCell>{invitation.email}</TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center items-center space-x-2">
                         {getRoleIcon(invitation.role)}
@@ -475,7 +513,7 @@ export function UserManagement({
                 ))}
                 {invitations.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                       No pending invitations
                     </TableCell>
                   </TableRow>

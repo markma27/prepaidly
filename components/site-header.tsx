@@ -1,3 +1,6 @@
+"use client"
+
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -18,6 +21,8 @@ interface SiteHeaderProps {
 }
 
 export function SiteHeader({ user, userProfile, title }: SiteHeaderProps) {
+  const router = useRouter()
+
   // Create display name from profile data if available, otherwise fallback to email
   const getDisplayName = () => {
     if (userProfile?.first_name && userProfile?.last_name) {
@@ -27,6 +32,21 @@ export function SiteHeader({ user, userProfile, title }: SiteHeaderProps) {
       return userProfile.first_name
     }
     return user?.email || "User"
+  }
+
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+      })
+      
+      if (response.ok) {
+        router.push('/login')
+        router.refresh()
+      }
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
   }
 
   return (
@@ -43,11 +63,9 @@ export function SiteHeader({ user, userProfile, title }: SiteHeaderProps) {
             Welcome, {getDisplayName()}
           </span>
           <ThemeToggle />
-          <form action="/api/auth/logout" method="post">
-            <Button variant="outline" size="sm" type="submit">
-              Sign Out
-            </Button>
-          </form>
+          <Button variant="outline" size="sm" onClick={handleLogout}>
+            Sign Out
+          </Button>
         </div>
       </div>
     </header>

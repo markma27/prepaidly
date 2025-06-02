@@ -4,12 +4,12 @@ import { Loader2 } from "lucide-react"
 
 export function DashboardSkeleton() {
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-500">
+    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
       {/* Loading Message */}
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-center py-8">
           <div className="flex items-center gap-3 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Loader2 className="h-5 w-5" />
             <span className="text-lg font-medium">Switching organisation...</span>
           </div>
         </div>
@@ -27,7 +27,7 @@ export function DashboardSkeleton() {
       <div className="px-4 sm:px-6 lg:px-8 opacity-50">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
+            <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <Skeleton className="h-4 w-24" />
                 <Skeleton className="h-4 w-4 rounded" />
@@ -43,7 +43,7 @@ export function DashboardSkeleton() {
       
       {/* Chart Skeleton */}
       <div className="px-4 sm:px-6 lg:px-8 opacity-50">
-        <Card className="animate-pulse">
+        <Card>
           <CardHeader>
             <Skeleton className="h-6 w-48 mb-2" />
             <Skeleton className="h-4 w-64" />
@@ -56,7 +56,7 @@ export function DashboardSkeleton() {
       
       {/* Table Skeleton */}
       <div className="px-4 sm:px-6 lg:px-8 opacity-50">
-        <Card className="animate-pulse">
+        <Card>
           <CardHeader>
             <Skeleton className="h-6 w-40 mb-2" />
             <Skeleton className="h-4 w-80" />

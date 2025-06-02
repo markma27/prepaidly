@@ -17,11 +17,11 @@ export function EntitySwitchingWrapper({
     return (
       <div className="flex flex-1 flex-col">
         <div className="@container/main flex flex-1 flex-col gap-2">
-          <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-500">
+          <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 animate-in fade-in duration-300">
             {/* Loading Message */}
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-center py-16">
-                <div className="flex flex-col items-center gap-4 text-muted-foreground">
+                <div className="flex flex-col items-center gap-4 text-muted-foreground animate-in slide-in-from-bottom-4 duration-500">
                   <Loader2 className="h-8 w-8 animate-spin" />
                   <div className="text-center">
                     <div className="text-lg font-medium mb-1">Switching organisation...</div>
@@ -46,10 +46,7 @@ export function EntitySwitchingWrapper({
   }
 
   return (
-    <div className={cn(
-      "flex flex-1 flex-col transition-all duration-500",
-      "animate-in fade-in slide-in-from-bottom-2"
-    )}>
+    <div className="flex flex-1 flex-col">
       <div className="@container/main flex flex-1 flex-col gap-2">
         {children}
       </div>

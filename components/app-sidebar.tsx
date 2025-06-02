@@ -29,7 +29,7 @@ import {
 import { NavUser } from './nav-user'
 import { NavSecondary } from './nav-secondary'
 import SidebarEntitySelector from './SidebarEntitySelector'
-import Link from 'next/link'
+import { SidebarLink } from './SidebarLink'
 import { cn } from "@/lib/utils"
 import { useSearchParams } from 'next/navigation'
 
@@ -112,7 +112,7 @@ export function AppSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href={`/dashboard?entity=${entityParam}`}>
+              <SidebarLink href={`/dashboard?entity=${entityParam}`}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <Command className="size-4" />
                 </div>
@@ -120,7 +120,7 @@ export function AppSidebar({
                   <span className="truncate font-semibold">Prepaidly.io</span>
                   <span className="truncate text-xs">SaaS Platform</span>
                 </div>
-              </Link>
+              </SidebarLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -137,10 +137,10 @@ export function AppSidebar({
             {data.navMain.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild>
-                  <Link href={item.url} className="cursor-pointer">
+                  <SidebarLink href={item.url} className="cursor-pointer">
                     <item.icon />
                     <span>{item.title}</span>
-                  </Link>
+                  </SidebarLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
