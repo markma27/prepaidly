@@ -1,0 +1,35 @@
+# Local Development Configuration
+# Copy this file to application-local.properties and fill in your actual values
+# application-local.properties is gitignored and will not be committed
+
+# Database Configuration
+# Option 1: Local PostgreSQL
+# spring.datasource.url=jdbc:postgresql://localhost:5432/prepaidly
+# spring.datasource.username=postgres
+# spring.datasource.password=your_postgres_password_here
+
+# Option 2: Supabase (Recommended for easier setup)
+# Get connection string from: https://supabase.com/dashboard/project/YOUR_PROJECT/settings/database
+# Format: jdbc:postgresql://db.xxxxx.supabase.co:5432/postgres
+spring.datasource.url=jdbc:postgresql://db.PROJECT_REF.supabase.co:5432/postgres
+spring.datasource.username=postgres
+spring.datasource.password=your_supabase_password_here
+
+# Xero OAuth Configuration
+# Get these from: https://developer.xero.com/myapps
+xero.client.id=your_xero_client_id_here
+xero.client.secret=your_xero_client_secret_here
+xero.redirect.uri=http://localhost:8080/api/auth/xero/callback
+
+# Encryption Password
+# Generate a secure random password (e.g., using: openssl rand -base64 32)
+# IMPORTANT: Keep this password secure! You'll need it to decrypt stored tokens.
+jasypt.encryptor.password=your_encryption_password_here
+
+# Optional: JWT Configuration (for future use)
+jwt.secret=your_jwt_secret_here
+
+# Optional: Sentry Configuration (for error tracking)
+# sentry.dsn=your_sentry_dsn_here
+# sentry.environment=development
+
