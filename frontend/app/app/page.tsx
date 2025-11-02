@@ -1,3 +1,5 @@
+'use client';
+
 export default function AppPage() {
   return (
     <div className="container mx-auto p-8">
@@ -11,4 +13,3 @@ export default function AppPage() {
     </div>
   );
 }
-
