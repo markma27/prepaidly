@@ -13,9 +13,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.*;
 
 @Slf4j
@@ -28,16 +26,6 @@ public class XeroOAuthService {
     private final UserRepository userRepository;
     private final XeroConnectionRepository xeroConnectionRepository;
     private final RestTemplate restTemplate;
-    
-    public XeroOAuthService(XeroConfig xeroConfig, EncryptionService encryptionService,
-                           UserRepository userRepository, XeroConnectionRepository xeroConnectionRepository,
-                           RestTemplate restTemplate) {
-        this.xeroConfig = xeroConfig;
-        this.encryptionService = encryptionService;
-        this.userRepository = userRepository;
-        this.xeroConnectionRepository = xeroConnectionRepository;
-        this.restTemplate = restTemplate;
-    }
     
     /**
      * Generate the authorization URL for Xero OAuth2 flow

@@ -1,20 +1,46 @@
 package com.prepaidly.controller;
 
+import com.prepaidly.dto.XeroAccountResponse;
+import com.prepaidly.dto.XeroInvoiceResponse;
+import com.prepaidly.service.XeroApiService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@RestController
-@RequestMapping("/api/schedules")
-public class ScheduleController {
+import java.util.Map;
 
-    @PostMapping
-    public ResponseEntity<String> createSchedule(@RequestBody Object scheduleDto) {
-        // TODO: Create amortisation schedule
-        return ResponseEntity.ok("Create schedule endpoint - to be implemented");
+@Slf4j
+@RestController
+@RequestMapping("/api/xero")
+@RequiredArgsConstructor
+public class XeroController {
+
+    private final XeroApiService xeroApiService;
+
+    @GetMapping("/accounts")
+    public ResponseEntity<?> getAccounts(@RequestParam String tenantId) {
+        try {
+            XeroAccountResponse accounts = xeroApiService.getAccounts(tenantId);
+            return ResponseEntity.ok(accounts);
+        } catch (Exception e) {
+            log.error("Error fetching accounts for tenant {}", tenantId, e);
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Failed to fetch accounts: " + e.getMessage()
+            ));
+        }
     }
 
-    @GetMapping
-    public ResponseEntity<String> getSchedules(@RequestParam String tenantId) {
-        // TODO: List schedules for tenant
-        return ResponseEntity.ok("List schedules endpoint - to be implemented");
+    @GetMapping("/invoices")
+    public ResponseEntity<?> getInvoices(@RequestParam String tenantId) {
+        try {
+            XeroInvoiceResponse invoices = xeroApiService.getInvoices(tenantId);
+            return ResponseEntity.ok(invoices);
+        } catch (Exception e) {
+            log.error("Error fetching invoices for tenant {}", tenantId, e);
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Failed to fetch invoices: " + e.getMessage()
+            ));
+        }
     }
 }

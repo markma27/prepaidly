@@ -31,16 +31,16 @@ dependencies {
     // Database
     runtimeOnly 'org.postgresql:postgresql'
     
-    // Xero SDK
-    implementation 'com.github.XeroAPI:xero-java:5.0.0'
+    // Xero SDK - using RestTemplate approach instead of SDK
+    // implementation 'com.github.XeroAPI:xero-java:5.0.0'
     
     // JWT
     implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
     
-    // Encryption
-    implementation 'org.jasypt:jasypt-spring-boot3:3.0.5'
+    // Encryption - using core jasypt library
+    implementation 'org.jasypt:jasypt:1.9.3'
     
     // Logging & Monitoring
     implementation 'io.sentry:sentry-spring-boot-starter:7.0.0'

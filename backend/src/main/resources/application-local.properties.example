@@ -10,8 +10,9 @@
 
 # Option 2: Supabase (Recommended for easier setup)
 # Get connection string from: https://supabase.com/dashboard/project/YOUR_PROJECT/settings/database
-# Format: jdbc:postgresql://db.xxxxx.supabase.co:5432/postgres
-spring.datasource.url=jdbc:postgresql://db.PROJECT_REF.supabase.co:5432/postgres
+# IMPORTANT: Supabase requires SSL - add ?sslmode=require to the URL
+# Format: jdbc:postgresql://db.xxxxx.supabase.co:5432/postgres?sslmode=require
+spring.datasource.url=jdbc:postgresql://db.PROJECT_REF.supabase.co:5432/postgres?sslmode=require
 spring.datasource.username=postgres
 spring.datasource.password=your_supabase_password_here
 
