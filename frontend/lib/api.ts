@@ -8,7 +8,15 @@ import {
   PostJournalResponse,
 } from './types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// API base URL - must be set in Vercel environment variables for production
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+    ? 'http://localhost:8080' 
+    : '');
+
+if (!API_BASE_URL && typeof window !== 'undefined') {
+  console.error('NEXT_PUBLIC_API_URL is not set! Please configure it in Vercel environment variables.');
+}
 
 class ApiError extends Error {
   constructor(
@@ -25,33 +33,52 @@ async function fetchApi<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
-
-  if (!response.ok) {
-    let errorMessage = `API request failed: ${response.statusText}`;
-    let errorData;
-    
-    try {
-      errorData = await response.json();
-      if (errorData.error) {
-        errorMessage = errorData.error;
-      }
-    } catch {
-      // If response is not JSON, use default error message
-    }
-    
-    throw new ApiError(errorMessage, response.status, errorData);
+  if (!API_BASE_URL) {
+    throw new ApiError(
+      'API base URL is not configured. Please set NEXT_PUBLIC_API_URL environment variable in Vercel.',
+      500
+    );
   }
 
-  return response.json();
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = `API request failed: ${response.statusText}`;
+      let errorData;
+      
+      try {
+        errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch {
+        // If response is not JSON, use default error message
+      }
+      
+      throw new ApiError(errorMessage, response.status, errorData);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    // Network error or other fetch errors
+    throw new ApiError(
+      `Failed to connect to backend API at ${API_BASE_URL}. Please check if the backend is running and NEXT_PUBLIC_API_URL is correctly configured.`,
+      0,
+      { originalError: error instanceof Error ? error.message : String(error) }
+    );
+  }
 }
 
 // Xero Auth API
