@@ -56,28 +56,34 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
-      <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-lg z-10">
+      <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-lg z-10 border-r border-gray-100">
         <div className="flex flex-col h-full">
           {/* Logo/Brand */}
-          <div className="flex items-center justify-center h-16 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-blue-600">Prepaidly</h1>
+          <div className="flex items-center justify-center px-4 py-4 border-b border-gray-100">
+            <Link href={`/app/dashboard?tenantId=${tenantId}`} className="flex items-center justify-center hover:opacity-80 transition-opacity w-full">
+              <img
+                src="/logo.svg"
+                alt="Prepaidly Logo"
+                className="w-full h-auto max-h-16 object-contain"
+              />
+            </Link>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
+          <nav className="flex-1 px-4 py-6 space-y-1">
             {navigation.map((item) => {
               const active = isActive(item.href);
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
                     active
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      ? 'bg-primary-50 text-primary-600 border border-primary-200 shadow-sm'
                       : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
-                  <span className="mr-3">{item.icon}</span>
+                  <span className={`mr-3 ${active ? 'text-primary-600' : 'text-gray-500'}`}>{item.icon}</span>
                   {item.name}
                 </Link>
               );
@@ -85,7 +91,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-gray-100">
             <Link
               href="/app"
               className="flex items-center px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"

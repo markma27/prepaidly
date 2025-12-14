@@ -178,19 +178,27 @@ public class XeroApiService {
             Map<String, Object> journalRequest = new HashMap<>();
             Map<String, Object> manualJournal = new HashMap<>();
             manualJournal.put("Narration", narration);
-            manualJournal.put("JournalDate", journalDate.toString());
+            // Xero API expects "Date" not "JournalDate", and format should be YYYY-MM-DD
+            manualJournal.put("Date", journalDate.toString());
+            // Set status to POSTED so it appears in Xero immediately
+            manualJournal.put("Status", "POSTED");
             
             List<Map<String, Object>> journalLinesList = new ArrayList<>();
             for (JournalLine line : journalLines) {
                 Map<String, Object> lineMap = new HashMap<>();
                 lineMap.put("AccountCode", line.getAccountCode());
                 lineMap.put("Description", line.getDescription());
-                lineMap.put("LineAmount", line.getLineAmount());
+                // Xero API expects LineAmount as number (not BigDecimal), and positive = debit, negative = credit
+                lineMap.put("LineAmount", line.getLineAmount().doubleValue());
+                // Add TaxType to avoid tax calculation issues
+                lineMap.put("TaxType", "NONE");
                 journalLinesList.add(lineMap);
             }
             manualJournal.put("JournalLines", journalLinesList);
             
             journalRequest.put("ManualJournals", Collections.singletonList(manualJournal));
+            
+            log.info("Creating manual journal in Xero for tenant {}: {}", tenantId, journalRequest);
             
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
@@ -206,21 +214,48 @@ public class XeroApiService {
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
+            log.info("Xero API response status: {}", response.getStatusCode());
+            log.info("Xero API response body: {}", response.getBody());
+            
             if (response.getStatusCode() == HttpStatus.OK || response.getStatusCode() == HttpStatus.CREATED) {
                 if (response.getBody() != null) {
                     Map<String, Object> body = response.getBody();
+                    
+                    // Check for validation errors
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> validationErrors = (List<Map<String, Object>>) body.get("ValidationErrors");
+                    if (validationErrors != null && !validationErrors.isEmpty()) {
+                        String errorMessage = validationErrors.stream()
+                            .map(err -> err.get("Message") != null ? err.get("Message").toString() : "Validation error")
+                            .reduce((a, b) -> a + "; " + b)
+                            .orElse("Validation error");
+                        log.error("Xero validation errors: {}", validationErrors);
+                        throw new RuntimeException("Xero validation error: " + errorMessage);
+                    }
+                    
                     @SuppressWarnings("unchecked")
                     List<Map<String, Object>> journals = (List<Map<String, Object>>) body.get("ManualJournals");
                     if (journals != null && !journals.isEmpty()) {
-                        return (String) journals.get(0).get("ManualJournalID");
+                        String journalId = (String) journals.get(0).get("ManualJournalID");
+                        log.info("Successfully created manual journal in Xero with ID: {}", journalId);
+                        return journalId;
+                    } else {
+                        log.error("No ManualJournals in response. Response keys: {}", body.keySet());
+                        throw new RuntimeException("No manual journal returned from Xero API");
                     }
                 }
             }
             
-            throw new RuntimeException("Failed to create manual journal: " + response.getStatusCode());
+            String errorBody = response.getBody() != null ? response.getBody().toString() : "No response body";
+            log.error("Failed to create manual journal. Status: {}, Body: {}", response.getStatusCode(), errorBody);
+            throw new RuntimeException("Failed to create manual journal: " + response.getStatusCode() + ". Response: " + errorBody);
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            log.error("HTTP error creating manual journal for tenant {}. Status: {}, Response: {}", 
+                tenantId, e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new RuntimeException("Failed to create manual journal: " + e.getStatusCode() + ". " + e.getResponseBodyAsString(), e);
         } catch (Exception e) {
             log.error("Error creating manual journal for tenant {}", tenantId, e);
-            throw new RuntimeException("Failed to create manual journal", e);
+            throw new RuntimeException("Failed to create manual journal: " + e.getMessage(), e);
         }
     }
     

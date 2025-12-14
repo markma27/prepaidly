@@ -153,7 +153,7 @@ export default function NewSchedulePage() {
           </div>
         ) : (
           <>
-          <h1 className="text-3xl font-bold mb-6">Create New Schedule</h1>
+          <h1 className="text-3xl font-bold mb-6 text-dark-900">Create New Schedule</h1>
 
       {error && (
         <ErrorMessage 
@@ -162,7 +162,7 @@ export default function NewSchedulePage() {
         />
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg p-6">
+      <form onSubmit={handleSubmit} className="bg-white shadow-sm rounded-lg p-6 border border-gray-100">
         {/* Schedule Type */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -310,7 +310,7 @@ export default function NewSchedulePage() {
           <button
             type="submit"
             disabled={submitting}
-            className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-medium shadow-sm"
           >
             {submitting ? 'Creating...' : 'Create Schedule'}
           </button>

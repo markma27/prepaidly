@@ -1,10 +1,10 @@
 // Utility functions for Prepaidly frontend
 
 /**
- * Format date to Chinese locale string
+ * Format date to system locale string
  */
 export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('zh-CN', {
+  return new Date(dateString).toLocaleDateString(undefined, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -12,12 +12,12 @@ export function formatDate(dateString: string): string {
 }
 
 /**
- * Format currency to Chinese locale
+ * Format currency to USD
  */
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('zh-CN', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'CNY',
+    currency: 'USD',
   }).format(amount);
 }
 

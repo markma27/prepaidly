@@ -103,17 +103,17 @@ export default function DashboardPage() {
       ) : (
         <>
         <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-3xl font-bold text-dark-900">Dashboard</h1>
         <div className="flex gap-4">
           <button
             onClick={() => router.push(`/app/schedules/new?tenantId=${tenantId}`)}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+            className="px-4 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
           >
             Create New Schedule
           </button>
           <button
             onClick={() => tenantId && loadSchedules(tenantId)}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
           >
             Refresh
           </button>
@@ -135,11 +135,11 @@ export default function DashboardPage() {
       )}
 
       {schedules.length === 0 ? (
-        <div className="bg-white shadow rounded-lg p-12 text-center">
+        <div className="bg-white shadow-sm rounded-lg p-12 text-center border border-gray-100">
           <p className="text-gray-600 mb-4">No schedules created yet</p>
           <button
             onClick={() => router.push(`/app/schedules/new?tenantId=${tenantId}`)}
-            className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            className="px-6 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
           >
             Create Your First Schedule
           </button>
@@ -147,16 +147,16 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-6">
           {schedules.map((schedule) => (
-            <div key={schedule.id} className="bg-white shadow rounded-lg overflow-hidden">
+            <div key={schedule.id} className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-100">
               {/* Schedule Header */}
-              <div className="bg-gray-50 px-6 py-4 border-b">
+              <div className="bg-gradient-to-r from-gray-50 to-white px-6 py-4 border-b border-gray-100">
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center gap-3 mb-2">
-                      <h2 className="text-xl font-semibold">
+                      <h2 className="text-xl font-semibold text-dark-900">
                         {schedule.type === 'PREPAID' ? 'Prepaid Expense' : 'Unearned Revenue'}
                       </h2>
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                      <span className="px-2 py-1 bg-primary-50 text-primary-700 rounded text-sm font-medium">
                         ID: {schedule.id}
                       </span>
                     </div>
@@ -238,7 +238,7 @@ export default function DashboardPage() {
                                   Posted
                                 </span>
                               ) : (
-                                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
+                                <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-semibold">
                                   Not Posted
                                 </span>
                               )}
@@ -251,7 +251,7 @@ export default function DashboardPage() {
                                 <button
                                   onClick={() => handlePostJournal(entry.id)}
                                   disabled={postingJournalId === entry.id}
-                                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-xs"
+                                  className="px-3 py-1 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-xs font-medium shadow-sm"
                                 >
                                   {postingJournalId === entry.id ? 'Posting...' : 'Post to Xero'}
                                 </button>

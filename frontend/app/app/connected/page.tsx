@@ -140,7 +140,7 @@ export default function ConnectedPage() {
             If you are not redirected automatically,{' '}
             <button
               onClick={handleGoToDashboard}
-              className="text-blue-600 hover:text-blue-700 underline"
+              className="text-primary-400 hover:text-primary-500 underline font-medium"
             >
               click here
             </button>
@@ -172,7 +172,7 @@ export default function ConnectedPage() {
           <div className="flex gap-4 mt-6">
             <button
               onClick={handleGoToDashboard}
-              className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              className="px-6 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
             >
               Go to Dashboard
             </button>

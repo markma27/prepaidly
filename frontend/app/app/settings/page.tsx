@@ -86,7 +86,7 @@ export default function SettingsPage() {
     <DashboardLayout tenantId={tenantId}>
       <div className="max-w-7xl">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+          <h1 className="text-3xl font-bold text-dark-900">Settings</h1>
           <p className="mt-2 text-sm text-gray-600">
             Manage your Xero connection and view chart of accounts
           </p>
@@ -101,7 +101,7 @@ export default function SettingsPage() {
 
         {/* Connection Status */}
         {currentConnection && (
-          <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <div className="bg-white shadow-sm rounded-lg p-6 mb-6 border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center mb-2">
@@ -121,10 +121,10 @@ export default function SettingsPage() {
         )}
 
         {/* Chart of Accounts */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-100">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Chart of Accounts</h2>
+              <h2 className="text-xl font-semibold text-dark-900">Chart of Accounts</h2>
               <span className="text-sm text-gray-600">
                 {accounts.length} account{accounts.length !== 1 ? 's' : ''}
               </span>

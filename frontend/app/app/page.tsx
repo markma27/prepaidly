@@ -52,7 +52,7 @@ export default function AppPage() {
 
   return (
     <div className="container mx-auto p-8 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Connect to Xero</h1>
+      <h1 className="text-3xl font-bold mb-6 text-dark-900">Connect to Xero</h1>
 
       {error && (
         <ErrorMessage 
@@ -89,7 +89,7 @@ export default function AppPage() {
             <div className="mt-6 flex gap-4">
               <button
                 onClick={handleGoToDashboard}
-                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                className="px-6 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
               >
                 Go to Dashboard
               </button>
@@ -106,14 +106,14 @@ export default function AppPage() {
             <p className="mb-6 text-gray-700">
               Connect your Xero account to start using Prepaidly. We'll guide you through the OAuth authorization process.
             </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-blue-800">
+            <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-primary-800">
                 <strong>Tip:</strong> Make sure to select <strong>Demo Company</strong> for testing.
               </p>
             </div>
             <button
               onClick={handleConnect}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-lg"
+                className="px-6 py-3 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-semibold text-lg shadow-sm"
             >
               Connect to Xero
             </button>
