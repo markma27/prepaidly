@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { xeroApi, xeroAuthApi } from '@/lib/api';
 import type { XeroAccount, XeroConnectionStatusResponse } from '@/lib/types';
@@ -8,7 +8,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<XeroAccount[]>([]);
@@ -196,5 +196,17 @@ export default function SettingsPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto p-8">
+        <LoadingSpinner message="Loading..." />
+      </div>
+    }>
+      <SettingsPageContent />
+    </Suspense>
   );
 }

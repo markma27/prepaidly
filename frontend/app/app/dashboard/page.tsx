@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, journalApi } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
@@ -10,7 +10,7 @@ import ErrorMessage from '@/components/ErrorMessage';
 import SuccessMessage from '@/components/SuccessMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -276,6 +276,18 @@ export default function DashboardPage() {
       )}
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto p-8">
+        <LoadingSpinner message="Loading..." />
+      </div>
+    }>
+      <DashboardPageContent />
+    </Suspense>
   );
 }
 

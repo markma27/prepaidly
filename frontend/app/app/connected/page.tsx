@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { xeroApi, xeroAuthApi } from '@/lib/api';
 import type { XeroAccount, XeroConnectionStatusResponse } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 
-export default function ConnectedPage() {
+function ConnectedPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -186,6 +186,18 @@ export default function ConnectedPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ConnectedPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto p-8">
+        <LoadingSpinner message="Loading..." />
+      </div>
+    }>
+      <ConnectedPageContent />
+    </Suspense>
   );
 }
 

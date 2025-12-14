@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, xeroApi } from '@/lib/api';
 import { validateDateRange } from '@/lib/utils';
@@ -9,7 +9,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 
-export default function NewSchedulePage() {
+function NewSchedulePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
@@ -327,6 +327,18 @@ export default function NewSchedulePage() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function NewSchedulePage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto p-8">
+        <LoadingSpinner message="Loading..." />
+      </div>
+    }>
+      <NewSchedulePageContent />
+    </Suspense>
   );
 }
 
