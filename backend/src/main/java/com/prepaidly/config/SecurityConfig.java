@@ -8,8 +8,42 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Temporary security configuration - allows all requests for development
- * TODO: Implement proper authentication and authorization for production
+ * Security configuration for Prepaidly backend
+ * 
+ * TODO [PRODUCTION]: Implement proper authentication and authorization
+ * 
+ * Current State (Development):
+ * - All endpoints are publicly accessible (permitAll)
+ * - CSRF protection is disabled
+ * - No authentication/authorization checks
+ * 
+ * Required for Production:
+ * 1. Authentication:
+ *    - Implement JWT-based authentication or OAuth2 Resource Server
+ *    - Add authentication filter to validate tokens
+ *    - Configure token validation endpoints
+ * 
+ * 2. Authorization:
+ *    - Protect API endpoints based on user roles/permissions
+ *    - Ensure users can only access their own data (e.g., userId validation)
+ *    - Implement role-based access control (RBAC) if needed
+ * 
+ * 3. Security Headers:
+ *    - Enable CSRF protection for state-changing operations
+ *    - Add security headers (X-Frame-Options, Content-Security-Policy, etc.)
+ *    - Configure CORS properly for frontend domain
+ * 
+ * 4. Rate Limiting:
+ *    - Implement rate limiting to prevent abuse
+ *    - Consider using Spring Security's rate limiting or external service
+ * 
+ * Implementation Steps:
+ * - Add JWT dependencies (if not using OAuth2 Resource Server)
+ * - Create AuthenticationFilter or use Spring Security OAuth2 Resource Server
+ * - Configure protected endpoints in authorizeHttpRequests()
+ * - Add @PreAuthorize annotations to controllers for fine-grained control
+ * - Enable CSRF for POST/PUT/DELETE endpoints
+ * - Test authentication flow end-to-end
  */
 @Configuration
 @EnableWebSecurity

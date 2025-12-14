@@ -7,6 +7,7 @@ import com.prepaidly.model.XeroConnection;
 import com.prepaidly.repository.XeroConnectionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -39,11 +40,11 @@ public class XeroApiService {
             headers.set("xero-tenant-id", tenantId);
             
             HttpEntity<String> entity = new HttpEntity<>(headers);
-            ResponseEntity<Map> response = restTemplate.exchange(
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_API_URL + "/Accounts",
                 HttpMethod.GET,
                 entity,
-                Map.class
+                new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
@@ -96,11 +97,11 @@ public class XeroApiService {
             headers.set("xero-tenant-id", tenantId);
             
             HttpEntity<String> entity = new HttpEntity<>(headers);
-            ResponseEntity<Map> response = restTemplate.exchange(
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_API_URL + "/Invoices",
                 HttpMethod.GET,
                 entity,
-                Map.class
+                new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
@@ -198,11 +199,11 @@ public class XeroApiService {
             headers.set("xero-tenant-id", tenantId);
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(journalRequest, headers);
-            ResponseEntity<Map> response = restTemplate.exchange(
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_API_URL + "/ManualJournals",
                 HttpMethod.POST,
                 entity,
-                Map.class
+                new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
             if (response.getStatusCode() == HttpStatus.OK || response.getStatusCode() == HttpStatus.CREATED) {

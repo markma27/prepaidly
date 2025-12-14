@@ -7,6 +7,7 @@ import { validateDateRange } from '@/lib/utils';
 import type { XeroAccount, ScheduleType } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
+import DashboardLayout from '@/components/DashboardLayout';
 
 export default function NewSchedulePage() {
   const router = useRouter();
@@ -135,17 +136,24 @@ export default function NewSchedulePage() {
     }
   };
 
-  if (loading) {
+  if (!tenantId) {
     return (
       <div className="container mx-auto p-8">
-        <LoadingSpinner message="Loading account list..." />
+        <LoadingSpinner message="Loading..." />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-8 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-6">Create New Schedule</h1>
+    <DashboardLayout tenantId={tenantId}>
+      <div className="max-w-3xl">
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <LoadingSpinner message="Loading account list..." />
+          </div>
+        ) : (
+          <>
+          <h1 className="text-3xl font-bold mb-6">Create New Schedule</h1>
 
       {error && (
         <ErrorMessage 
@@ -315,7 +323,10 @@ export default function NewSchedulePage() {
           </button>
         </div>
       </form>
-    </div>
+          </>
+        )}
+      </div>
+    </DashboardLayout>
   );
 }
 

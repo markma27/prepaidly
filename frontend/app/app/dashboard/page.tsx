@@ -8,6 +8,7 @@ import type { Schedule, JournalEntry } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import SuccessMessage from '@/components/SuccessMessage';
+import DashboardLayout from '@/components/DashboardLayout';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -84,17 +85,24 @@ export default function DashboardPage() {
     }
   };
 
-  if (loading) {
+  if (!tenantId) {
     return (
       <div className="container mx-auto p-8">
-        <LoadingSpinner message="Loading schedule data..." />
+        <LoadingSpinner message="Loading..." />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-8 max-w-7xl">
-      <div className="flex justify-between items-center mb-6">
+    <DashboardLayout tenantId={tenantId}>
+      <div className="max-w-7xl">
+      {loading ? (
+        <div className="flex justify-center items-center py-12">
+          <LoadingSpinner message="Loading schedule data..." />
+        </div>
+      ) : (
+        <>
+        <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <div className="flex gap-4">
           <button
@@ -264,7 +272,10 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
-    </div>
+        </>
+      )}
+      </div>
+    </DashboardLayout>
   );
 }
 

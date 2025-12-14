@@ -1,5 +1,6 @@
 package com.prepaidly.controller;
 
+import com.prepaidly.config.XeroConfig;
 import com.prepaidly.dto.XeroConnectionResponse;
 import com.prepaidly.dto.XeroConnectionStatusResponse;
 import com.prepaidly.model.XeroConnection;
@@ -12,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -24,6 +26,7 @@ public class XeroAuthController {
 
     private final XeroOAuthService xeroOAuthService;
     private final XeroConnectionRepository xeroConnectionRepository;
+    private final XeroConfig xeroConfig;
     
     // Temporary: For development, we'll use a default user ID
     // In production, this should come from authenticated session
@@ -33,8 +36,10 @@ public class XeroAuthController {
     public ResponseEntity<?> connect(@RequestParam(required = false) Long userId) {
         try {
             Long targetUserId = userId != null ? userId : DEFAULT_USER_ID;
+            log.info("Xero connect request received for user: {}", targetUserId);
             String authUrl = xeroOAuthService.getAuthorizationUrl(targetUserId);
             
+            log.info("Redirecting to Xero authorization URL");
             HttpHeaders headers = new HttpHeaders();
             headers.add("Location", authUrl);
             return ResponseEntity.status(HttpStatus.FOUND).headers(headers).build();
@@ -71,6 +76,20 @@ public class XeroAuthController {
                     "error", "Failed to complete OAuth flow: " + e.getMessage()
                 ));
         }
+    }
+
+    @GetMapping("/config-check")
+    public ResponseEntity<Map<String, Object>> configCheck() {
+        Map<String, Object> config = new HashMap<>();
+        String clientId = xeroConfig.getClientId();
+        config.put("clientId", clientId != null && clientId.length() > 8 ? 
+            clientId.substring(0, 8) + "..." : (clientId != null ? clientId : "NOT SET"));
+        config.put("clientIdLength", clientId != null ? clientId.length() : 0);
+        config.put("redirectUri", xeroConfig.getRedirectUri());
+        config.put("hasClientSecret", xeroConfig.getClientSecret() != null && 
+            !xeroConfig.getClientSecret().isEmpty());
+        config.put("expectedRedirectUri", "http://localhost:8080/api/auth/xero/callback");
+        return ResponseEntity.ok(config);
     }
 
     @GetMapping("/status")
