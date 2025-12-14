@@ -268,10 +268,17 @@ public class XeroOAuthService {
      * Get tenant information from Xero API
      */
     public Map<String, Object> getTenantInfo(String accessToken) {
+        return getTenantInfo(accessToken, null);
+    }
+    
+    public Map<String, Object> getTenantInfo(String accessToken, String tenantId) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+            if (tenantId != null) {
+                headers.set("xero-tenant-id", tenantId);
+            }
             
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
@@ -290,7 +297,7 @@ public class XeroOAuthService {
             }
             return null;
         } catch (Exception e) {
-            log.error("Error fetching tenant info", e);
+            log.error("Error fetching tenant info for tenantId: {}", tenantId, e);
             return null;
         }
     }

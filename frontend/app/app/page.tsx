@@ -21,10 +21,20 @@ export default function AppPage() {
     try {
       setLoading(true);
       setError(null);
+      console.log('Fetching connection status from API...');
       const status = await xeroAuthApi.getStatus();
+      console.log('API Response:', JSON.stringify(status, null, 2));
+      console.log('Total connections:', status?.totalConnections);
+      console.log('Connections array length:', status?.connections?.length);
+      console.log('Connections:', status?.connections);
       setConnectionStatus(status);
     } catch (err: any) {
       console.error('Error checking connection status:', err);
+      console.error('Error details:', {
+        message: err.message,
+        status: err.status,
+        data: err.data
+      });
       setError(err.message || 'Failed to check connection status');
     } finally {
       setLoading(false);
@@ -36,9 +46,22 @@ export default function AppPage() {
     window.location.href = xeroAuthApi.getConnectUrl();
   };
 
-  const handleGoToDashboard = () => {
-    if (connectionStatus?.connections?.[0]?.tenantId) {
-      router.push(`/app/dashboard?tenantId=${connectionStatus.connections[0].tenantId}`);
+  const handleGoToDashboard = (tenantId: string) => {
+    router.push(`/app/dashboard?tenantId=${tenantId}`);
+  };
+
+  const handleDisconnect = async (tenantId: string) => {
+    if (!confirm('Are you sure you want to disconnect this Xero file? This will remove the connection from Prepaidly.')) {
+      return;
+    }
+
+    try {
+      await xeroAuthApi.disconnect(tenantId);
+      // Refresh the connection status after disconnecting
+      await checkConnectionStatus();
+    } catch (err: any) {
+      console.error('Error disconnecting:', err);
+      setError(err.message || 'Failed to disconnect from Xero');
     }
   };
 
@@ -62,43 +85,75 @@ export default function AppPage() {
       )}
 
       <div className="bg-white shadow rounded-lg p-6 mb-6">
-        {connectionStatus && connectionStatus.totalConnections > 0 ? (
+        {connectionStatus && connectionStatus.connections && connectionStatus.connections.length > 0 ? (
           <div>
             <div className="flex items-center mb-4">
               <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
-              <h2 className="text-xl font-semibold">Connected to Xero</h2>
+              <h2 className="text-xl font-semibold">Connected Xero Files</h2>
             </div>
             
-            <div className="space-y-4">
-              {connectionStatus.connections.map((conn, index) => (
-                <div key={index} className="border rounded-lg p-4 bg-gray-50">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold text-lg">{conn.tenantName}</p>
-                      <p className="text-sm text-gray-600">Tenant ID: {conn.tenantId}</p>
-                      <p className="text-sm text-green-600 mt-1">{conn.message}</p>
+            <p className="mb-4 text-gray-700 text-sm">
+              Select a connected Xero file to access its dashboard, or connect a new file.
+            </p>
+            
+            {connectionStatus.connections.filter(conn => conn.connected).length > 0 ? (
+              <div className="space-y-3 mb-6">
+                {connectionStatus.connections
+                  .filter(conn => conn.connected)
+                  .map((conn, index) => (
+                  <div key={index} className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div className="flex justify-between items-center">
+                      <div className="flex-1">
+                        <p className="font-semibold text-lg">{conn.tenantName}</p>
+                        <p className="text-sm text-gray-600">Tenant ID: {conn.tenantId}</p>
+                        <p className="text-sm text-green-600 mt-1">{conn.message}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                          Connected
+                        </span>
+                        <button
+                          onClick={() => handleGoToDashboard(conn.tenantId)}
+                          className="px-4 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
+                        >
+                          Open
+                        </button>
+                        <button
+                          onClick={() => handleDisconnect(conn.tenantId)}
+                          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium shadow-sm"
+                        >
+                          Disconnect
+                        </button>
+                      </div>
                     </div>
-                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-                      Connected
-                    </span>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  You have {connectionStatus.totalConnections} connection(s), but they are not currently active. 
+                  Please refresh or reconnect.
+                </p>
+              </div>
+            )}
 
-            <div className="mt-6 flex gap-4">
-              <button
-                onClick={handleGoToDashboard}
-                className="px-6 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
-              >
-                Go to Dashboard
-              </button>
-              <button
-                onClick={checkConnectionStatus}
-                className="px-6 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-              >
-                Refresh Status
-              </button>
+            <div className="border-t pt-4">
+              <p className="text-sm text-gray-600 mb-3">Want to connect another Xero file?</p>
+              <div className="flex gap-4">
+                <button
+                  onClick={handleConnect}
+                  className="px-6 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
+                >
+                  Connect New File
+                </button>
+                <button
+                  onClick={checkConnectionStatus}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                >
+                  Refresh Status
+                </button>
+              </div>
             </div>
           </div>
         ) : (

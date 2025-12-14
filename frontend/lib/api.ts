@@ -71,6 +71,18 @@ export const xeroAuthApi = {
     const params = userId ? `?userId=${userId}` : '';
     return `${API_BASE_URL}/api/auth/xero/connect${params}`;
   },
+
+  /**
+   * Disconnect from Xero (delete connection)
+   */
+  disconnect: async (tenantId: string): Promise<{ success: boolean; message: string }> => {
+    return fetchApi<{ success: boolean; message: string }>(
+      `/api/auth/xero/disconnect?tenantId=${encodeURIComponent(tenantId)}`,
+      {
+        method: 'DELETE',
+      }
+    );
+  },
 };
 
 // Xero Data API
