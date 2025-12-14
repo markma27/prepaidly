@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
+
 const nextConfig = {
   reactStrictMode: true,
   env: {
@@ -6,6 +8,13 @@ const nextConfig = {
   },
   images: {
     formats: ['image/avif', 'image/webp'],
+  },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': path.resolve(__dirname),
+    };
+    return config;
   },
 }
 
