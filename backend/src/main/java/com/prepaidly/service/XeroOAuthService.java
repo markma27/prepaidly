@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
@@ -75,6 +76,7 @@ public class XeroOAuthService {
     /**
      * Exchange authorization code for access token
      */
+    @Transactional
     public XeroConnection exchangeCodeForTokens(String code, Long userId) {
         try {
             // Prepare token request
@@ -186,6 +188,7 @@ public class XeroOAuthService {
     /**
      * Refresh access token using refresh token
      */
+    @Transactional
     public XeroConnection refreshTokens(XeroConnection connection) {
         try {
             HttpHeaders headers = new HttpHeaders();

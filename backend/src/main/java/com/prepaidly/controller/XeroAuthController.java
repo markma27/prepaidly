@@ -10,6 +10,7 @@ import com.prepaidly.repository.XeroConnectionRepository;
 import com.prepaidly.service.XeroOAuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,9 @@ public class XeroAuthController {
     private final XeroConnectionRepository xeroConnectionRepository;
     private final UserRepository userRepository;
     private final XeroConfig xeroConfig;
+    
+    @Value("${frontend.url:http://localhost:3000}")
+    private String frontendUrl;
     
     // Temporary: For development, we'll use a default user ID
     // In production, this should come from authenticated session
@@ -63,8 +67,10 @@ public class XeroAuthController {
             XeroConnection connection = xeroOAuthService.exchangeCodeForTokens(code, targetUserId);
             
             // Redirect to frontend success page
+            String redirectUrl = frontendUrl + "/app/connected?success=true&tenantId=" + connection.getTenantId();
+            log.info("Redirecting to frontend: {}", redirectUrl);
             return ResponseEntity.status(HttpStatus.FOUND)
-                .header("Location", "http://localhost:3000/app/connected?success=true&tenantId=" + connection.getTenantId())
+                .header("Location", redirectUrl)
                 .body(Map.of(
                     "success", true,
                     "tenantId", connection.getTenantId(),
@@ -72,8 +78,10 @@ public class XeroAuthController {
                 ));
         } catch (Exception e) {
             log.error("Error handling OAuth callback", e);
+            String errorRedirectUrl = frontendUrl + "/app/connected?success=false&error=" + 
+                java.net.URLEncoder.encode(e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .header("Location", "http://localhost:3000/app/connected?success=false&error=" + e.getMessage())
+                .header("Location", errorRedirectUrl)
                 .body(Map.of(
                     "success", false,
                     "error", "Failed to complete OAuth flow: " + e.getMessage()
@@ -92,6 +100,8 @@ public class XeroAuthController {
         config.put("hasClientSecret", xeroConfig.getClientSecret() != null && 
             !xeroConfig.getClientSecret().isEmpty());
         config.put("expectedRedirectUri", "http://localhost:8080/api/auth/xero/callback");
+        config.put("frontendUrl", frontendUrl);
+        config.put("frontendUrlFromEnv", System.getenv("FRONTEND_URL"));
         return ResponseEntity.ok(config);
     }
 

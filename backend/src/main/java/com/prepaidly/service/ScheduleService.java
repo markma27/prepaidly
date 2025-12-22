@@ -110,6 +110,7 @@ public class ScheduleService {
     /**
      * Get all schedules for a tenant
      */
+    @Transactional(readOnly = true)
     public List<ScheduleResponse> getSchedulesByTenant(String tenantId) {
         List<Schedule> schedules = scheduleRepository.findByTenantId(tenantId);
         return schedules.stream()
@@ -120,6 +121,7 @@ public class ScheduleService {
     /**
      * Get schedule by ID
      */
+    @Transactional(readOnly = true)
     public ScheduleResponse getScheduleById(Long scheduleId) {
         Schedule schedule = scheduleRepository.findById(scheduleId)
             .orElseThrow(() -> new RuntimeException("Schedule not found: " + scheduleId));
