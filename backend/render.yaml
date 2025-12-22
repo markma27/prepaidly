@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: prepaidly-backend
+    env: java
+    buildCommand: cd backend && ./gradlew clean build -x test
+    startCommand: cd backend && java -jar build/libs/prepaidly-0.1.0.jar
+    envVars:
+      - key: JAVA_VERSION
+        value: 21
+      - key: SPRING_PROFILES_ACTIVE
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: XERO_CLIENT_ID
+        sync: false
+      - key: XERO_CLIENT_SECRET
+        sync: false
+      - key: XERO_REDIRECT_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JASYPT_PASSWORD
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENV
+        value: production
