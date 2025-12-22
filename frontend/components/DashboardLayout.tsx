@@ -62,7 +62,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
           <div className="flex items-center justify-center px-4 py-4 border-b border-gray-100">
             <Link href={`/app/dashboard?tenantId=${tenantId}`} className="flex items-center justify-center hover:opacity-80 transition-opacity w-full">
               <img
-                src="/logo.svg"
+                src="/Logo.svg"
                 alt="Prepaidly Logo"
                 className="w-full h-auto max-h-16 object-contain"
               />
