@@ -1,0 +1,13 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "./gradlew clean build -x test"
+  },
+  "deploy": {
+    "startCommand": "java -jar build/libs/prepaidly-0.1.0.jar",
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 100,
+    "restartPolicyType": "on_failure"
+  }
+}
