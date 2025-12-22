@@ -33,5 +33,8 @@ Write-Host "`nStarting backend server..." -ForegroundColor Green
 Write-Host "Backend will be available at: http://localhost:8080" -ForegroundColor Cyan
 Write-Host "Press Ctrl+C to stop`n" -ForegroundColor Gray
 
+# Enable IPv6 support for Java (needed for Supabase connections)
+$env:JAVA_OPTS = "-Djava.net.preferIPv6Addresses=true"
+
 .\gradlew.bat bootRun --args='--spring.profiles.active=local'
 
