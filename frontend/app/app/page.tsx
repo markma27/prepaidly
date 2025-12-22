@@ -104,14 +104,14 @@ export default function AppPage() {
                   <div key={index} className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
                     <div className="flex justify-between items-center">
                       <div className="flex-1">
-                        <p className="font-semibold text-lg">{conn.tenantName}</p>
-                        <p className="text-sm text-gray-600">Tenant ID: {conn.tenantId}</p>
-                        <p className="text-sm text-green-600 mt-1">{conn.message}</p>
-                      </div>
+                      <p className="font-semibold text-lg">{conn.tenantName}</p>
+                      <p className="text-sm text-gray-600">Tenant ID: {conn.tenantId}</p>
+                      <p className="text-sm text-green-600 mt-1">{conn.message}</p>
+                    </div>
                       <div className="flex items-center gap-3">
-                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-                          Connected
-                        </span>
+                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                      Connected
+                    </span>
                         <button
                           onClick={() => handleGoToDashboard(conn.tenantId)}
                           className="px-4 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
@@ -125,10 +125,10 @@ export default function AppPage() {
                           Disconnect
                         </button>
                       </div>
-                    </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+            </div>
             ) : (
               <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-sm text-yellow-800">
@@ -141,18 +141,18 @@ export default function AppPage() {
             <div className="border-t pt-4">
               <p className="text-sm text-gray-600 mb-3">Want to connect another Xero file?</p>
               <div className="flex gap-4">
-                <button
+              <button
                   onClick={handleConnect}
-                  className="px-6 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
-                >
+                className="px-6 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
+              >
                   Connect New File
-                </button>
-                <button
-                  onClick={checkConnectionStatus}
-                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                >
-                  Refresh Status
-                </button>
+              </button>
+              <button
+                onClick={checkConnectionStatus}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+              >
+                Refresh Status
+              </button>
               </div>
             </div>
           </div>

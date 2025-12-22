@@ -43,31 +43,31 @@ async function fetchApi<T>(
   const url = `${API_BASE_URL}${endpoint}`;
   
   try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-    });
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  });
 
-    if (!response.ok) {
-      let errorMessage = `API request failed: ${response.statusText}`;
-      let errorData;
-      
-      try {
-        errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        }
-      } catch {
-        // If response is not JSON, use default error message
+  if (!response.ok) {
+    let errorMessage = `API request failed: ${response.statusText}`;
+    let errorData;
+    
+    try {
+      errorData = await response.json();
+      if (errorData.error) {
+        errorMessage = errorData.error;
       }
-      
-      throw new ApiError(errorMessage, response.status, errorData);
+    } catch {
+      // If response is not JSON, use default error message
     }
+    
+    throw new ApiError(errorMessage, response.status, errorData);
+  }
 
-    return response.json();
+  return response.json();
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
