@@ -5,9 +5,9 @@
     "buildCommand": "chmod +x ./gradlew && ./gradlew clean build -x test"
   },
   "deploy": {
-    "startCommand": "java -jar build/libs/prepaidly-0.1.0.jar",
+    "startCommand": "java -jar build/libs/prepaidly-backend-0.1.0.jar",
     "healthcheckPath": "/api/health",
-    "healthcheckTimeout": 100,
+    "healthcheckTimeout": 300,
     "restartPolicyType": "on_failure"
   }
 }
