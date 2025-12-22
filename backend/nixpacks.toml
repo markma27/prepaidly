@@ -1,0 +1,9 @@
+[variables]
+NIXPACKS_JDK_VERSION = "21"
+RAILPACK_JDK_VERSION = "21"
+
+[phases.build]
+cmds = ["chmod +x ./gradlew", "./gradlew clean build -x test"]
+
+[phases.start]
+cmd = "java -jar build/libs/prepaidly-0.1.0.jar"
