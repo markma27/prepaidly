@@ -194,3 +194,5 @@ Railway 也可以自动检测这些配置，但明确配置更可靠。
 - Railway 文档：https://docs.railway.app
 - Railway Spring Boot 指南：https://docs.railway.com/guides/spring-boot
 - Xero API 文档：https://developer.xero.com/documentation
+
+Update gradlew 
