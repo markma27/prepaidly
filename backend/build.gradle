@@ -58,3 +58,12 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+// Configure bootRun to support IPv6 and DNS resolution (needed for Supabase connections)
+tasks.named('bootRun') {
+    jvmArgs = [
+        '-Djava.net.preferIPv6Addresses=true',
+        '-Djava.net.preferIPv4Stack=false',
+        '-Djava.net.useSystemProxies=true'
+    ]
+}
+
