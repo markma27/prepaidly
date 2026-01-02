@@ -11,7 +11,10 @@ import java.sql.SQLException;
 
 /**
  * Database configuration and connection management.
- * [TODO] Authrize the job user to access the database rather than using username and password.
+ * 
+ * Note: Currently uses username/password authentication via environment variables.
+ * Future improvement: Consider using Railway service account or IAM-based authentication
+ * for enhanced security when running as a scheduled job.
  */
 public class DatabaseConfig {
     private static final Logger log = LoggerFactory.getLogger(DatabaseConfig.class);
