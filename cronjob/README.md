@@ -7,11 +7,18 @@ Java-based daily cron job that executes at 12:00 AM daily on Railway.
 ```
 cronjob/
 ├── src/main/java/com/prepaidly/cronjob/
-│   └── DailyCronJob.java    # Main cron job class
-├── build.gradle              # Gradle build configuration
-├── settings.gradle           # Gradle settings
-├── railway.json              # Railway deployment configuration
-└── README.md                 # This file
+│   ├── DailyCronJob.java           # Main cron job class
+│   ├── config/
+│   │   └── DatabaseConfig.java     # Database connection configuration
+│   └── model/
+│       └── JournalEntry.java       # Journal entry model
+├── src/main/resources/
+│   ├── logback.xml                  # Logging configuration
+│   └── application.properties       # Application configuration
+├── build.gradle                     # Gradle build configuration
+├── settings.gradle                  # Gradle settings
+├── railway.json                     # Railway deployment configuration
+└── README.md                        # This file
 ```
 
 ## Building
@@ -33,6 +40,13 @@ gradle build
 ```bash
 cd cronjob
 java -jar build/libs/prepaidly-cronjob-0.1.0.jar
+```
+
+Make sure to set environment variables:
+```bash
+export DATABASE_URL="jdbc:postgresql://host:port/database?sslmode=require"
+export DB_USERNAME="your_username"
+export DB_PASSWORD="your_password"
 ```
 
 ## Setup on Railway
@@ -61,10 +75,14 @@ java -jar build/libs/prepaidly-cronjob-0.1.0.jar
    - Or use Railway's UI to select "Daily at midnight"
 
 5. **Environment Variables:**
-   Add any required environment variables:
+   **IMPORTANT**: Set these environment variables in Railway:
+   - `DATABASE_URL` - Full database connection URL
+     - For Supabase pooler: `jdbc:postgresql://aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?sslmode=require`
+     - Or Railway may provide: `postgresql://user:pass@host:port/db` (will be auto-parsed)
+   - `DB_USERNAME` - Database username (required for Supabase pooler)
+     - For Supabase pooler: `postgres.dowbcpwuybwolpszvpeq`
+   - `DB_PASSWORD` - Database password
    - `LOG_LEVEL` - Logging level (optional, defaults to INFO)
-   - `JAVA_HOME` - Java home (usually auto-detected)
-   - Any other variables your job needs
 
 ### Troubleshooting Build Issues
 
@@ -94,13 +112,30 @@ If you encounter build failures on Railway:
    - Java version compatibility (should be Java 21)
    - Network connectivity for dependency downloads
 
-### Option 2: Using Railway Cron Plugin
+### Troubleshooting Database Connection Issues
 
-1. Install Railway's Cron plugin in your project
-2. Configure it to:
-   - Run command: `java -jar build/libs/prepaidly-cronjob-0.1.0.jar`
-   - Schedule: `0 0 * * *`
-   - Working directory: `cronjob`
+If you get "Tenant or user not found" error:
+
+1. **Check DATABASE_URL format:**
+   - Should be: `jdbc:postgresql://host:port/database?sslmode=require`
+   - Or Railway format: `postgresql://user:pass@host:port/db` (auto-parsed)
+
+2. **Verify DB_USERNAME:**
+   - For Supabase pooler: Must be `postgres.dowbcpwuybwolpszvpeq` (not just `postgres`)
+   - Check your Supabase dashboard for the correct username format
+
+3. **Verify DB_PASSWORD:**
+   - Ensure password is set correctly
+   - Check for special characters that might need encoding
+
+4. **Check Railway environment variables:**
+   - Go to your cron service → Variables
+   - Verify all three variables are set: `DATABASE_URL`, `DB_USERNAME`, `DB_PASSWORD`
+   - Make sure they match your backend service variables
+
+5. **Test connection:**
+   - The logs will show the connection details (password masked)
+   - Check Railway logs for connection errors
 
 ## Cron Schedule Format
 
@@ -117,26 +152,27 @@ This runs at 12:00 AM (midnight) every day.
 
 Edit `src/main/java/com/prepaidly/cronjob/DailyCronJob.java` to add your daily tasks.
 
+The job currently:
+- Reads all journal entries from the database
+- Stores them in a map keyed by `xero_manual_journal_id`
+- Logs the `xero_manual_journal_id` and `posted` status for all entries
+
 Example tasks you might want to add:
 
 ```java
 public void run() {
     log.info("=== Daily Cron Job Started ===");
     
-    // Refresh Xero tokens for all tenants
-    // refreshXeroTokens();
+    // Read journal entries
+    Map<String, JournalEntry> journalEntryMap = readJournalEntries();
     
-    // Generate journal entries for schedules due today
-    // generateDueJournalEntries();
-    
-    // Send reminder notifications
-    // sendNotifications();
-    
-    // Clean up old data
-    // cleanupOldData();
+    // Your custom tasks here
+    // - Refresh Xero tokens for all tenants
+    // - Generate journal entries for schedules due today
+    // - Send reminder notifications
+    // - Clean up old data
     
     log.info("Daily cron job completed successfully");
-    log.info("=== Daily Cron Job Finished ===");
 }
 ```
 
@@ -144,6 +180,9 @@ public void run() {
 
 The cron job includes:
 - SLF4J + Logback for logging
+- PostgreSQL JDBC driver
+- HikariCP connection pool
+- Lombok for data classes
 - Spring Web (optional, for HTTP calls)
 - Jackson (optional, for JSON processing)
 
@@ -161,6 +200,9 @@ Test the cron job locally:
 
 ```bash
 cd cronjob
+export DATABASE_URL="jdbc:postgresql://your-host:5432/your-db?sslmode=require"
+export DB_USERNAME="your_username"
+export DB_PASSWORD="your_password"
 ../backend/gradlew build
 java -jar build/libs/prepaidly-cronjob-0.1.0.jar
 ```
@@ -177,3 +219,4 @@ java -jar build/libs/prepaidly-cronjob-0.1.0.jar
 - Railway's cron scheduler will trigger it at the specified time
 - Make sure to set `restartPolicyType: "never"` so Railway doesn't restart it
 - The job should complete quickly (within Railway's timeout limits)
+- Database connection uses HikariCP connection pooling for efficiency
