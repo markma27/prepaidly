@@ -12,7 +12,9 @@ import {
   BarChart3, 
   Settings, 
   HelpCircle,
-  ChevronDown
+  ChevronDown,
+  ChevronRight,
+  Calendar
 } from 'lucide-react';
 import Skeleton from '@/components/Skeleton';
 
@@ -182,6 +184,34 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
     router.push(`${pathname}?tenantId=${newTenantId}`);
   };
 
+  // Get page title based on pathname
+  const getPageTitle = () => {
+    const activeItem = [...mainNavigation, ...footerNavigation].find(item => 
+      isActive(item.path, item.name)
+    );
+    return activeItem?.name || 'Dashboard';
+  };
+
+  // Get page icon based on pathname
+  const getPageIcon = () => {
+    const activeItem = [...mainNavigation, ...footerNavigation].find(item => 
+      isActive(item.path, item.name)
+    );
+    return activeItem?.icon || LayoutDashboard;
+  };
+
+  // Format current date
+  const getCurrentDate = () => {
+    const today = new Date();
+    const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
+    const day = today.getDate();
+    const month = today.toLocaleDateString('en-US', { month: 'long' });
+    const year = today.getFullYear();
+    return `${weekday}, ${day} ${month} ${year}`;
+  };
+
+  const PageIcon = getPageIcon();
+
   return (
     <div className="min-h-screen bg-white">
       {/* Sidebar */}
@@ -330,10 +360,23 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
       {/* Main Content Area */}
       <div className="pl-56 flex flex-col min-h-screen">
         {/* Top Header */}
-        <header className="h-16 border-b border-gray-200 flex items-center justify-between px-8 bg-white sticky top-0 z-10">
-          <div className="flex items-center gap-2">
-            <LayoutDashboard className="w-5 h-5 text-gray-400" />
-            <span className="text-sm font-medium text-gray-900">Dashboard</span>
+        <header className="sticky top-0 z-10 bg-gradient-to-r from-white via-gray-50/50 to-white border-b border-gray-200/80 backdrop-blur-sm">
+          <div className="px-8 py-2.5 flex items-center">
+            {/* Breadcrumb and Title Section */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-stretch gap-3">
+                <div className="p-2.5 rounded-lg bg-gradient-to-br from-[#6d69ff]/10 to-[#6d69ff]/5 flex items-center justify-center self-stretch">
+                  <PageIcon className="w-6 h-6 text-[#6d69ff]" />
+                </div>
+                <div className="flex flex-col justify-center">
+                  <h1 className="text-xl font-bold text-gray-900 leading-tight">{getPageTitle()}</h1>
+                  <div className="flex items-center gap-1.5 text-[9px] text-gray-500 mt-0.5">
+                    <Calendar className="w-3 h-3" />
+                    <span>{getCurrentDate()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </header>
 
