@@ -188,9 +188,9 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
       <div className="fixed inset-y-0 left-0 w-56 bg-[#F9FAFB] z-10 border-r border-gray-200">
         <div className="flex flex-col h-full">
           {/* Logo/Brand */}
-          <div className="px-4 py-5">
-            <Link href={`/app/dashboard?tenantId=${tenantId}`} className="flex items-center gap-2">
-              <img src="/Logo.svg" alt="Prepaidly Logo" className="h-10 w-auto" />
+          <div className="px-3 py-4">
+            <Link href={`/app/dashboard?tenantId=${tenantId}`} className="flex items-center justify-center gap-2">
+              <img src="/Logo.svg" alt="Prepaidly Logo" className="h-12 w-auto" />
             </Link>
           </div>
 
@@ -201,11 +201,11 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
               className="w-full flex items-center justify-between px-3 py-2 text-sm font-normal text-gray-700 bg-transparent hover:bg-gray-100 rounded-lg transition-colors group"
             >
               <div className="flex flex-col items-start overflow-hidden flex-1 min-w-0">
-                <span className="text-xs text-gray-500 font-normal">Entity</span>
+                <span className="text-[13px] text-gray-500 font-medium">Entity</span>
                 {isLoadingConnections || (connections.length === 0 && tenantId) ? (
                   <Skeleton className="h-4 w-32 mt-1" variant="text" />
                 ) : (
-                  <span className="truncate w-full text-left text-sm font-normal text-gray-700">
+                  <span className="truncate w-full text-left text-[13px] font-medium text-gray-700">
                     {(() => {
                       // Use memoizedCurrentConnection for immediate display
                       const activeConnection = memoizedCurrentConnection || currentConnection;
@@ -239,7 +239,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
                     <button
                       key={conn.tenantId}
                       onClick={() => handleSwitchEntity(conn.tenantId)}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors ${
+                      className={`w-full text-left px-4 py-2 text-[13px] font-medium hover:bg-gray-50 transition-colors ${
                         conn.tenantId === tenantId || conn.tenantId.toLowerCase() === tenantId.toLowerCase()
                           ? 'font-semibold text-blue-600 bg-blue-50' 
                           : 'text-gray-700'
@@ -249,7 +249,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
                     </button>
                   ))
                 ) : (
-                  <div className="px-4 py-2 text-sm text-gray-500">No entities available</div>
+                  <div className="px-4 py-2 text-[13px] font-medium text-gray-500">No entities available</div>
                 )}
               </div>
             )}
@@ -261,7 +261,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
           </div>
 
           {/* Main Navigation */}
-          <nav className="flex-1 px-2 space-y-0.5">
+          <nav className="flex-1 px-2 space-y-1">
             {mainNavigation.map((item) => {
               const active = isActive(item.path, item.name);
               const Icon = item.icon;
@@ -269,26 +269,21 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-3 py-2.5 text-sm font-normal rounded-lg transition-all ${
+                  className={`flex items-center px-2.5 py-2 text-[13px] font-medium rounded-lg transition-all ${
                     active
                       ? 'bg-primary-600 text-white'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 mr-3 ${active ? 'text-white' : 'text-gray-400'}`} />
+                  <Icon className={`w-4 h-4 mr-2.5 ${active ? 'text-white' : 'text-gray-400'}`} />
                   {item.name}
-                </Link>
+            </Link>
               );
             })}
           </nav>
 
-          {/* Divider before Footer Navigation */}
-          <div className="px-3 mb-4">
-            <div className="h-px bg-gray-200"></div>
-          </div>
-
           {/* Footer Navigation */}
-          <div className="px-2 py-4 space-y-0.5">
+          <div className="px-2 py-4 space-y-1">
             {footerNavigation.map((item) => {
               const active = isActive(item.path, item.name);
               const Icon = item.icon;
@@ -296,13 +291,13 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
             <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-3 py-2.5 text-sm font-normal rounded-lg transition-all ${
+                  className={`flex items-center px-2.5 py-2 text-[13px] font-medium rounded-lg transition-all ${
                     active
                       ? 'bg-primary-600 text-white'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 mr-3 ${active ? 'text-white' : 'text-gray-400'}`} />
+                  <Icon className={`w-4 h-4 mr-2.5 ${active ? 'text-white' : 'text-gray-400'}`} />
                   {item.name}
             </Link>
               );
@@ -318,11 +313,11 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
           <div className="p-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-bold uppercase">
-                {currentConnection?.tenantName?.charAt(0) || 'N'}
+                P
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-900 truncate w-24">mayinxing</span>
-                <span className="text-xs text-gray-500 truncate w-24">mayinxing@gmail.com</span>
+                <span className="text-[13px] font-medium text-gray-900 truncate w-24">User</span>
+                <span className="text-[13px] font-medium text-gray-500 truncate w-24">user@example.com</span>
               </div>
             </div>
             <button className="text-gray-400 hover:text-gray-600">

@@ -74,21 +74,59 @@ function DashboardPageContent() {
   };
 
   const stats = useMemo(() => {
-    const totalSchedules = schedules.length;
-    const totalAmount = schedules.reduce((acc, s) => acc + s.totalAmount, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Current month date (first day of current month) - same as chart calculation
+    const currentMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
+    
     const prepaidSchedules = schedules.filter(s => s.type === 'PREPAID');
     const unearnedSchedules = schedules.filter(s => s.type === 'UNEARNED');
     
-    const prepaidBalance = prepaidSchedules.reduce((acc, s) => acc + (s.remainingBalance || 0), 0);
-    const unearnedBalance = unearnedSchedules.reduce((acc, s) => acc + (s.remainingBalance || 0), 0);
+    // Active schedules: startDate <= today <= endDate
+    const activePrepaidSchedules = prepaidSchedules.filter(s => {
+      const start = new Date(s.startDate);
+      const end = new Date(s.endDate);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      return start <= today && today <= end;
+    });
+    
+    const activeUnearnedSchedules = unearnedSchedules.filter(s => {
+      const start = new Date(s.startDate);
+      const end = new Date(s.endDate);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      return start <= today && today <= end;
+    });
+    
+    // Remaining amounts for current month - same calculation as chart
+    // Sum of journal entries with periodDate > currentMonthDate
+    const remainingPrepaid = prepaidSchedules.reduce((acc, s) => {
+      if (s.journalEntries && Array.isArray(s.journalEntries) && s.journalEntries.length > 0) {
+        const remainingAtDate = s.journalEntries
+          .filter(je => new Date(je.periodDate) > currentMonthDate)
+          .reduce((sum, je) => sum + (je.amount || 0), 0);
+        return acc + remainingAtDate;
+      }
+      return acc;
+    }, 0);
+    
+    const remainingUnearned = unearnedSchedules.reduce((acc, s) => {
+      if (s.journalEntries && Array.isArray(s.journalEntries) && s.journalEntries.length > 0) {
+        const remainingAtDate = s.journalEntries
+          .filter(je => new Date(je.periodDate) > currentMonthDate)
+          .reduce((sum, je) => sum + (je.amount || 0), 0);
+        return acc + remainingAtDate;
+      }
+      return acc;
+    }, 0);
 
     return {
-      totalSchedules,
-      totalAmount,
-      prepaidBalance,
-      unearnedBalance,
-      prepaidCount: prepaidSchedules.length,
-      unearnedCount: unearnedSchedules.length
+      prepaidScheduleCount: activePrepaidSchedules.length,
+      remainingPrepayment: remainingPrepaid,
+      unearnedScheduleCount: activeUnearnedSchedules.length,
+      remainingUnearned: remainingUnearned
     };
   }, [schedules]);
 
@@ -136,159 +174,144 @@ function DashboardPageContent() {
       {loading ? (
         <DashboardSkeleton />
       ) : (
-      <div className="space-y-8 max-w-[1600px] mx-auto">
+      <div className="space-y-7 max-w-[1440px] mx-auto">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium text-gray-500">Total Schedules</span>
-              <span className="px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-md flex items-center gap-1">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-                Active
-              </span>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          {/* Prepayment Schedule */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300 cursor-pointer">
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+              <h3 className="text-sm font-bold text-gray-900">Prepayment Schedule</h3>
             </div>
-            <div className="text-3xl font-bold text-gray-900 mb-2">{stats.totalSchedules}</div>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <Calendar className="w-3.5 h-3.5" />
-              <span>Total created schedules</span>
+            <div className="p-5">
+              <div className="text-2xl font-bold text-gray-900 mb-2">{stats.prepaidScheduleCount}</div>
+              <div className="text-xs text-gray-500">Active prepayment schedules</div>
             </div>
-            <div className="mt-1 text-xs text-gray-400">Across all time periods</div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium text-gray-500">Total Amount Managed</span>
-              <span className="text-xs font-semibold text-gray-400">$ AUD</span>
+          {/* Remaining Prepayment */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300 cursor-pointer">
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+              <h3 className="text-sm font-bold text-gray-900">Remaining Prepayment</h3>
             </div>
-            <div className="text-3xl font-bold text-gray-900 mb-2">{formatCurrency(stats.totalAmount)}</div>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <DollarSign className="w-3.5 h-3.5" />
-              <span>Combined prepaid & unearned $</span>
+            <div className="p-5">
+              <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingPrepayment)}</div>
+              <div className="text-xs text-gray-500">Amount not yet processed</div>
             </div>
-            <div className="mt-1 text-xs text-gray-400">Total value under management</div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium text-gray-500">Prepaid Expenses</span>
-              <span className="px-2 py-1 bg-gray-50 text-gray-600 text-xs font-semibold rounded-md flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                {stats.prepaidCount} schedules
-              </span>
+          {/* Unearned Revenue Schedule */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300 cursor-pointer">
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+              <h3 className="text-sm font-bold text-gray-900">Unearned Revenue Schedule</h3>
             </div>
-            <div className="text-3xl font-bold text-gray-900 mb-2">{formatCurrency(stats.prepaidBalance)}</div>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span>Prepaid expense schedules</span>
-              <ArrowRight className="w-3 h-3" />
+            <div className="p-5">
+              <div className="text-2xl font-bold text-gray-900 mb-2">{stats.unearnedScheduleCount}</div>
+              <div className="text-xs text-gray-500">Active unearned revenue schedules</div>
             </div>
-            <div className="mt-1 text-xs text-gray-400">{stats.prepaidCount} active schedules</div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium text-gray-500">Unearned Revenue</span>
-              <span className="px-2 py-1 bg-gray-50 text-gray-600 text-xs font-semibold rounded-md flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                {stats.unearnedCount} schedules
-              </span>
+          {/* Remaining Unearned Revenue */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300 cursor-pointer">
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+              <h3 className="text-sm font-bold text-gray-900">Remaining Unearned Revenue</h3>
             </div>
-            <div className="text-3xl font-bold text-gray-900 mb-2">{formatCurrency(stats.unearnedBalance)}</div>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span>Unearned revenue schedules</span>
-              <ArrowRight className="w-3 h-3" />
+            <div className="p-5">
+              <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingUnearned)}</div>
+              <div className="text-xs text-gray-500">Amount not yet processed</div>
             </div>
-            <div className="mt-1 text-xs text-gray-400">{stats.unearnedCount} active schedules</div>
           </div>
         </div>
 
         {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div className="mb-6">
-              <h3 className="text-lg font-bold text-gray-900">Prepaid Expenses - Next 12 Months</h3>
-              <p className="text-sm text-gray-500">Remaining prepaid expense balances by month</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+              <h3 className="text-base font-bold text-gray-900">Prepaid Expenses - Next 12 Months</h3>
             </div>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData.prepaid}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                    dy={10}
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                    tickFormatter={(value) => `$${value/1000}K`}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
-                    {chartData.prepaid.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={`rgba(59, 130, 246, ${1 - index * 0.06})`} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="p-5">
+              <div className="h-[270px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.prepaid}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                      tickFormatter={(value) => `$${value/1000}K`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32} stroke="#3b82f6" strokeWidth={1}>
+                      {chartData.prepaid.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={`rgba(59, 130, 246, 0.1)`} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div className="mb-6">
-              <h3 className="text-lg font-bold text-gray-900">Unearned Revenue - Next 12 Months</h3>
-              <p className="text-sm text-gray-500">Remaining unearned revenue balances by month</p>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+              <h3 className="text-base font-bold text-gray-900">Unearned Revenue - Next 12 Months</h3>
             </div>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData.unearned}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                    dy={10}
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                    tickFormatter={(value) => `$${value/1000}K`}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
-                    {chartData.unearned.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={`rgba(16, 185, 129, ${1 - index * 0.06})`} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="p-5">
+              <div className="h-[270px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.unearned}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                      tickFormatter={(value) => `$${value/1000}K`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32} stroke="#22c55e" strokeWidth={1}>
+                      {chartData.unearned.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={`rgba(74, 222, 128, 0.1)`} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Recent Schedules Table */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 flex items-center justify-between border-b border-gray-100">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Recent Schedules</h3>
-              <p className="text-sm text-gray-500">Your 7 most recently created prepayment and unearned revenue schedules</p>
+              <h3 className="text-base font-bold text-gray-900">Recent Schedules</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Your 10 most recently created prepayment and unearned revenue schedules</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button 
                 onClick={() => router.push(`/app/dashboard?tenantId=${tenantId}`)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 View All
               </button>
               <button 
                 onClick={() => router.push(`/app/schedules/new?tenantId=${tenantId}`)}
-                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2"
+                className="px-3 py-1.5 text-xs font-medium text-white bg-[#6d69ff] rounded-lg hover:bg-[#5a56e6] transition-colors flex items-center gap-2"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 New Schedule
               </button>
             </div>
@@ -298,20 +321,19 @@ function DashboardPageContent() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  <th className="px-6 py-4">Type</th>
-                  <th className="px-6 py-4">Contact</th>
-                  <th className="px-6 py-4">Account Code & Name</th>
-                  <th className="px-6 py-4">Amount</th>
-                  <th className="px-6 py-4">Period</th>
-                  <th className="px-6 py-4">Description</th>
-                  <th className="px-6 py-4">Created Date</th>
+                  <th className="px-5 py-3">Type</th>
+                  <th className="px-5 py-3">Contact</th>
+                  <th className="px-5 py-3">Account Code & Name</th>
+                  <th className="px-5 py-3">Amount</th>
+                  <th className="px-5 py-3">Period</th>
+                  <th className="px-5 py-3">Created Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {schedules.slice(0, 7).map((schedule) => (
+                {schedules.slice(0, 10).map((schedule) => (
                   <tr key={schedule.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push(`/app/dashboard?tenantId=${tenantId}`)}>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase ${
+                    <td className="px-5 py-3">
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
                         schedule.type === 'PREPAID' 
                           ? 'bg-blue-50 text-blue-600' 
                           : 'bg-green-50 text-green-600'
@@ -319,22 +341,21 @@ function DashboardPageContent() {
                         {schedule.type === 'PREPAID' ? 'Prepaid Expense' : 'Unearned Revenue'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">BCD Trust</td> {/* Placeholder as contact info isn't in Schedule type yet */}
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3 text-sm font-medium text-gray-900">BCD Trust</td> {/* Placeholder as contact info isn't in Schedule type yet */}
+                    <td className="px-5 py-3">
                       <div className="text-sm text-gray-900">{schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode}</div>
                       <div className="text-xs text-gray-500">{schedule.type === 'PREPAID' ? 'Prepaid Subscriptions' : 'Sales'}</div>
                     </td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
+                    <td className="px-5 py-3 text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount)}</td>
+                    <td className="px-5 py-3 text-sm text-gray-600">
                       {formatDate(schedule.startDate)} - {formatDate(schedule.endDate)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">Service Income</td> {/* Placeholder */}
-                    <td className="px-6 py-4 text-sm text-gray-500">{formatDate(schedule.createdAt)}</td>
+                    <td className="px-5 py-3 text-sm text-gray-500">{formatDate(schedule.createdAt)}</td>
                   </tr>
                 ))}
                 {schedules.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                       No schedules found. Create your first one to see it here.
                     </td>
                   </tr>

@@ -19,6 +19,10 @@
   }
 }
 
+html {
+  font-size: 90%; /* Scale down from 16px to 14.4px (90% of 16px) */
+}
+
 body {
   color: var(--foreground);
   background: var(--background);

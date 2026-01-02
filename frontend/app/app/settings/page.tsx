@@ -99,9 +99,9 @@ function SettingsPageContent() {
 
   return (
     <DashboardLayout tenantId={tenantId}>
-      <div className="max-w-7xl">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-dark-900">Settings</h1>
+      <div className="max-w-6xl p-6">
+        <div className="mb-5">
+          <h1 className="text-2xl font-bold text-dark-900">Settings</h1>
           <p className="mt-2 text-sm text-gray-600">
             Manage your Xero connection and view chart of accounts
           </p>
