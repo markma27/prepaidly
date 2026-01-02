@@ -1,0 +1,13 @@
+# Nixpacks configuration for Railway
+[phases.setup]
+nixPkgs = ["gradle", "jdk21"]
+
+[phases.install]
+cmds = ["chmod +x ./gradlew"]
+
+[phases.build]
+cmds = ["./gradlew clean build -x test --no-daemon"]
+
+[start]
+cmd = "java -jar build/libs/prepaidly-cronjob-0.1.0.jar"
+

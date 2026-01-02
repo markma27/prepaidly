@@ -49,9 +49,9 @@ java -jar build/libs/prepaidly-cronjob-0.1.0.jar
    - Set the root directory to `cronjob`
 
 3. **Configure the build:**
-   - Railway will detect the `railway.json` configuration
+   - Railway will detect the `railway.json` and `nixpacks.toml` configuration
    - Or manually set:
-     - Build Command: `chmod +x ./gradlew && ./gradlew clean build`
+     - Build Command: `chmod +x ./gradlew && ./gradlew clean build -x test --no-daemon`
      - Start Command: `java -jar build/libs/prepaidly-cronjob-0.1.0.jar`
 
 4. **Set up scheduled task:**
@@ -63,7 +63,36 @@ java -jar build/libs/prepaidly-cronjob-0.1.0.jar
 5. **Environment Variables:**
    Add any required environment variables:
    - `LOG_LEVEL` - Logging level (optional, defaults to INFO)
+   - `JAVA_HOME` - Java home (usually auto-detected)
    - Any other variables your job needs
+
+### Troubleshooting Build Issues
+
+If you encounter build failures on Railway:
+
+1. **Check Railway logs** for detailed error messages
+2. **Verify file structure** - ensure all files are committed:
+   - `build.gradle`
+   - `settings.gradle`
+   - `gradlew` and `gradle/` directory
+   - `src/main/java/com/prepaidly/cronjob/DailyCronJob.java`
+   - `src/main/resources/logback.xml`
+
+3. **Try building locally first:**
+   ```bash
+   cd cronjob
+   ./gradlew clean build -x test --no-daemon
+   ```
+
+4. **Common issues:**
+   - Missing `--no-daemon` flag (Railway doesn't support Gradle daemon)
+   - Missing logback.xml (now included)
+   - Incorrect root directory (must be set to `cronjob`)
+
+5. **If build still fails**, check:
+   - Railway build logs for specific Gradle errors
+   - Java version compatibility (should be Java 21)
+   - Network connectivity for dependency downloads
 
 ### Option 2: Using Railway Cron Plugin
 
