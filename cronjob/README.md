@@ -59,7 +59,8 @@ export DB_PASSWORD="your_password"
 
 2. **Connect the repository:**
    - Connect to your GitHub repository
-   - Set the root directory to `cronjob`
+   - **IMPORTANT**: Set the root directory to `/` (repository root) or leave it empty
+   - **DO NOT** set it to `cronjob` - the build needs access to the `backend` module
 
 3. **Configure the build:**
    - Railway will detect the `railway.json` and `nixpacks.toml` configuration
