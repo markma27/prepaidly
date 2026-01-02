@@ -24,6 +24,14 @@ dependencies {
     
     // JSON processing (if needed)
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+    
+    // Database access
+    implementation 'org.postgresql:postgresql:42.7.1'
+    implementation 'com.zaxxer:HikariCP:5.1.0'
+    
+    // Lombok for data classes
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
 }
 
 application {
