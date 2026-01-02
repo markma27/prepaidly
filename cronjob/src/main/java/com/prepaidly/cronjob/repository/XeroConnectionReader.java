@@ -48,8 +48,24 @@ public class XeroConnectionReader {
                 
                 xeroConnection.setTenantId(rs.getString("tenant_id"));
                 xeroConnection.setTenantName(rs.getString("tenant_name"));
-                xeroConnection.setAccessToken(rs.getString("access_token"));
-                xeroConnection.setRefreshToken(rs.getString("refresh_token"));
+                
+                String accessToken = rs.getString("access_token");
+                String refreshToken = rs.getString("refresh_token");
+                
+                // Log token details for debugging (without exposing full tokens)
+                if (accessToken != null) {
+                    log.debug("Access token length: {}, starts with: {}", 
+                        accessToken.length(), 
+                        accessToken.length() > 10 ? accessToken.substring(0, 10) + "..." : accessToken);
+                }
+                if (refreshToken != null) {
+                    log.debug("Refresh token length: {}, starts with: {}", 
+                        refreshToken.length(), 
+                        refreshToken.length() > 10 ? refreshToken.substring(0, 10) + "..." : refreshToken);
+                }
+                
+                xeroConnection.setAccessToken(accessToken);
+                xeroConnection.setRefreshToken(refreshToken);
                 xeroConnection.setExpiresAt(rs.getObject("expires_at", LocalDateTime.class));
                 xeroConnection.setCreatedAt(rs.getObject("created_at", LocalDateTime.class));
                 xeroConnection.setUpdatedAt(rs.getObject("updated_at", LocalDateTime.class));

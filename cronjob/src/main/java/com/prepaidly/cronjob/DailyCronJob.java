@@ -157,18 +157,57 @@ public class DailyCronJob {
                 Properties props = loadProperties();
                 String xeroClientId = props.getProperty("xero.client.id", System.getenv("XERO_CLIENT_ID"));
                 String xeroClientSecret = props.getProperty("xero.client.secret", System.getenv("XERO_CLIENT_SECRET"));
-                // Try both environment variable names for compatibility
-                String jasyptPassword = props.getProperty("jasypt.encryptor.password", 
-                    System.getenv("JASYPT_ENCRYPTOR_PASSWORD") != null 
-                        ? System.getenv("JASYPT_ENCRYPTOR_PASSWORD")
-                        : System.getenv("JASYPT_PASSWORD"));
+                // Read JASYPT_PASSWORD environment variable
+                // Spring @Value automatically trims, so we should too
+                String jasyptPasswordRaw = props.getProperty("jasypt.encryptor.password", 
+                    System.getenv("JASYPT_PASSWORD"));
+                
+                // Trim whitespace (Spring does this automatically via @Value)
+                String jasyptPassword = jasyptPasswordRaw != null ? jasyptPasswordRaw.trim() : null;
                 
                 // Log configuration status (without exposing secrets)
                 log.info("Xero Client ID configured: {}", xeroClientId != null && !xeroClientId.isEmpty());
                 log.info("Xero Client Secret configured: {}", xeroClientSecret != null && !xeroClientSecret.isEmpty());
                 log.info("Jasypt password configured: {}", jasyptPassword != null && !jasyptPassword.isEmpty());
+                log.info("Jasypt password source: {}", System.getenv("JASYPT_PASSWORD") != null ? "JASYPT_PASSWORD" : "NONE");
+                
                 if (jasyptPassword != null) {
-                    log.info("Jasypt password length: {}", jasyptPassword.length());
+                    log.info("Jasypt password length: {} (before trim: {})", 
+                        jasyptPassword.length(), 
+                        jasyptPasswordRaw != null ? jasyptPasswordRaw.length() : jasyptPassword.length());
+                    
+                    // Check for whitespace issues
+                    if (!jasyptPassword.equals(jasyptPasswordRaw)) {
+                        log.warn("Password had leading/trailing whitespace that was trimmed");
+                    }
+                    
+                    // Log first and last few characters for verification (without exposing full password)
+                    if (jasyptPassword.length() > 4) {
+                        log.info("Jasypt password preview: '{}...{}' (first 3 and last 3 chars)", 
+                            jasyptPassword.substring(0, Math.min(3, jasyptPassword.length())), 
+                            jasyptPassword.substring(Math.max(0, jasyptPassword.length() - 3)));
+                    }
+                    
+                    // Check for non-printable characters
+                    boolean hasNonPrintable = false;
+                    for (char c : jasyptPassword.toCharArray()) {
+                        if (!Character.isLetterOrDigit(c) && !Character.isWhitespace(c) && 
+                            c < 32 && c != '\t' && c != '\n' && c != '\r') {
+                            hasNonPrintable = true;
+                            break;
+                        }
+                    }
+                    if (hasNonPrintable) {
+                        log.warn("Password contains non-printable characters - this may cause issues");
+                    }
+                } else {
+                    log.error("JASYPT_PASSWORD environment variable is not set!");
+                    log.error("To fix this:");
+                    log.error("1. Go to Railway Dashboard → Your BACKEND service → Variables");
+                    log.error("2. Find the JASYPT_PASSWORD variable");
+                    log.error("3. Copy its value EXACTLY (including any special characters)");
+                    log.error("4. Go to Railway Dashboard → Your CRONJOB service → Variables");
+                    log.error("5. Add/update JASYPT_PASSWORD with the same value from backend");
                 }
                 
                 if (xeroClientId == null || xeroClientId.isEmpty()) {
@@ -178,9 +217,18 @@ public class DailyCronJob {
                     throw new RuntimeException("Missing XERO_CLIENT_SECRET environment variable");
                 }
                 if (jasyptPassword == null || jasyptPassword.isEmpty()) {
-                    throw new RuntimeException("Missing JASYPT_PASSWORD or JASYPT_ENCRYPTOR_PASSWORD environment variable. " +
+                    throw new RuntimeException("Missing JASYPT_PASSWORD environment variable. " +
                         "This must match the password used to encrypt tokens in the backend. " +
-                        "Check your Railway environment variables and ensure it matches the backend's JASYPT_PASSWORD.");
+                        "Set JASYPT_PASSWORD in Railway environment variables to match the backend's JASYPT_PASSWORD.");
+                }
+                
+                // Test encryption service first
+                log.info("Testing encryption service with provided password...");
+                try {
+                    com.prepaidly.cronjob.util.PasswordDiagnostic.testEncryptionService(jasyptPassword);
+                } catch (Exception e) {
+                    log.error("Encryption service test failed - password may be incorrect", e);
+                    throw new RuntimeException("Encryption service test failed. Please verify JASYPT_PASSWORD matches the backend exactly.", e);
                 }
                 
                 EncryptionService encryptionService = new EncryptionService(jasyptPassword);
