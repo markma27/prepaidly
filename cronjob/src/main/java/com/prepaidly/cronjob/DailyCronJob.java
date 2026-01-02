@@ -27,15 +27,37 @@ public class DailyCronJob {
     private static final Logger log = LoggerFactory.getLogger(DailyCronJob.class);
     
     public static void main(String[] args) {
+        log.info("=== Daily Cron Job Application Starting ===");
+        log.info("Java version: {}", System.getProperty("java.version"));
+        log.info("Java home: {}", System.getProperty("java.home"));
+        log.info("Working directory: {}", System.getProperty("user.dir"));
+        
         DailyCronJob job = new DailyCronJob();
         try {
+            log.info("Initializing cron job...");
             job.run();
+            log.info("Cron job completed successfully, exiting with code 0");
             System.exit(0);
         } catch (Exception e) {
-            log.error("Daily cron job failed", e);
+            log.error("=== Daily Cron Job Failed ===");
+            log.error("Exception type: {}", e.getClass().getName());
+            log.error("Exception message: {}", e.getMessage());
+            if (e.getCause() != null) {
+                log.error("Cause: {}", e.getCause().getClass().getName());
+                log.error("Cause message: {}", e.getCause().getMessage());
+            }
+            log.error("Full stack trace:", e);
+            System.err.println("ERROR: " + e.getMessage());
+            e.printStackTrace(System.err);
             System.exit(1);
         } finally {
-            DatabaseConfig.close();
+            log.info("Cleaning up resources...");
+            try {
+                DatabaseConfig.close();
+            } catch (Exception e) {
+                log.error("Error closing database connection", e);
+            }
+            log.info("=== Daily Cron Job Application Exiting ===");
         }
     }
     
@@ -53,18 +75,40 @@ public class DailyCronJob {
         log.info("=== Daily Cron Job Started ===");
         
         try {
+            log.info("Step 1: Initializing database connection...");
+            // Initialize database connection early to catch errors
+            DatabaseConfig.initialize();
+            log.info("Database connection initialized successfully");
+            
+            log.info("Step 2: Reading journal entries from database...");
             // Read all journal entries and store in map
             Map<String, JournalEntry> journalEntryMap = readJournalEntries();
-            log.info("Loaded {} journal entries from database", journalEntryMap.size());
+            log.info("Successfully loaded {} journal entries from database", journalEntryMap.size());
             
+            log.info("Step 3: Logging journal entries...");
             // Log xero_manual_journal_id and posted status for all journal entries
             logJournalEntries(journalEntryMap);
             
+            log.info("All steps completed successfully");
         } catch (SQLException e) {
-            log.error("Database error executing daily tasks", e);
+            log.error("=== SQL Exception in Daily Tasks ===");
+            log.error("SQL State: {}", e.getSQLState());
+            log.error("Error Code: {}", e.getErrorCode());
+            log.error("Error Message: {}", e.getMessage());
+            if (e.getCause() != null) {
+                log.error("Cause: {}", e.getCause().getMessage());
+            }
+            log.error("Full stack trace:", e);
             throw new RuntimeException("Failed to read journal entries", e);
         } catch (Exception e) {
-            log.error("Error executing daily tasks", e);
+            log.error("=== Exception in Daily Tasks ===");
+            log.error("Exception type: {}", e.getClass().getName());
+            log.error("Exception message: {}", e.getMessage());
+            if (e.getCause() != null) {
+                log.error("Cause type: {}", e.getCause().getClass().getName());
+                log.error("Cause message: {}", e.getCause().getMessage());
+            }
+            log.error("Full stack trace:", e);
             throw e;
         }
         
@@ -80,16 +124,33 @@ public class DailyCronJob {
      * @throws SQLException if database access fails
      */
     private Map<String, JournalEntry> readJournalEntries() throws SQLException {
+        log.info("Starting to read journal entries from database...");
         Map<String, JournalEntry> journalEntryMap = new HashMap<>();
         
         String sql = "SELECT id, schedule_id, period_date, amount, xero_manual_journal_id, posted, created_at " +
                      "FROM journal_entries";
         
-        try (Connection connection = DatabaseConfig.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+        log.info("SQL Query: {}", sql);
+        
+        try {
+            log.info("Getting database connection...");
+            Connection connection = DatabaseConfig.getConnection();
+            log.info("Database connection obtained successfully");
             
+            log.info("Creating prepared statement...");
+            PreparedStatement stmt = connection.prepareStatement(sql);
+            log.info("Prepared statement created successfully");
+            
+            log.info("Executing query...");
+            ResultSet rs = stmt.executeQuery();
+            log.info("Query executed successfully, processing results...");
+            
+            int rowCount = 0;
             while (rs.next()) {
+                rowCount++;
+                if (rowCount % 100 == 0) {
+                    log.debug("Processed {} rows so far...", rowCount);
+                }
                 JournalEntry entry = new JournalEntry();
                 entry.setId(rs.getLong("id"));
                 
@@ -114,7 +175,31 @@ public class DailyCronJob {
                 journalEntryMap.put(key, entry);
             }
             
-            log.info("Successfully loaded {} journal entries", journalEntryMap.size());
+            log.info("Successfully processed {} rows from database", rowCount);
+            log.info("Total journal entries in map: {}", journalEntryMap.size());
+            
+            rs.close();
+            stmt.close();
+            connection.close();
+            log.info("Database resources closed successfully");
+            
+        } catch (SQLException e) {
+            log.error("=== SQL Exception while reading journal entries ===");
+            log.error("SQL State: {}", e.getSQLState());
+            log.error("Error Code: {}", e.getErrorCode());
+            log.error("Error Message: {}", e.getMessage());
+            if (e.getCause() != null) {
+                log.error("Cause: {}", e.getCause().getMessage());
+            }
+            log.error("SQL Query: {}", sql);
+            log.error("Full stack trace:", e);
+            throw e;
+        } catch (Exception e) {
+            log.error("=== Unexpected Exception while reading journal entries ===");
+            log.error("Exception type: {}", e.getClass().getName());
+            log.error("Exception message: {}", e.getMessage());
+            log.error("Full stack trace:", e);
+            throw new SQLException("Unexpected error reading journal entries", e);
         }
         
         return journalEntryMap;
