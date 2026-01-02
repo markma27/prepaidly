@@ -4,11 +4,11 @@
 nixPkgs = ["gradle", "jdk21"]
 
 [phases.install]
-cmds = ["chmod +x ../backend/gradlew"]
+cmds = ["chmod +x cronjob/build.sh"]
 
 [phases.build]
-cmds = ["cd .. && ./backend/gradlew :cronjob:clean :cronjob:build -x test --no-daemon"]
+cmds = ["./cronjob/build.sh"]
 
 [start]
-cmd = "cd cronjob && java -jar build/libs/prepaidly-cronjob-0.1.0.jar"
+cmd = "java -jar cronjob/build/libs/prepaidly-cronjob-0.1.0.jar"
 
