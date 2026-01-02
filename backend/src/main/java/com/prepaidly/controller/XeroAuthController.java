@@ -212,7 +212,21 @@ public class XeroAuthController {
             @RequestParam(required = false) Long userId) {
         try {
             Long targetUserId = userId != null ? userId : DEFAULT_USER_ID;
-            XeroConnection connection = xeroOAuthService.exchangeCodeForTokens(code, targetUserId);
+            
+            // Validate state parameter is present
+            if (state == null || state.isEmpty()) {
+                log.error("OAuth callback missing state parameter for user {}", targetUserId);
+                String errorRedirectUrl = frontendUrl + "/app/connected?success=false&error=" + 
+                    java.net.URLEncoder.encode("Missing state parameter. This may indicate a security issue.", java.nio.charset.StandardCharsets.UTF_8);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("Location", errorRedirectUrl)
+                    .body(Map.of(
+                        "success", false,
+                        "error", "Missing state parameter. Please try connecting again."
+                    ));
+            }
+            
+            XeroConnection connection = xeroOAuthService.exchangeCodeForTokens(code, state, targetUserId);
             
             // Redirect to frontend success page
             String redirectUrl = frontendUrl + "/app/connected?success=true&tenantId=" + connection.getTenantId();

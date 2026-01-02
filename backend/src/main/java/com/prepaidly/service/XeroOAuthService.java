@@ -29,16 +29,19 @@ public class XeroOAuthService {
     private final UserRepository userRepository;
     private final XeroConnectionRepository xeroConnectionRepository;
     private final RestTemplate restTemplate;
+    private final OAuthStateCache oAuthStateCache;
     
     /**
      * Generate the authorization URL for Xero OAuth2 flow
      * 
-     * TODO [SECURITY]: Implement state parameter validation for CSRF protection
-     * - Current: State is generated but not stored/validated
-     * - Required: Store state in cache/session with userId and expiration (e.g., 10 minutes)
-     * - In callback: Validate received state matches stored state for the user
-     * - Benefits: Prevents CSRF attacks and ensures OAuth callback is legitimate
-     * - Implementation: Use Redis/InMemoryCache or HttpSession to store state temporarily
+     * Generates a secure authorization URL with state parameter for CSRF protection.
+     * The state is stored in cache and associated with the user ID. It will be validated
+     * in the OAuth callback to ensure the request is legitimate.
+     * 
+     * Security Features:
+     * - State parameter is generated and stored with user ID
+     * - State expires after 10 minutes
+     * - State is validated in callback to prevent CSRF attacks
      */
     public String getAuthorizationUrl(Long userId) {
         // Validate configuration
@@ -53,7 +56,8 @@ public class XeroOAuthService {
         }
         
         String scopes = String.join(" ", XeroConfig.REQUIRED_SCOPES);
-        String state = UUID.randomUUID().toString(); // TODO: Store state for validation
+        // Generate and store state for CSRF protection
+        String state = oAuthStateCache.storeState(userId);
         
         // URL encode the redirect URI and scopes
         String redirectUri = java.net.URLEncoder.encode(xeroConfig.getRedirectUri(), java.nio.charset.StandardCharsets.UTF_8);
@@ -76,9 +80,24 @@ public class XeroOAuthService {
     
     /**
      * Exchange authorization code for access token
+     * 
+     * Validates the state parameter for CSRF protection before exchanging the code.
+     * 
+     * @param code The authorization code from Xero
+     * @param state The state parameter from OAuth callback (must match stored state)
+     * @param userId The user ID associated with this OAuth flow
+     * @return XeroConnection with encrypted tokens
+     * @throws RuntimeException if state validation fails or token exchange fails
      */
     @Transactional
-    public XeroConnection exchangeCodeForTokens(String code, Long userId) {
+    public XeroConnection exchangeCodeForTokens(String code, String state, Long userId) {
+        // Validate state parameter for CSRF protection
+        if (!oAuthStateCache.validateState(state, userId)) {
+            log.error("State validation failed for user {}. State: {}", userId, state);
+            throw new RuntimeException("Invalid or expired state parameter. This may indicate a CSRF attack or expired OAuth flow. Please try connecting again.");
+        }
+        
+        log.info("State validated successfully for user {}", userId);
         try {
             // Prepare token request
             HttpHeaders headers = new HttpHeaders();
@@ -96,7 +115,8 @@ public class XeroOAuthService {
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
             
             // Call Xero token endpoint
-            log.info("Exchanging authorization code for tokens. Code length: {}", code != null ? code.length() : 0);
+            log.info("Exchanging authorization code for tokens. Code length: {}, User ID: {}", 
+                code != null ? code.length() : 0, userId);
             log.info("Using redirect URI: {}", xeroConfig.getRedirectUri());
             
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
