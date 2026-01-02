@@ -3,14 +3,23 @@ package com.prepaidly.cronjob;
 import com.prepaidly.cronjob.config.DatabaseConfig;
 import com.prepaidly.cronjob.repository.JournalEntryReader;
 import com.prepaidly.cronjob.repository.ScheduleReader;
+import com.prepaidly.cronjob.repository.XeroConnectionReader;
+import com.prepaidly.cronjob.service.EncryptionService;
+import com.prepaidly.cronjob.service.JournalPostingService;
+import com.prepaidly.cronjob.service.XeroApiService;
+import com.prepaidly.cronjob.service.XeroOAuthService;
 import com.prepaidly.model.JournalEntry;
 import com.prepaidly.model.Schedule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 /**
@@ -139,6 +148,68 @@ public class DailyCronJob {
             System.out.flush();
             log.info("Found {} journal entries ready to post", entriesToPost.size());
             
+            if (!entriesToPost.isEmpty()) {
+                System.out.println("Step 5: Posting journal entries to Xero...");
+                System.out.flush();
+                log.info("Step 5: Posting journal entries to Xero...");
+                
+                // Initialize Xero services
+                Properties props = loadProperties();
+                String xeroClientId = props.getProperty("xero.client.id", System.getenv("XERO_CLIENT_ID"));
+                String xeroClientSecret = props.getProperty("xero.client.secret", System.getenv("XERO_CLIENT_SECRET"));
+                String jasyptPassword = props.getProperty("jasypt.encryptor.password", System.getenv("JASYPT_ENCRYPTOR_PASSWORD"));
+                
+                if (xeroClientId == null || xeroClientSecret == null || jasyptPassword == null) {
+                    throw new RuntimeException("Missing Xero configuration. Please set XERO_CLIENT_ID, XERO_CLIENT_SECRET, and JASYPT_ENCRYPTOR_PASSWORD environment variables.");
+                }
+                
+                EncryptionService encryptionService = new EncryptionService(jasyptPassword);
+                XeroConnectionReader xeroConnectionReader = new XeroConnectionReader();
+                XeroOAuthService xeroOAuthService = new XeroOAuthService(xeroClientId, xeroClientSecret, encryptionService);
+                XeroApiService xeroApiService = new XeroApiService(xeroConnectionReader, xeroOAuthService);
+                JournalPostingService journalPostingService = new JournalPostingService(xeroApiService, xeroConnectionReader);
+                
+                // Create schedule map by ID for quick lookup
+                Map<Long, Schedule> scheduleMap = new HashMap<>();
+                for (Schedule schedule : scheduleSet) {
+                    scheduleMap.put(schedule.getId(), schedule);
+                }
+                
+                // Post each journal entry
+                int successCount = 0;
+                int failureCount = 0;
+                
+                for (JournalEntry entry : entriesToPost) {
+                    try {
+                        Schedule schedule = scheduleMap.get(entry.getScheduleId());
+                        if (schedule == null) {
+                            log.error("Schedule not found for journal entry {} (schedule_id: {})", entry.getId(), entry.getScheduleId());
+                            failureCount++;
+                            continue;
+                        }
+                        
+                        String xeroJournalId = journalPostingService.postJournal(entry, schedule);
+                        System.out.println("Posted journal entry " + entry.getId() + " to Xero with journal ID: " + xeroJournalId);
+                        System.out.flush();
+                        successCount++;
+                        
+                    } catch (Exception e) {
+                        log.error("Failed to post journal entry {} to Xero", entry.getId(), e);
+                        System.err.println("Failed to post journal entry " + entry.getId() + ": " + e.getMessage());
+                        System.err.flush();
+                        failureCount++;
+                    }
+                }
+                
+                System.out.println("Journal posting completed. Success: " + successCount + ", Failures: " + failureCount);
+                System.out.flush();
+                log.info("Journal posting completed. Success: {}, Failures: {}", successCount, failureCount);
+            } else {
+                System.out.println("No journal entries to post");
+                System.out.flush();
+                log.info("No journal entries to post");
+            }
+            
             System.out.println("All steps completed successfully");
             System.out.flush();
             log.info("All steps completed successfully");
@@ -243,6 +314,23 @@ public class DailyCronJob {
                 entriesToPost.size(), journalEntrySet.size());
         
         return entriesToPost;
+    }
+    
+    /**
+     * Load application properties from classpath.
+     */
+    private Properties loadProperties() {
+        Properties props = new Properties();
+        try {
+            InputStream inputStream = getClass().getClassLoader().getResourceAsStream("application.properties");
+            if (inputStream != null) {
+                props.load(inputStream);
+                inputStream.close();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load application.properties, using environment variables only", e);
+        }
+        return props;
     }
 }
 

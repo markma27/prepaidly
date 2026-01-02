@@ -29,8 +29,11 @@ dependencies {
     // HTTP client for API calls (if needed)
     implementation 'org.springframework:spring-web:6.1.5'
     
-    // JSON processing (if needed)
+    // JSON processing
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+    
+    // Encryption for Xero tokens
+    implementation 'org.jasypt:jasypt:1.9.3'
     
     // Database access
     implementation 'org.postgresql:postgresql:42.7.1'
