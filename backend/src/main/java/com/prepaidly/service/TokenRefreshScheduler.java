@@ -37,12 +37,16 @@ public class TokenRefreshScheduler {
     private final XeroOAuthService xeroOAuthService;
 
     /**
-     * Refresh all Xero tokens every 12 hours
+     * Refresh all Xero tokens every 6 hours
      * 
-     * Cron expression: 0 0 0/12 * * * (every 12 hours at minute 0)
+     * Cron expression: 0 0 0/6 * * * (every 6 hours at minute 0)
      * This ensures refresh tokens are used regularly and never expire.
+     * 
+     * Xero refresh tokens expire after 60 days of inactivity.
+     * By refreshing every 6 hours, we ensure tokens are used at least 240 times
+     * before the 60-day period, keeping them well within the active window.
      */
-    @Scheduled(cron = "0 0 0/12 * * *")
+    @Scheduled(cron = "0 0 0/6 * * *")
     public void refreshAllTokens() {
         log.info("=== Starting scheduled token refresh ===");
         
@@ -68,27 +72,58 @@ public class TokenRefreshScheduler {
 
     /**
      * Refresh a single connection's tokens
+     * 
+     * This method handles token refresh with proper error handling.
+     * If refresh fails, it logs the error but doesn't throw, allowing
+     * other connections to be refreshed.
      */
     private void refreshConnection(XeroConnection connection) {
         String tenantId = connection.getTenantId();
-        log.info("Refreshing tokens for tenant: {} ({})", 
-            connection.getTenantName() != null ? connection.getTenantName() : "Unknown", 
-            tenantId);
+        String tenantName = connection.getTenantName() != null ? connection.getTenantName() : "Unknown";
+        log.info("Refreshing tokens for tenant: {} ({})", tenantName, tenantId);
         
         try {
-            // Refresh the tokens
+            // Refresh the tokens - this uses REQUIRES_NEW transaction, so failures won't affect other connections
             XeroConnection refreshedConnection = xeroOAuthService.refreshTokens(connection);
-            log.info("Successfully refreshed tokens for tenant {}. New expiry: {}", 
-                tenantId, refreshedConnection.getExpiresAt());
+            log.info("✓ Successfully refreshed tokens for tenant {} ({}). New expiry: {}", 
+                tenantName, tenantId, refreshedConnection.getExpiresAt());
             
             // If tenant name is missing, try to fetch and store it
             if (refreshedConnection.getTenantName() == null || refreshedConnection.getTenantName().trim().isEmpty()) {
-                updateTenantName(refreshedConnection);
+                try {
+                    updateTenantName(refreshedConnection);
+                } catch (Exception e) {
+                    // Don't fail the refresh if tenant name update fails
+                    log.warn("Could not update tenant name for {}: {}", tenantId, e.getMessage());
+                }
             }
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            // Handle HTTP errors (401, 403, etc.) - these indicate token is invalid/expired
+            if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
+                log.error("✗ Token refresh failed for tenant {} ({}): Refresh token expired or invalid. User needs to reconnect. Error: {}", 
+                    tenantName, tenantId, e.getResponseBodyAsString());
+            } else {
+                log.error("✗ Token refresh failed for tenant {} ({}): HTTP error {}. Error: {}", 
+                    tenantName, tenantId, e.getStatusCode(), e.getResponseBodyAsString());
+            }
+            // Don't throw - allow other connections to be refreshed
         } catch (Exception e) {
-            log.error("Error refreshing tokens for tenant {}: {}", tenantId, e.getMessage(), e);
-            throw e;
+            log.error("✗ Error refreshing tokens for tenant {} ({}): {}", tenantName, tenantId, e.getMessage(), e);
+            // Don't throw - allow other connections to be refreshed
         }
+    }
+    
+    /**
+     * Public method to refresh a specific connection (can be called after reconnection)
+     */
+    public void refreshConnectionById(String tenantId) {
+        xeroConnectionRepository.findByTenantId(tenantId).ifPresentOrElse(
+            connection -> {
+                log.info("Manually refreshing connection for tenant: {}", tenantId);
+                refreshConnection(connection);
+            },
+            () -> log.warn("Connection not found for tenant: {}", tenantId)
+        );
     }
 
     /**

@@ -29,11 +29,22 @@ public class XeroApiService {
      * Get accounts for a tenant
      */
     public XeroAccountResponse getAccounts(String tenantId) {
+        // Fetch connection first, before any token operations
+        XeroConnection connection = xeroConnectionRepository.findByTenantId(tenantId)
+            .orElseThrow(() -> new RuntimeException("Xero connection not found for tenant: " + tenantId));
+        
         try {
-            XeroConnection connection = xeroConnectionRepository.findByTenantId(tenantId)
-                .orElseThrow(() -> new RuntimeException("Xero connection not found for tenant: " + tenantId));
-            
-            String accessToken = Objects.requireNonNull(xeroOAuthService.getValidAccessToken(connection), "Access token cannot be null");
+            // Get access token - this may trigger refresh in a separate transaction
+            String accessToken;
+            try {
+                accessToken = xeroOAuthService.getValidAccessToken(connection);
+                if (accessToken == null) {
+                    throw new RuntimeException("Failed to get valid access token. Please refresh your Xero connection.");
+                }
+            } catch (Exception tokenError) {
+                log.error("Token refresh/validation failed for tenant {}", tenantId, tokenError);
+                throw new RuntimeException("Failed to get valid access token. The refresh token may have expired. Please reconnect to Xero.", tokenError);
+            }
             
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
@@ -76,9 +87,25 @@ public class XeroApiService {
             }
             
             throw new RuntimeException("Failed to fetch accounts: " + response.getStatusCode());
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            log.error("HTTP error fetching accounts for tenant {}. Status: {}, Response: {}", 
+                tenantId, e.getStatusCode(), e.getResponseBodyAsString(), e);
+            String errorMsg = "Failed to fetch accounts from Xero";
+            if (e.getStatusCode().value() == 401) {
+                errorMsg = "Xero authentication failed. Please refresh your connection.";
+            } else if (e.getStatusCode().value() == 403) {
+                errorMsg = "Access denied. Please check your Xero connection permissions.";
+            }
+            throw new RuntimeException(errorMsg + ": " + e.getResponseBodyAsString(), e);
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            log.error("Network error fetching accounts for tenant {}", tenantId, e);
+            throw new RuntimeException("Network error connecting to Xero API. Please check your internet connection.", e);
+        } catch (RuntimeException e) {
+            // Re-throw RuntimeException as-is to preserve error message
+            throw e;
         } catch (Exception e) {
             log.error("Error fetching accounts for tenant {}", tenantId, e);
-            throw new RuntimeException("Failed to fetch accounts", e);
+            throw new RuntimeException("Failed to fetch accounts: " + e.getMessage(), e);
         }
     }
     

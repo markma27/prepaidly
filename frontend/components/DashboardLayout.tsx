@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { xeroAuthApi } from '@/lib/api';
 import { XeroConnection } from '@/lib/types';
 import { 
@@ -24,42 +24,114 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children, tenantId }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [connections, setConnections] = useState<XeroConnection[]>([]);
+  // Cache duration: 5 minutes
+  const CACHE_DURATION = 5 * 60 * 1000;
+  const CACHE_KEY = 'xero_connections_cache';
+  
+  // Get cached connections from sessionStorage
+  const getCachedConnections = (): { data: XeroConnection[]; timestamp: number } | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (e) {
+      console.error('Error reading connections cache:', e);
+    }
+    return null;
+  };
+  
+  // Save connections to sessionStorage cache
+  const setCachedConnections = (data: XeroConnection[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now(),
+      }));
+    } catch (e) {
+      console.error('Error saving connections cache:', e);
+    }
+  };
+  
+  // Initialize from cache immediately
+  const getInitialConnections = (): XeroConnection[] => {
+    const cached = getCachedConnections();
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return cached.data;
+    }
+    return [];
+  };
+  
+  const initialConnections = getInitialConnections();
+  const [connections, setConnections] = useState<XeroConnection[]>(initialConnections);
   const [currentConnection, setCurrentConnection] = useState<XeroConnection | null>(null);
   const [isEntityMenuOpen, setIsEntityMenuOpen] = useState(false);
-  const [isLoadingConnections, setIsLoadingConnections] = useState(true);
+  const [isLoadingConnections, setIsLoadingConnections] = useState(initialConnections.length === 0);
   const entityMenuRef = useRef<HTMLDivElement>(null);
+
+  // Memoize current connection lookup to avoid recalculation
+  const memoizedCurrentConnection = useMemo(() => {
+    if (!tenantId || connections.length === 0) return null;
+    
+    let current = connections.find(c => c.tenantId === tenantId);
+    if (!current) {
+      current = connections.find(c => 
+        c.tenantId.toLowerCase() === tenantId.toLowerCase()
+      );
+    }
+    if (!current && connections.length > 0) {
+      current = connections[0];
+    }
+    return current || null;
+  }, [tenantId, connections]);
+  
+  // Update currentConnection when memoized value changes
+  useEffect(() => {
+    if (memoizedCurrentConnection) {
+      setCurrentConnection(memoizedCurrentConnection);
+    }
+  }, [memoizedCurrentConnection]);
 
   useEffect(() => {
     const fetchConnections = async () => {
+      // Check sessionStorage cache first
+      const now = Date.now();
+      const cached = getCachedConnections();
+      
+      if (
+        cached &&
+        now - cached.timestamp < CACHE_DURATION &&
+        cached.data.length > 0
+      ) {
+        setConnections(cached.data);
+        setIsLoadingConnections(false);
+        return;
+      }
+
+      // Fetch if no cache or cache expired
       setIsLoadingConnections(true);
       try {
         const response = await xeroAuthApi.getStatus();
         
         if (response && response.connections) {
+          // Update sessionStorage cache
+          setCachedConnections(response.connections);
           setConnections(response.connections);
-          
-          // Find current connection
-          let current = response.connections.find(c => c.tenantId === tenantId);
-          if (!current) {
-            current = response.connections.find(c => 
-              c.tenantId.toLowerCase() === tenantId.toLowerCase()
-            );
-          }
-          if (!current && response.connections.length > 0) {
-            current = response.connections[0];
-          }
-          
-          if (current) {
-            setCurrentConnection(current);
-          }
         }
       } catch (error) {
         console.error('Error fetching connections:', error);
+        // If fetch fails but we have cache, use cache
+        const fallbackCache = getCachedConnections();
+        if (fallbackCache) {
+          setConnections(fallbackCache.data);
+        }
       } finally {
         setIsLoadingConnections(false);
       }
     };
+    
     if (tenantId) {
       fetchConnections();
     } else {
@@ -130,16 +202,19 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
             >
               <div className="flex flex-col items-start overflow-hidden flex-1 min-w-0">
                 <span className="text-xs text-gray-500 font-normal">Entity</span>
-                {isLoadingConnections ? (
+                {isLoadingConnections || (connections.length === 0 && tenantId) ? (
                   <Skeleton className="h-4 w-32 mt-1" variant="text" />
                 ) : (
                   <span className="truncate w-full text-left text-sm font-normal text-gray-700">
                     {(() => {
-                      // First try currentConnection
-                      if (currentConnection?.tenantName && 
-                          currentConnection.tenantName !== 'Unknown' && 
-                          currentConnection.tenantName !== currentConnection.tenantId) {
-                        return currentConnection.tenantName;
+                      // Use memoizedCurrentConnection for immediate display
+                      const activeConnection = memoizedCurrentConnection || currentConnection;
+                      
+                      // First try active connection
+                      if (activeConnection?.tenantName && 
+                          activeConnection.tenantName !== 'Unknown' && 
+                          activeConnection.tenantName !== activeConnection.tenantId) {
+                        return activeConnection.tenantName;
                       }
                       // Then try finding in connections array
                       const conn = connections.find(c => c.tenantId === tenantId);
@@ -148,7 +223,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
                           conn.tenantName !== conn.tenantId) {
                         return conn.tenantName;
                       }
-                      // Don't show tenantId, show placeholder instead
+                      // Show placeholder if no valid name found
                       return 'Select Entity';
                     })()}
                   </span>
@@ -218,7 +293,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
               const active = isActive(item.path, item.name);
               const Icon = item.icon;
               return (
-                <Link
+            <Link
                   key={item.name}
                   href={item.href}
                   className={`flex items-center px-3 py-2.5 text-sm font-normal rounded-lg transition-all ${
@@ -229,7 +304,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
                 >
                   <Icon className={`w-4 h-4 mr-3 ${active ? 'text-white' : 'text-gray-400'}`} />
                   {item.name}
-                </Link>
+            </Link>
               );
             })}
           </div>

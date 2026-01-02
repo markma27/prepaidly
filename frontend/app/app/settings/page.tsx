@@ -58,15 +58,27 @@ function SettingsPageContent() {
       setConnectionStatus(status);
 
       // Load accounts
-      const accountsResponse = await xeroApi.getAccounts(tid);
-      // Filter out system accounts and archived accounts
-      const filteredAccounts = accountsResponse.accounts.filter(
-        (acc) => !acc.isSystemAccount && acc.status !== 'ARCHIVED'
-      );
-      setAccounts(filteredAccounts);
+      try {
+        const accountsResponse = await xeroApi.getAccounts(tid);
+        // Filter out system accounts and archived accounts
+        const filteredAccounts = accountsResponse.accounts.filter(
+          (acc) => !acc.isSystemAccount && acc.status !== 'ARCHIVED'
+        );
+        setAccounts(filteredAccounts);
+      } catch (accountsErr: any) {
+        console.error('Error loading accounts:', accountsErr);
+        // Check if it's a token/connection issue
+        const errorMsg = accountsErr.message || 'Failed to fetch accounts';
+        if (errorMsg.includes('connection not found') || errorMsg.includes('token')) {
+          setError('Xero connection issue. Please try refreshing or reconnecting to Xero.');
+        } else {
+          setError(`Failed to fetch accounts: ${errorMsg}`);
+        }
+        setAccounts([]);
+      }
     } catch (err: any) {
       console.error('Error loading data:', err);
-      setError(err.message || 'Failed to load accounts');
+      setError(err.message || 'Failed to load connection status');
     } finally {
       setLoading(false);
     }
@@ -80,7 +92,10 @@ function SettingsPageContent() {
     );
   }
 
-  const currentConnection = connectionStatus?.connections?.[0];
+  // Find the current connection matching tenantId
+  const currentConnection = connectionStatus?.connections?.find(
+    conn => conn.tenantId === tenantId || conn.tenantId.toLowerCase() === tenantId?.toLowerCase()
+  ) || connectionStatus?.connections?.[0];
 
   return (
     <DashboardLayout tenantId={tenantId}>
@@ -105,17 +120,45 @@ function SettingsPageContent() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center mb-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+                  <div className={`w-3 h-3 rounded-full mr-3 ${currentConnection.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
                   <h2 className="text-xl font-semibold">Connected to {currentConnection.tenantName}</h2>
                 </div>
                 <p className="text-sm text-gray-600">Tenant ID: {currentConnection.tenantId}</p>
+                {!currentConnection.connected && (
+                  <p className="text-sm text-red-600 mt-2">
+                    ⚠️ Connection expired or invalid. Please reconnect to Xero.
+                  </p>
+                )}
               </div>
-              <button
-                onClick={() => tenantId && loadData(tenantId)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
-              >
-                Refresh
-              </button>
+              <div className="flex gap-2">
+                {!currentConnection.connected && (
+                  <button
+                    onClick={() => {
+                      const userStr = typeof window !== 'undefined' ? sessionStorage.getItem('user') : null;
+                      let userId: number | undefined;
+                      if (userStr) {
+                        try {
+                          const user = JSON.parse(userStr);
+                          userId = user.id;
+                        } catch (e) {
+                          console.error('Error parsing user:', e);
+                        }
+                      }
+                      // Use the API helper to get the correct backend URL
+                      window.location.href = xeroAuthApi.getConnectUrl(userId);
+                    }}
+                    className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors text-sm font-medium"
+                  >
+                    Reconnect to Xero
+                  </button>
+                )}
+                <button
+                  onClick={() => tenantId && loadData(tenantId)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
           </div>
         )}

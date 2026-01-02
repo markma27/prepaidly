@@ -222,8 +222,10 @@ public class XeroOAuthService {
     
     /**
      * Refresh access token using refresh token
+     * Uses REQUIRES_NEW to ensure it runs in its own transaction,
+     * preventing transaction abort issues when refresh fails
      */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public XeroConnection refreshTokens(XeroConnection connection) {
         try {
             HttpHeaders headers = new HttpHeaders();
@@ -271,14 +273,25 @@ public class XeroOAuthService {
     
     /**
      * Get valid access token (refresh if needed)
+     * 
+     * This method handles token refresh. If refresh fails, it throws an exception immediately.
+     * The refreshTokens method uses REQUIRES_NEW propagation to ensure it runs in its own
+     * transaction, preventing transaction abort issues.
      */
     public String getValidAccessToken(XeroConnection connection) {
-        if (connection.getExpiresAt().isBefore(LocalDateTime.now().plusMinutes(5))) {
-            // Token expires soon, refresh it
-            connection = refreshTokens(connection);
+        try {
+            if (connection.getExpiresAt().isBefore(LocalDateTime.now().plusMinutes(5))) {
+                // Token expires soon, refresh it
+                // refreshTokens uses REQUIRES_NEW so it runs in its own transaction
+                connection = refreshTokens(connection);
+            }
+            return encryptionService.decrypt(connection.getAccessToken());
+        } catch (Exception e) {
+            log.error("Failed to get valid access token for tenant {}", connection.getTenantId(), e);
+            throw new RuntimeException("Failed to get valid access token: " + e.getMessage(), e);
         }
-        return encryptionService.decrypt(connection.getAccessToken());
     }
+    
     
     /**
      * Get Xero connections (tenants) for the authenticated user
