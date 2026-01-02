@@ -252,7 +252,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
               className="w-full flex items-center justify-between px-3 py-2 text-sm font-normal text-gray-700 bg-transparent hover:bg-gray-100 rounded-lg transition-colors group"
             >
               <div className="flex flex-col items-start overflow-hidden flex-1 min-w-0">
-                <span className="text-[13px] text-gray-500 font-medium">Entity</span>
+                <span className="text-[9px] text-gray-500 font-medium">Entity</span>
                 {isLoadingConnections || (connections.length === 0 && tenantId) ? (
                   <Skeleton className="h-4 w-32 mt-1" variant="text" />
                 ) : (

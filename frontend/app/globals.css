@@ -35,3 +35,78 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
 }
 
+/* Remove black border on bar chart click - comprehensive rules */
+.recharts-bar-rectangle:focus,
+.recharts-bar-rectangle:active,
+.recharts-bar-rectangle:focus-visible {
+  outline: none !important;
+  border: none !important;
+}
+
+/* Remove focus outline from all Recharts SVG rect elements */
+.recharts-wrapper svg rect:focus,
+.recharts-wrapper svg rect:active,
+.recharts-wrapper svg rect:focus-visible {
+  outline: none !important;
+}
+
+/* Prevent SVG focus outline - this is the key fix for the entire chart border */
+.recharts-wrapper svg:focus,
+.recharts-wrapper svg:active,
+.recharts-wrapper svg:focus-visible,
+.recharts-wrapper svg:hover {
+  outline: none !important;
+  border: none !important;
+}
+
+/* Remove focus from the entire wrapper */
+.recharts-wrapper:focus,
+.recharts-wrapper:active,
+.recharts-wrapper:focus-visible {
+  outline: none !important;
+  border: none !important;
+}
+
+/* Remove focus from ResponsiveContainer */
+.recharts-responsive-container:focus,
+.recharts-responsive-container:active,
+.recharts-responsive-container:focus-visible {
+  outline: none !important;
+  border: none !important;
+}
+
+/* Completely remove any black stroke that appears on click/focus */
+.recharts-bar-rectangle[stroke*="000"],
+.recharts-bar-rectangle[stroke="black"],
+.recharts-bar-rectangle[stroke="#000"],
+.recharts-bar-rectangle[stroke="#000000"],
+.recharts-bar-rectangle[stroke="rgb(0, 0, 0)"],
+.recharts-bar-rectangle[stroke="rgba(0, 0, 0"] {
+  stroke: none !important;
+}
+
+/* Allow blue and green strokes for bar rectangles */
+.recharts-bar-rectangle[stroke="#3b82f6"],
+.recharts-bar-rectangle[stroke="#22c55e"] {
+  /* Keep the stroke color as set */
+}
+
+/* Use CSS to prevent any stroke changes on interaction */
+.recharts-bar-rectangle {
+  transition: none !important;
+}
+
+/* Remove any border/outline from the entire chart SVG */
+.recharts-wrapper svg {
+  outline: none !important;
+  border: none !important;
+}
+
+/* Remove focus styles from all chart elements */
+.recharts-wrapper *:focus,
+.recharts-wrapper *:active,
+.recharts-wrapper *:focus-visible {
+  outline: none !important;
+  border: none !important;
+}
+
