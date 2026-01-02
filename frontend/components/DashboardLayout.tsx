@@ -32,62 +32,28 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   useEffect(() => {
     const fetchConnections = async () => {
       try {
-        console.log('Fetching connections for tenantId:', tenantId);
         const response = await xeroAuthApi.getStatus();
-        console.log('API Response:', response);
         
         if (response && response.connections) {
-          console.log('Connections found:', response.connections);
-          console.log('Connection details:', response.connections.map(c => ({
-            tenantId: c.tenantId,
-            tenantName: c.tenantName,
-            connected: c.connected
-          })));
-          
           setConnections(response.connections);
-          // Try to find exact match first
-          let current = response.connections.find(c => c.tenantId === tenantId);
-          console.log('Exact match found:', current);
           
-          // If no exact match, try case-insensitive match
+          // Find current connection
+          let current = response.connections.find(c => c.tenantId === tenantId);
           if (!current) {
             current = response.connections.find(c => 
               c.tenantId.toLowerCase() === tenantId.toLowerCase()
             );
-            console.log('Case-insensitive match found:', current);
           }
-          
-          // If still no match, use first connection if available
           if (!current && response.connections.length > 0) {
             current = response.connections[0];
-            console.log('Using first connection:', current);
           }
           
           if (current) {
-            console.log('Setting current connection:', current);
             setCurrentConnection(current);
-          } else if (response.connections.length === 0) {
-            console.log('No connections available');
-            // No connections available, create a placeholder
-            setCurrentConnection({
-              tenantId: tenantId,
-              tenantName: tenantId || 'Unknown Entity',
-              connected: false,
-              message: 'No connections found'
-            });
           }
-        } else {
-          console.warn('Invalid response structure:', response);
         }
       } catch (error) {
         console.error('Error fetching connections:', error);
-        // On error, create a fallback connection object
-        setCurrentConnection({
-          tenantId: tenantId,
-          tenantName: tenantId || 'Unknown Entity',
-          connected: false,
-          message: 'Error loading connections'
-        });
       }
     };
     if (tenantId) {
@@ -155,11 +121,23 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
               <div className="flex flex-col items-start overflow-hidden flex-1 min-w-0">
                 <span className="text-xs text-gray-500 font-normal">Entity</span>
                 <span className="truncate w-full text-left text-sm font-medium text-gray-700">
-                  {currentConnection?.tenantName && currentConnection.tenantName !== 'Unknown' 
-                    ? currentConnection.tenantName 
-                    : connections.find(c => c.tenantId === tenantId)?.tenantName && connections.find(c => c.tenantId === tenantId)?.tenantName !== 'Unknown'
-                      ? connections.find(c => c.tenantId === tenantId)!.tenantName
-                      : tenantId || 'Select Entity'}
+                  {(() => {
+                    // First try currentConnection
+                    if (currentConnection?.tenantName && 
+                        currentConnection.tenantName !== 'Unknown' && 
+                        currentConnection.tenantName !== currentConnection.tenantId) {
+                      return currentConnection.tenantName;
+                    }
+                    // Then try finding in connections array
+                    const conn = connections.find(c => c.tenantId === tenantId);
+                    if (conn?.tenantName && 
+                        conn.tenantName !== 'Unknown' && 
+                        conn.tenantName !== conn.tenantId) {
+                      return conn.tenantName;
+                    }
+                    // Fallback to tenantId
+                    return tenantId || 'Select Entity';
+                  })()}
                 </span>
               </div>
               <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isEntityMenuOpen ? 'rotate-180' : ''}`} />
