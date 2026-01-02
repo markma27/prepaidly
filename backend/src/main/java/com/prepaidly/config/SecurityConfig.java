@@ -10,7 +10,8 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * Security configuration for Prepaidly backend
  * 
- * TODO [PRODUCTION]: Implement proper authentication and authorization
+ * NOTE: This is a development configuration. Authentication and authorization
+ * will be implemented before production deployment.
  * 
  * Current State (Development):
  * - All endpoints are publicly accessible (permitAll)
