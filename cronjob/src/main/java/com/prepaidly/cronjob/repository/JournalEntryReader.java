@@ -59,8 +59,12 @@ public class JournalEntryReader {
                 JournalEntry entry = new JournalEntry();
                 entry.setId(rs.getLong("id"));
                 
-                // Note: Schedule relationship is not loaded via JDBC, only schedule_id is available
-                // The Schedule field will remain null as we're using JDBC directly, not JPA
+                // Set schedule_id (not loading Schedule relationship)
+                Long scheduleId = rs.getLong("schedule_id");
+                if (!rs.wasNull()) {
+                    entry.setScheduleId(scheduleId);
+                }
+                
                 entry.setPeriodDate(rs.getObject("period_date", LocalDate.class));
                 
                 BigDecimal amount = rs.getBigDecimal("amount");

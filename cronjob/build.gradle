@@ -22,9 +22,6 @@ dependencyManagement {
 }
 
 dependencies {
-    // Shared models from backend
-    implementation project(':backend')
-    
     // Logging
     implementation 'org.slf4j:slf4j-api:2.0.9'
     implementation 'ch.qos.logback:logback-classic:1.4.14'
@@ -39,10 +36,7 @@ dependencies {
     implementation 'org.postgresql:postgresql:42.7.1'
     implementation 'com.zaxxer:HikariCP:5.1.0'
     
-    // JPA API (for model annotations, compile-only since we use JDBC directly)
-    compileOnly 'jakarta.persistence:jakarta.persistence-api:3.1.0'
-    
-    // Lombok for data classes (inherited from backend, but keeping for consistency)
+    // Lombok for data classes
     compileOnly 'org.projectlombok:lombok:1.18.30'
     annotationProcessor 'org.projectlombok:lombok:1.18.30'
 }

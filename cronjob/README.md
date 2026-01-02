@@ -19,19 +19,20 @@ cronjob/
 └── README.md                        # This file
 ```
 
-**Note**: Model classes (JournalEntry, Schedule, User, XeroConnection) are shared from the `backend` module to avoid duplication.
+**Note**: Model classes (JournalEntry, Schedule) are included in the cronjob module for standalone builds. The cronjob can be built independently without requiring the backend module.
 
 ## Building
 
-From the repository root:
-```bash
-./backend/gradlew :cronjob:build
-```
+The cronjob module is self-contained and can be built from the cronjob directory:
 
-Or from the cronjob directory:
 ```bash
 cd cronjob
-../backend/gradlew build
+./gradlew clean build -x test
+```
+
+Or from the repository root:
+```bash
+cd cronjob && ./gradlew clean build -x test
 ```
 
 ## Running Locally
@@ -59,8 +60,7 @@ export DB_PASSWORD="your_password"
 
 2. **Connect the repository:**
    - Connect to your GitHub repository
-   - **IMPORTANT**: Set the root directory to `/` (repository root) or leave it empty
-   - **DO NOT** set it to `cronjob` - the build needs access to the `backend` module
+   - **Set the root directory to `cronjob`** - the cronjob module is self-contained and builds independently
 
 3. **Configure the build:**
    - Railway will detect the `railway.json` and `nixpacks.toml` configuration
