@@ -146,48 +146,29 @@ public class DatabaseConfig {
             log.info("HikariCP configuration created successfully");
             log.info("Attempting to create HikariDataSource...");
             
-            try {
-                dataSource = new HikariDataSource(config);
-                log.info("HikariDataSource created successfully");
-                
-                // Test the connection
-                log.info("Testing database connection...");
-                try (Connection testConn = dataSource.getConnection()) {
-                    boolean valid = testConn.isValid(5);
-                    log.info("Connection test result: {}", valid);
-                    if (valid) {
-                        log.info("Database connection pool initialized and tested successfully");
-                    } else {
-                        log.error("Connection test failed - connection is not valid");
-                        throw new SQLException("Database connection test failed");
-                    }
-                } catch (SQLException e) {
-                    log.error("Failed to test database connection", e);
-                    log.error("SQL State: {}", e.getSQLState());
-                    log.error("Error Code: {}", e.getErrorCode());
-                    log.error("Error Message: {}", e.getMessage());
-                    if (e.getCause() != null) {
-                        log.error("Cause: {}", e.getCause().getMessage());
-                    }
-                    throw new RuntimeException("Database connection test failed", e);
+            dataSource = new HikariDataSource(config);
+            log.info("HikariDataSource created successfully");
+            
+            // Test the connection
+            log.info("Testing database connection...");
+            try (Connection testConn = dataSource.getConnection()) {
+                boolean valid = testConn.isValid(5);
+                log.info("Connection test result: {}", valid);
+                if (valid) {
+                    log.info("Database connection pool initialized and tested successfully");
+                } else {
+                    log.error("Connection test failed - connection is not valid");
+                    throw new SQLException("Database connection test failed");
                 }
-            } catch (Exception e) {
-                log.error("=== Database Initialization Failed ===");
-                log.error("Exception type: {}", e.getClass().getName());
-                log.error("Exception message: {}", e.getMessage());
-                log.error("JDBC URL: {}", maskPassword(jdbcUrl));
-                log.error("Username: {}", username);
-                log.error("Password length: {}", password != null ? password.length() : 0);
-                
+            } catch (SQLException e) {
+                log.error("Failed to test database connection", e);
+                log.error("SQL State: {}", e.getSQLState());
+                log.error("Error Code: {}", e.getErrorCode());
+                log.error("Error Message: {}", e.getMessage());
                 if (e.getCause() != null) {
-                    log.error("Root cause: {}", e.getCause().getClass().getName());
-                    log.error("Root cause message: {}", e.getCause().getMessage());
+                    log.error("Cause: {}", e.getCause().getMessage());
                 }
-                
-                // Print stack trace
-                log.error("Stack trace:", e);
-                
-                throw e;
+                throw new RuntimeException("Database connection test failed", e);
             }
         } catch (Exception e) {
             log.error("=== Fatal Error in Database Initialization ===");
