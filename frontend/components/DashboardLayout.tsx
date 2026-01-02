@@ -159,21 +159,42 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   }, [isEntityMenuOpen]);
 
   const mainNavigation = [
-    { name: 'Dashboard', href: `/app/dashboard?tenantId=${tenantId}`, icon: LayoutDashboard, path: '/app/dashboard' },
-    { name: 'New Schedule', href: `/app/schedules/new?tenantId=${tenantId}`, icon: PlusCircle, path: '/app/schedules/new' },
-    { name: 'Schedule Register', href: `/app/dashboard?tenantId=${tenantId}`, icon: ListOrdered, path: '/app/dashboard' },
-    { name: 'Analytics', href: `/app/dashboard?tenantId=${tenantId}`, icon: BarChart3, path: '/app/dashboard' },
+    { name: 'Dashboard', href: `/app/dashboard?tenantId=${tenantId || ''}`, icon: LayoutDashboard, path: '/app/dashboard' },
+    { name: 'New Schedule', href: `/app/schedules/new?tenantId=${tenantId || ''}`, icon: PlusCircle, path: '/app/schedules/new' },
+    { name: 'Schedule Register', href: `/app/schedules/register?tenantId=${tenantId || ''}`, icon: ListOrdered, path: '/app/schedules/register' },
+    { name: 'Analytics', href: `/app/dashboard?tenantId=${tenantId || ''}`, icon: BarChart3, path: '/app/dashboard' },
   ];
 
   const footerNavigation = [
-    { name: 'Settings', href: `/app/settings?tenantId=${tenantId}`, icon: Settings, path: '/app/settings' },
-    { name: 'Help & Support', href: `/app/dashboard?tenantId=${tenantId}`, icon: HelpCircle, path: '/app/dashboard' },
+    { name: 'Settings', href: `/app/settings?tenantId=${tenantId || ''}`, icon: Settings, path: '/app/settings' },
+    { name: 'Help & Support', href: `/app/dashboard?tenantId=${tenantId || ''}`, icon: HelpCircle, path: '/app/dashboard' },
   ];
 
   const isActive = (itemPath: string, itemName: string) => {
     // Only Dashboard should be active when on dashboard page
     if (pathname === '/app/dashboard') {
       return itemName === 'Dashboard';
+    }
+    // For Schedule Register, match register page and detail pages (but not new schedule page)
+    if (itemPath === '/app/schedules/register') {
+      // Exact match for register page
+      if (pathname === '/app/schedules/register') {
+        return true;
+      }
+      // Match detail pages like /app/schedules/123 (but not /app/schedules/new)
+      if (pathname.startsWith('/app/schedules/') && pathname !== '/app/schedules/new') {
+        const pathParts = pathname.split('/').filter(p => p);
+        // Should be: ['app', 'schedules', '123'] for detail pages
+        // Should NOT be: ['app', 'schedules', 'new'] or ['app', 'schedules', 'register']
+        if (pathParts.length === 3 && pathParts[0] === 'app' && pathParts[1] === 'schedules') {
+          const lastPart = pathParts[2];
+          // Check if it's a numeric ID (detail page)
+          if (lastPart && !isNaN(Number(lastPart)) && lastPart !== 'new' && lastPart !== 'register') {
+            return true;
+          }
+        }
+      }
+      return false;
     }
     // For other pages, match by pathname
     return pathname === itemPath;
@@ -307,7 +328,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
                 >
                   <Icon className={`w-4 h-4 mr-2.5 ${active ? 'text-white' : 'text-gray-400'}`} />
                   {item.name}
-            </Link>
+                </Link>
               );
             })}
           </nav>
