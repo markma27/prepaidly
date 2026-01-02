@@ -20,22 +20,25 @@ public class EncryptionService {
             throw new IllegalArgumentException("Encryption password cannot be null or empty. Please set JASYPT_PASSWORD environment variable.");
         }
         
-        // Trim whitespace (Spring @Value might do this automatically)
-        String trimmedPassword = encryptionPassword.trim();
-        
-        log.info("Initializing EncryptionService with password length: {} (after trim: {})", 
-            encryptionPassword.length(), trimmedPassword.length());
+        // IMPORTANT: Do NOT trim - Spring @Value doesn't trim, so we must match exactly
+        // Any whitespace in the password must be preserved to match backend behavior
+        log.info("Initializing EncryptionService with password length: {}", encryptionPassword.length());
         
         // Log first/last few characters for debugging (without exposing full password)
-        if (trimmedPassword.length() > 4) {
-            log.info("Password starts with: '{}...{}' (first 2 and last 2 chars)", 
-                trimmedPassword.substring(0, 2), 
-                trimmedPassword.substring(trimmedPassword.length() - 2));
+        if (encryptionPassword.length() > 4) {
+            log.info("Password preview: '{}...{}' (first 2 and last 2 chars)", 
+                encryptionPassword.substring(0, 2), 
+                encryptionPassword.substring(encryptionPassword.length() - 2));
+        }
+        
+        // Check for leading/trailing whitespace (for debugging)
+        if (!encryptionPassword.equals(encryptionPassword.trim())) {
+            log.warn("Password has leading/trailing whitespace - this will be preserved to match backend");
         }
         
         PooledPBEStringEncryptor pooledEncryptor = new PooledPBEStringEncryptor();
         SimpleStringPBEConfig config = new SimpleStringPBEConfig();
-        config.setPassword(trimmedPassword);
+        config.setPassword(encryptionPassword);
         config.setAlgorithm("PBEWithMD5AndDES");
         config.setKeyObtentionIterations(1000);
         config.setPoolSize(1);

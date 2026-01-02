@@ -158,12 +158,9 @@ public class DailyCronJob {
                 String xeroClientId = props.getProperty("xero.client.id", System.getenv("XERO_CLIENT_ID"));
                 String xeroClientSecret = props.getProperty("xero.client.secret", System.getenv("XERO_CLIENT_SECRET"));
                 // Read JASYPT_PASSWORD environment variable
-                // Spring @Value automatically trims, so we should too
-                String jasyptPasswordRaw = props.getProperty("jasypt.encryptor.password", 
+                // IMPORTANT: Do NOT trim - Spring @Value doesn't trim, so we must match exactly
+                String jasyptPassword = props.getProperty("jasypt.encryptor.password", 
                     System.getenv("JASYPT_PASSWORD"));
-                
-                // Trim whitespace (Spring does this automatically via @Value)
-                String jasyptPassword = jasyptPasswordRaw != null ? jasyptPasswordRaw.trim() : null;
                 
                 // Log configuration status (without exposing secrets)
                 log.info("Xero Client ID configured: {}", xeroClientId != null && !xeroClientId.isEmpty());
@@ -172,13 +169,14 @@ public class DailyCronJob {
                 log.info("Jasypt password source: {}", System.getenv("JASYPT_PASSWORD") != null ? "JASYPT_PASSWORD" : "NONE");
                 
                 if (jasyptPassword != null) {
-                    log.info("Jasypt password length: {} (before trim: {})", 
-                        jasyptPassword.length(), 
-                        jasyptPasswordRaw != null ? jasyptPasswordRaw.length() : jasyptPassword.length());
+                    log.info("Jasypt password length: {}", jasyptPassword.length());
                     
-                    // Check for whitespace issues
-                    if (!jasyptPassword.equals(jasyptPasswordRaw)) {
-                        log.warn("Password had leading/trailing whitespace that was trimmed");
+                    // Check for leading/trailing whitespace (for debugging)
+                    String trimmed = jasyptPassword.trim();
+                    if (!jasyptPassword.equals(trimmed)) {
+                        log.warn("Password has leading/trailing whitespace (length: {} -> {} after trim)", 
+                            jasyptPassword.length(), trimmed.length());
+                        log.warn("NOTE: Backend uses password as-is (no trim), so whitespace will be preserved");
                     }
                     
                     // Log first and last few characters for verification (without exposing full password)
