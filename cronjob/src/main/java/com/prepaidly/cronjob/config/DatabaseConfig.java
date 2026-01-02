@@ -46,9 +46,6 @@ public class DatabaseConfig {
                 throw new IllegalStateException("DATABASE_URL environment variable is not set");
             }
             
-            log.info("DATABASE_URL length: {}", dbUrl.length());
-            log.info("DATABASE_URL starts with: {}", dbUrl.substring(0, Math.min(50, dbUrl.length())));
-        
             // Parse DATABASE_URL if it's a full connection string (postgresql://user:pass@host:port/db)
             // Otherwise use it as-is and get credentials from separate env vars
             log.info("Parsing DATABASE_URL...");
@@ -125,7 +122,6 @@ public class DatabaseConfig {
             log.info("Final connection parameters:");
             log.info("  JDBC URL: {}", maskPassword(jdbcUrl));
             log.info("  Username: {}", username);
-            log.info("  Password length: {}", password != null ? password.length() : 0);
         
             log.info("Creating HikariCP configuration...");
             HikariConfig config = new HikariConfig();
