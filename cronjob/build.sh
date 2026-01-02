@@ -4,6 +4,8 @@ set -e
 echo "=== Build Script Starting ==="
 echo "Current directory: $(pwd)"
 echo "Script location: $(dirname "$0")"
+echo "Current directory contents:"
+ls -la "$SCRIPT_DIR"
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
