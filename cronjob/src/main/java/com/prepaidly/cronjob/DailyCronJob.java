@@ -1,19 +1,17 @@
 package com.prepaidly.cronjob;
 
 import com.prepaidly.cronjob.config.DatabaseConfig;
+import com.prepaidly.cronjob.repository.JournalEntryReader;
+import com.prepaidly.cronjob.repository.ScheduleReader;
 import com.prepaidly.model.JournalEntry;
+import com.prepaidly.model.Schedule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Daily Cron Job
@@ -81,13 +79,25 @@ public class DailyCronJob {
             log.info("Database connection initialized successfully");
             
             log.info("Step 2: Reading journal entries from database...");
-            // Read all journal entries and store in map
-            Map<String, JournalEntry> journalEntryMap = readJournalEntries();
-            log.info("Successfully loaded {} journal entries from database", journalEntryMap.size());
+            // Read all journal entries and store in set
+            JournalEntryReader journalEntryReader = new JournalEntryReader();
+            Set<JournalEntry> journalEntrySet = journalEntryReader.readAll();
+            log.info("Successfully loaded {} journal entries from database", journalEntrySet.size());
+            
+            log.info("Step 2.5: Reading schedules from database...");
+            // Read all schedules and store in set
+            ScheduleReader scheduleReader = new ScheduleReader();
+            Set<Schedule> scheduleSet = scheduleReader.readAll();
+            log.info("Successfully loaded {} schedules from database", scheduleSet.size());
             
             log.info("Step 3: Logging journal entries...");
             // Log xero_manual_journal_id and posted status for all journal entries
-            logJournalEntries(journalEntryMap);
+            logJournalEntries(journalEntrySet);
+            
+            log.info("Step 4: Filtering journal entries ready to post...");
+            // Create a set of journal entries whose period_date equals or before current date and not posted yet
+            Set<JournalEntry> entriesToPost = filterEntriesReadyToPost(journalEntrySet);
+            log.info("Found {} journal entries ready to post", entriesToPost.size());
             
             log.info("All steps completed successfully");
         } catch (SQLException e) {
@@ -117,113 +127,20 @@ public class DailyCronJob {
     }
     
     /**
-     * Read all journal entries from the database and store them in a map.
-     * Key: xero_manual_journal_id, Value: JournalEntry object
-     * 
-     * @return Map of journal entries keyed by xero_manual_journal_id
-     * @throws SQLException if database access fails
-     */
-    private Map<String, JournalEntry> readJournalEntries() throws SQLException {
-        log.info("Starting to read journal entries from database...");
-        Map<String, JournalEntry> journalEntryMap = new HashMap<>();
-        
-        String sql = "SELECT id, schedule_id, period_date, amount, xero_manual_journal_id, posted, created_at " +
-                     "FROM journal_entries";
-        
-        log.info("SQL Query: {}", sql);
-        
-        try {
-            log.info("Getting database connection...");
-            Connection connection = DatabaseConfig.getConnection();
-            log.info("Database connection obtained successfully");
-            
-            log.info("Creating prepared statement...");
-            PreparedStatement stmt = connection.prepareStatement(sql);
-            log.info("Prepared statement created successfully");
-            
-            log.info("Executing query...");
-            ResultSet rs = stmt.executeQuery();
-            log.info("Query executed successfully, processing results...");
-            
-            int rowCount = 0;
-            while (rs.next()) {
-                rowCount++;
-                if (rowCount % 100 == 0) {
-                    log.debug("Processed {} rows so far...", rowCount);
-                }
-                JournalEntry entry = new JournalEntry();
-                entry.setId(rs.getLong("id"));
-                
-                // Note: Schedule relationship is not loaded via JDBC, only schedule_id is available
-                // The Schedule field will remain null as we're using JDBC directly, not JPA
-                entry.setPeriodDate(rs.getObject("period_date", LocalDate.class));
-                
-                BigDecimal amount = rs.getBigDecimal("amount");
-                entry.setAmount(amount);
-                
-                String xeroManualJournalId = rs.getString("xero_manual_journal_id");
-                entry.setXeroManualJournalId(xeroManualJournalId);
-                
-                entry.setPosted(rs.getBoolean("posted"));
-                entry.setCreatedAt(rs.getObject("created_at", LocalDateTime.class));
-                
-                // Use xero_manual_journal_id as key (null values will be stored as "null" key)
-                String key = xeroManualJournalId != null ? xeroManualJournalId : "null_" + entry.getId();
-                journalEntryMap.put(key, entry);
-            }
-            
-            log.info("Successfully processed {} rows from database", rowCount);
-            log.info("Total journal entries in map: {}", journalEntryMap.size());
-            
-            rs.close();
-            stmt.close();
-            connection.close();
-            log.info("Database resources closed successfully");
-            
-        } catch (SQLException e) {
-            log.error("=== SQL Exception while reading journal entries ===");
-            log.error("SQL State: {}", e.getSQLState());
-            log.error("Error Code: {}", e.getErrorCode());
-            log.error("Error Message: {}", e.getMessage());
-            if (e.getCause() != null) {
-                log.error("Cause: {}", e.getCause().getMessage());
-            }
-            log.error("SQL Query: {}", sql);
-            log.error("Full stack trace:", e);
-            throw e;
-        } catch (Exception e) {
-            log.error("=== Unexpected Exception while reading journal entries ===");
-            log.error("Exception type: {}", e.getClass().getName());
-            log.error("Exception message: {}", e.getMessage());
-            log.error("Full stack trace:", e);
-            throw new SQLException("Unexpected error reading journal entries", e);
-        }
-        
-        return journalEntryMap;
-    }
-    
-    /**
      * Log xero_manual_journal_id and posted status for all journal entries.
      * 
-     * @param journalEntryMap Map of journal entries keyed by xero_manual_journal_id
+     * @param journalEntrySet Set of journal entries
      */
-    private void logJournalEntries(Map<String, JournalEntry> journalEntryMap) {
+    private void logJournalEntries(Set<JournalEntry> journalEntrySet) {
         log.info("=== Journal Entries Summary ===");
-        log.info("Total entries: {}", journalEntryMap.size());
+        log.info("Total entries: {}", journalEntrySet.size());
         
         int postedCount = 0;
         int notPostedCount = 0;
         
-        for (Map.Entry<String, JournalEntry> entry : journalEntryMap.entrySet()) {
-            JournalEntry journalEntry = entry.getValue();
+        for (JournalEntry journalEntry : journalEntrySet) {
             String xeroManualJournalId = journalEntry.getXeroManualJournalId();
             Boolean posted = journalEntry.getPosted();
-            
-            // Log each entry
-            log.info("Journal Entry ID: {}, Xero Manual Journal ID: {}, Posted: {}", 
-                    journalEntry.getId(), 
-                    xeroManualJournalId != null ? xeroManualJournalId : "null",
-                    posted != null ? posted : "null");
             
             // Count statistics
             if (posted != null && posted) {
@@ -237,6 +154,51 @@ public class DailyCronJob {
         log.info("Posted entries: {}", postedCount);
         log.info("Not posted entries: {}", notPostedCount);
         log.info("=== End Summary ===");
+    }
+    
+    /**
+     * Filter journal entries that are ready to be posted.
+     * An entry is ready if:
+     * - period_date is less than or equal to the current system date
+     * - posted is false or null (not posted yet)
+     * 
+     * @param journalEntrySet Set of all journal entries
+     * @return Set of journal entries ready to post
+     */
+    private Set<JournalEntry> filterEntriesReadyToPost(Set<JournalEntry> journalEntrySet) {
+        log.info("Filtering journal entries ready to post...");
+        LocalDate currentDate = LocalDate.now();
+        log.info("Current system date: {}", currentDate);
+        
+        Set<JournalEntry> entriesToPost = new HashSet<>();
+        
+        for (JournalEntry entry : journalEntrySet) {
+            LocalDate periodDate = entry.getPeriodDate();
+            Boolean posted = entry.getPosted();
+            
+            // Check if period_date is null (shouldn't happen, but defensive check)
+            if (periodDate == null) {
+                log.warn("Journal entry ID {} has null period_date, skipping", entry.getId());
+                continue;
+            }
+            
+            // Check if period_date is less than or equal to current date
+            boolean isPeriodDateValid = !periodDate.isAfter(currentDate);
+            
+            // Check if not posted yet (posted is false or null)
+            boolean isNotPosted = posted == null || !posted;
+            
+            if (isPeriodDateValid && isNotPosted) {
+                entriesToPost.add(entry);
+                log.debug("Journal entry ID {} (period_date: {}, posted: {}) is ready to post", 
+                        entry.getId(), periodDate, posted);
+            }
+        }
+        
+        log.info("Filtered {} journal entries ready to post out of {} total entries", 
+                entriesToPost.size(), journalEntrySet.size());
+        
+        return entriesToPost;
     }
 }
 
