@@ -12,17 +12,35 @@ export default function AppPage() {
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<XeroConnectionStatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | undefined>(undefined);
 
   useEffect(() => {
-    checkConnectionStatus();
+    // Get user ID from sessionStorage and check connection status
+    let currentUserId: number | undefined = undefined;
+    if (typeof window !== 'undefined') {
+      const userStr = sessionStorage.getItem('user');
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          if (user.id) {
+            currentUserId = user.id;
+            setUserId(user.id);
+          }
+        } catch (e) {
+          console.error('Error parsing user from sessionStorage:', e);
+        }
+      }
+    }
+    checkConnectionStatus(currentUserId);
   }, []);
 
-  const checkConnectionStatus = async () => {
+  const checkConnectionStatus = async (userIdParam?: number) => {
     try {
       setLoading(true);
       setError(null);
       console.log('Fetching connection status from API...');
-      const status = await xeroAuthApi.getStatus();
+      // Pass userId to get only entities this user has access to
+      const status = await xeroAuthApi.getStatus(userIdParam);
       console.log('API Response:', JSON.stringify(status, null, 2));
       console.log('Total connections:', status?.totalConnections);
       console.log('Connections array length:', status?.connections?.length);
@@ -75,7 +93,7 @@ export default function AppPage() {
 
   return (
     <div className="container mx-auto p-8 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6 text-dark-900">Connect to Xero</h1>
+      <h1 className="text-3xl font-bold mb-6 text-dark-900">Connected Entities</h1>
 
       {error && (
         <ErrorMessage 
@@ -89,11 +107,11 @@ export default function AppPage() {
           <div>
             <div className="flex items-center mb-4">
               <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
-              <h2 className="text-xl font-semibold">Connected Xero Files</h2>
+              <h2 className="text-xl font-semibold">Your Connected Entities</h2>
             </div>
             
             <p className="mb-4 text-gray-700 text-sm">
-              Select a connected Xero file to access its dashboard, or connect a new file.
+              Select a connected entity to access its dashboard, or connect a new one.
             </p>
             
             {connectionStatus.connections.filter(conn => conn.connected).length > 0 ? (
@@ -148,7 +166,7 @@ export default function AppPage() {
                   Connect New File
               </button>
               <button
-                onClick={checkConnectionStatus}
+                onClick={() => checkConnectionStatus(userId)}
                 className="px-6 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
               >
                 Refresh Status

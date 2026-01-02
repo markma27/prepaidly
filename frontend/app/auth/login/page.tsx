@@ -31,7 +31,7 @@ export default function LoginPage() {
         sessionStorage.setItem('user', JSON.stringify(user))
       }
 
-      router.push('/app/dashboard')
+      router.push('/app')
       router.refresh()
     } catch (err) {
       if (err instanceof ApiError) {
