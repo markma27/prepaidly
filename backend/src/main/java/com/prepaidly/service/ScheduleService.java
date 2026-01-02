@@ -10,6 +10,7 @@ import com.prepaidly.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -110,19 +111,60 @@ public class ScheduleService {
     
     /**
      * Get all schedules for a tenant
+     * Note: Using PROPAGATION_SUPPORTS to avoid transaction issues with connection poolers
      */
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
     public List<ScheduleResponse> getSchedulesByTenant(String tenantId) {
-        List<Schedule> schedules = scheduleRepository.findByTenantId(tenantId);
-        return schedules.stream()
-            .map(this::toScheduleResponse)
-            .collect(Collectors.toList());
+        try {
+            List<Schedule> schedules = scheduleRepository.findByTenantId(tenantId);
+            return schedules.stream()
+                .map(schedule -> {
+                    try {
+                        return toScheduleResponse(schedule);
+                    } catch (Exception e) {
+                        // Check if this is a transaction abort, rollback, or commit error
+                        String errorMessage = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+                        boolean isTransactionError = errorMessage.contains("current transaction is aborted") ||
+                                                    errorMessage.contains("commands ignored until end of transaction") ||
+                                                    errorMessage.contains("unable to rollback") ||
+                                                    errorMessage.contains("unable to commit");
+                        
+                        if (isTransactionError) {
+                            log.error("Transaction error when converting schedule {} to response: {}", 
+                                schedule.getId(), e.getMessage(), e);
+                        } else {
+                            log.error("Error converting schedule {} to response: {}", 
+                                schedule.getId(), e.getMessage(), e);
+                        }
+                        // Return a minimal response without journal entries if conversion fails
+                        return createMinimalScheduleResponse(schedule);
+                    }
+                })
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            // Check if this is a transaction abort, rollback, or commit error
+            String errorMessage = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+            boolean isTransactionError = errorMessage.contains("current transaction is aborted") ||
+                                        errorMessage.contains("commands ignored until end of transaction") ||
+                                        errorMessage.contains("unable to rollback") ||
+                                        errorMessage.contains("unable to commit");
+            
+            if (isTransactionError) {
+                log.error("Transaction error when fetching schedules for tenant {}: {}", 
+                    tenantId, e.getMessage(), e);
+            } else {
+                log.error("Error fetching schedules for tenant {}: {}", tenantId, e.getMessage(), e);
+            }
+            // Re-throw to propagate error to controller
+            throw e;
+        }
     }
     
     /**
      * Get schedule by ID
+     * Note: Using PROPAGATION_SUPPORTS to avoid transaction issues with connection poolers
      */
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
     public ScheduleResponse getScheduleById(Long scheduleId) {
         Schedule schedule = Objects.requireNonNull(
             scheduleRepository.findById(Objects.requireNonNull(scheduleId, "Schedule ID cannot be null"))
@@ -150,26 +192,74 @@ public class ScheduleService {
         response.setCreatedBy(schedule.getCreatedBy());
         response.setCreatedAt(schedule.getCreatedAt());
         
-        // Get journal entries
-        List<JournalEntry> entries = journalEntryRepository.findByScheduleId(schedule.getId());
-        List<JournalEntryResponse> entryResponses = entries.stream()
-            .map(this::toJournalEntryResponse)
-            .collect(Collectors.toList());
-        response.setJournalEntries(entryResponses);
+        // Get journal entries with error handling to prevent transaction abort
+        try {
+            List<JournalEntry> entries = journalEntryRepository.findByScheduleId(schedule.getId());
+            List<JournalEntryResponse> entryResponses = entries.stream()
+                .map(this::toJournalEntryResponse)
+                .collect(Collectors.toList());
+            response.setJournalEntries(entryResponses);
+            
+            // Calculate statistics
+            response.setTotalPeriods(entries.size());
+            response.setPostedPeriods((int) entries.stream()
+                .filter(JournalEntry::getPosted)
+                .count());
+            
+            // Calculate remaining balance
+            BigDecimal postedAmount = entries.stream()
+                .filter(JournalEntry::getPosted)
+                .map(JournalEntry::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            response.setRemainingBalance(schedule.getTotalAmount().subtract(postedAmount));
+        } catch (Exception e) {
+            // Check if this is a transaction abort, rollback, or commit error
+            String errorMessage = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+            boolean isTransactionError = errorMessage.contains("current transaction is aborted") ||
+                                        errorMessage.contains("commands ignored until end of transaction") ||
+                                        errorMessage.contains("unable to rollback") ||
+                                        errorMessage.contains("unable to commit");
+            
+            if (isTransactionError) {
+                log.error("Transaction error when fetching journal entries for schedule {}: {}", 
+                    schedule.getId(), e.getMessage(), e);
+            } else {
+                log.error("Error fetching journal entries for schedule {}: {}", 
+                    schedule.getId(), e.getMessage(), e);
+            }
+            
+            // Set empty journal entries and default statistics if query fails
+            // Don't re-throw to prevent transaction abort - return partial data instead
+            response.setJournalEntries(List.of());
+            response.setTotalPeriods(0);
+            response.setPostedPeriods(0);
+            response.setRemainingBalance(schedule.getTotalAmount());
+        }
         
-        // Calculate statistics
-        response.setTotalPeriods(entries.size());
-        response.setPostedPeriods((int) entries.stream()
-            .filter(JournalEntry::getPosted)
-            .count());
-        
-        // Calculate remaining balance
-        BigDecimal postedAmount = entries.stream()
-            .filter(JournalEntry::getPosted)
-            .map(JournalEntry::getAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-        response.setRemainingBalance(schedule.getTotalAmount().subtract(postedAmount));
-        
+        return response;
+    }
+    
+    /**
+     * Create a minimal ScheduleResponse without journal entries (used as fallback on error)
+     */
+    private ScheduleResponse createMinimalScheduleResponse(Schedule schedule) {
+        ScheduleResponse response = new ScheduleResponse();
+        response.setId(schedule.getId());
+        response.setTenantId(schedule.getTenantId());
+        response.setXeroInvoiceId(schedule.getXeroInvoiceId());
+        response.setType(schedule.getType());
+        response.setStartDate(schedule.getStartDate());
+        response.setEndDate(schedule.getEndDate());
+        response.setTotalAmount(schedule.getTotalAmount());
+        response.setExpenseAcctCode(schedule.getExpenseAcctCode());
+        response.setRevenueAcctCode(schedule.getRevenueAcctCode());
+        response.setDeferralAcctCode(schedule.getDeferralAcctCode());
+        response.setCreatedBy(schedule.getCreatedBy());
+        response.setCreatedAt(schedule.getCreatedAt());
+        response.setJournalEntries(List.of());
+        response.setTotalPeriods(0);
+        response.setPostedPeriods(0);
+        response.setRemainingBalance(schedule.getTotalAmount());
         return response;
     }
     

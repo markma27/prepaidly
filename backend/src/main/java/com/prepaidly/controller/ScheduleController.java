@@ -186,10 +186,25 @@ public class ScheduleController {
                 "count", schedules.size()
             ));
         } catch (Exception e) {
-            log.error("Error fetching schedules", e);
-            return ResponseEntity.status(500).body(Map.of(
-                "error", "Failed to fetch schedules: " + e.getMessage()
-            ));
+            // Check if this is a transaction rollback or commit error
+            String errorMessage = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+            boolean isTransactionError = errorMessage.contains("unable to rollback") ||
+                                        errorMessage.contains("unable to commit") ||
+                                        errorMessage.contains("bad sql grammar");
+            
+            if (isTransactionError) {
+                log.error("Transaction error when fetching schedules for tenant {}: {}", 
+                    tenantId, e.getMessage(), e);
+                // For transaction errors, return a more user-friendly message
+                return ResponseEntity.status(500).body(Map.of(
+                    "error", "Database connection error. Please try again."
+                ));
+            } else {
+                log.error("Error fetching schedules for tenant {}", tenantId, e);
+                return ResponseEntity.status(500).body(Map.of(
+                    "error", "Failed to fetch schedules: " + e.getMessage()
+                ));
+            }
         }
     }
     
