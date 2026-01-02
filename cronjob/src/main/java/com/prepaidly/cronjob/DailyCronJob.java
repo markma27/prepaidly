@@ -60,13 +60,6 @@ public class DailyCronJob {
             // Log xero_manual_journal_id and posted status for all journal entries
             logJournalEntries(journalEntryMap);
             
-            // TODO: Add your daily tasks here using the journalEntryMap
-            // Example tasks:
-            // - Refresh Xero tokens for all tenants
-            // - Generate journal entries for schedules due today
-            // - Send reminder notifications
-            // - Clean up old data
-            
         } catch (SQLException e) {
             log.error("Database error executing daily tasks", e);
             throw new RuntimeException("Failed to read journal entries", e);
@@ -138,8 +131,6 @@ public class DailyCronJob {
         
         int postedCount = 0;
         int notPostedCount = 0;
-        int withXeroIdCount = 0;
-        int withoutXeroIdCount = 0;
         
         for (Map.Entry<String, JournalEntry> entry : journalEntryMap.entrySet()) {
             JournalEntry journalEntry = entry.getValue();
@@ -158,19 +149,11 @@ public class DailyCronJob {
             } else {
                 notPostedCount++;
             }
-            
-            if (xeroManualJournalId != null && !xeroManualJournalId.isEmpty()) {
-                withXeroIdCount++;
-            } else {
-                withoutXeroIdCount++;
-            }
         }
         
         log.info("=== Journal Entries Statistics ===");
         log.info("Posted entries: {}", postedCount);
         log.info("Not posted entries: {}", notPostedCount);
-        log.info("Entries with Xero Journal ID: {}", withXeroIdCount);
-        log.info("Entries without Xero Journal ID: {}", withoutXeroIdCount);
         log.info("=== End Summary ===");
     }
 }
