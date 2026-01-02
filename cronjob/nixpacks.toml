@@ -1,15 +1,16 @@
 # Nixpacks configuration for Railway
 # IMPORTANT: Configure Railway to build from repository ROOT (not cronjob subdirectory)
 # In Railway dashboard: Service Settings → Root Directory → Set to "/" or leave empty
+# If Railway builds from cronjob directory, this config will work but backend won't be available
 [phases.setup]
 nixPkgs = ["gradle", "jdk21"]
 
 [phases.install]
-cmds = ["chmod +x cronjob/build.sh"]
+cmds = ["chmod +x build.sh"]
 
 [phases.build]
-cmds = ["./cronjob/build.sh"]
+cmds = ["./build.sh"]
 
 [start]
-cmd = "java -jar cronjob/build/libs/prepaidly-cronjob-0.1.0.jar"
+cmd = "java -jar build/libs/prepaidly-cronjob-0.1.0.jar"
 
