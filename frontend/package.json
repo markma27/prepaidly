@@ -25,7 +25,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "baseline-browser-mapping": "^2.9.11",
-    "eslint": "^8",
+    "eslint": "^9",
     "eslint-config-next": "^16.1.1",
     "typescript": "^5"
   }
