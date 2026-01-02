@@ -37,9 +37,14 @@ const config: Config = {
           800: "#3d3d47",
           900: "#28273d",
         },
+        brand: {
+          DEFAULT: "#16a34a",
+          hover: "#15803d",
+          active: "#166534",
+        },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
       },
     },
   },

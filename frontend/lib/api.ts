@@ -183,5 +183,27 @@ export const syncApi = {
   },
 };
 
+// Auth API
+export const authApi = {
+  /**
+   * Login with email and password
+   * Note: This is a placeholder. Backend authentication needs to be implemented.
+   * For now, this verifies the user exists.
+   */
+  login: async (email: string, password: string): Promise<{ user: any; token?: string }> => {
+    // TODO: Replace with actual login endpoint when backend implements authentication
+    // For now, verify user exists
+    const userResponse = await fetchApi<any>(`/api/users/email/${encodeURIComponent(email)}`);
+    
+    // In production, this should be:
+    // return fetchApi<{ user: any; token: string }>('/api/auth/login', {
+    //   method: 'POST',
+    //   body: JSON.stringify({ email, password }),
+    // });
+    
+    return { user: userResponse };
+  },
+};
+
 export { ApiError };
 
