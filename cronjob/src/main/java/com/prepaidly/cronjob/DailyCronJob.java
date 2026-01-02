@@ -25,18 +25,34 @@ public class DailyCronJob {
     private static final Logger log = LoggerFactory.getLogger(DailyCronJob.class);
     
     public static void main(String[] args) {
+        // Force immediate output for Railway
+        System.out.println("=== Daily Cron Job Application Starting ===");
+        System.out.flush();
+        
         log.info("=== Daily Cron Job Application Starting ===");
         log.info("Java version: {}", System.getProperty("java.version"));
         log.info("Java home: {}", System.getProperty("java.home"));
         log.info("Working directory: {}", System.getProperty("user.dir"));
         
+        // Force flush after initial logs
+        System.out.flush();
+        System.err.flush();
+        
         DailyCronJob job = new DailyCronJob();
         try {
             log.info("Initializing cron job...");
+            System.out.flush();
             job.run();
             log.info("Cron job completed successfully, exiting with code 0");
+            System.out.println("=== Daily Cron Job Completed Successfully ===");
+            System.out.flush();
             System.exit(0);
         } catch (Exception e) {
+            System.err.println("=== Daily Cron Job Failed ===");
+            System.err.println("Exception type: " + e.getClass().getName());
+            System.err.println("Exception message: " + e.getMessage());
+            System.err.flush();
+            
             log.error("=== Daily Cron Job Failed ===");
             log.error("Exception type: {}", e.getClass().getName());
             log.error("Exception message: {}", e.getMessage());
@@ -45,8 +61,10 @@ public class DailyCronJob {
                 log.error("Cause message: {}", e.getCause().getMessage());
             }
             log.error("Full stack trace:", e);
+            
             System.err.println("ERROR: " + e.getMessage());
             e.printStackTrace(System.err);
+            System.err.flush();
             System.exit(1);
         } finally {
             log.info("Cleaning up resources...");
@@ -56,6 +74,8 @@ public class DailyCronJob {
                 log.error("Error closing database connection", e);
             }
             log.info("=== Daily Cron Job Application Exiting ===");
+            System.out.flush();
+            System.err.flush();
         }
     }
     
@@ -70,35 +90,57 @@ public class DailyCronJob {
      * - Running maintenance tasks
      */
     public void run() {
+        System.out.println("=== Daily Cron Job Started ===");
+        System.out.flush();
         log.info("=== Daily Cron Job Started ===");
         
         try {
+            System.out.println("Step 1: Initializing database connection...");
+            System.out.flush();
             log.info("Step 1: Initializing database connection...");
             // Initialize database connection early to catch errors
             DatabaseConfig.initialize();
+            System.out.println("Database connection initialized successfully");
+            System.out.flush();
             log.info("Database connection initialized successfully");
             
+            System.out.println("Step 2: Reading journal entries from database...");
+            System.out.flush();
             log.info("Step 2: Reading journal entries from database...");
             // Read all journal entries and store in set
             JournalEntryReader journalEntryReader = new JournalEntryReader();
             Set<JournalEntry> journalEntrySet = journalEntryReader.readAll();
+            System.out.println("Successfully loaded " + journalEntrySet.size() + " journal entries from database");
+            System.out.flush();
             log.info("Successfully loaded {} journal entries from database", journalEntrySet.size());
             
+            System.out.println("Step 2.5: Reading schedules from database...");
+            System.out.flush();
             log.info("Step 2.5: Reading schedules from database...");
             // Read all schedules and store in set
             ScheduleReader scheduleReader = new ScheduleReader();
             Set<Schedule> scheduleSet = scheduleReader.readAll();
+            System.out.println("Successfully loaded " + scheduleSet.size() + " schedules from database");
+            System.out.flush();
             log.info("Successfully loaded {} schedules from database", scheduleSet.size());
             
+            System.out.println("Step 3: Logging journal entries...");
+            System.out.flush();
             log.info("Step 3: Logging journal entries...");
             // Log xero_manual_journal_id and posted status for all journal entries
             logJournalEntries(journalEntrySet);
             
+            System.out.println("Step 4: Filtering journal entries ready to post...");
+            System.out.flush();
             log.info("Step 4: Filtering journal entries ready to post...");
             // Create a set of journal entries whose period_date equals or before current date and not posted yet
             Set<JournalEntry> entriesToPost = filterEntriesReadyToPost(journalEntrySet);
+            System.out.println("Found " + entriesToPost.size() + " journal entries ready to post");
+            System.out.flush();
             log.info("Found {} journal entries ready to post", entriesToPost.size());
             
+            System.out.println("All steps completed successfully");
+            System.out.flush();
             log.info("All steps completed successfully");
         } catch (SQLException e) {
             log.error("=== SQL Exception in Daily Tasks ===");
@@ -122,6 +164,9 @@ public class DailyCronJob {
             throw e;
         }
         
+        System.out.println("Daily cron job completed successfully");
+        System.out.println("=== Daily Cron Job Finished ===");
+        System.out.flush();
         log.info("Daily cron job completed successfully");
         log.info("=== Daily Cron Job Finished ===");
     }
