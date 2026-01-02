@@ -14,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -32,23 +33,23 @@ public class XeroApiService {
             XeroConnection connection = xeroConnectionRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new RuntimeException("Xero connection not found for tenant: " + tenantId));
             
-            String accessToken = xeroOAuthService.getValidAccessToken(connection);
+            String accessToken = Objects.requireNonNull(xeroOAuthService.getValidAccessToken(connection), "Access token cannot be null");
             
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
-            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-            headers.set("xero-tenant-id", tenantId);
+            headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
+            headers.set("xero-tenant-id", Objects.requireNonNull(tenantId, "Tenant ID cannot be null"));
             
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_API_URL + "/Accounts",
-                HttpMethod.GET,
+                Objects.requireNonNull(HttpMethod.GET),
                 entity,
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> body = response.getBody();
+                Map<String, Object> body = Objects.requireNonNull(response.getBody());
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> accountsList = (List<Map<String, Object>>) body.get("Accounts");
                 
@@ -89,23 +90,23 @@ public class XeroApiService {
             XeroConnection connection = xeroConnectionRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new RuntimeException("Xero connection not found for tenant: " + tenantId));
             
-            String accessToken = xeroOAuthService.getValidAccessToken(connection);
+            String accessToken = Objects.requireNonNull(xeroOAuthService.getValidAccessToken(connection), "Access token cannot be null");
             
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
-            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-            headers.set("xero-tenant-id", tenantId);
+            headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
+            headers.set("xero-tenant-id", Objects.requireNonNull(tenantId, "Tenant ID cannot be null"));
             
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_API_URL + "/Invoices",
-                HttpMethod.GET,
+                Objects.requireNonNull(HttpMethod.GET),
                 entity,
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> body = response.getBody();
+                Map<String, Object> body = Objects.requireNonNull(response.getBody());
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> invoicesList = (List<Map<String, Object>>) body.get("Invoices");
                 
@@ -172,7 +173,7 @@ public class XeroApiService {
             XeroConnection connection = xeroConnectionRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new RuntimeException("Xero connection not found for tenant: " + tenantId));
             
-            String accessToken = xeroOAuthService.getValidAccessToken(connection);
+            String accessToken = Objects.requireNonNull(xeroOAuthService.getValidAccessToken(connection), "Access token cannot be null");
             
             // Build journal request
             Map<String, Object> journalRequest = new HashMap<>();
@@ -203,13 +204,13 @@ public class XeroApiService {
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-            headers.set("xero-tenant-id", tenantId);
+            headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
+            headers.set("xero-tenant-id", Objects.requireNonNull(tenantId, "Tenant ID cannot be null"));
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(journalRequest, headers);
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_API_URL + "/ManualJournals",
-                HttpMethod.POST,
+                Objects.requireNonNull(HttpMethod.POST),
                 entity,
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
@@ -218,9 +219,8 @@ public class XeroApiService {
             log.info("Xero API response body: {}", response.getBody());
             
             if (response.getStatusCode() == HttpStatus.OK || response.getStatusCode() == HttpStatus.CREATED) {
-                if (response.getBody() != null) {
-                    Map<String, Object> body = response.getBody();
-                    
+                Map<String, Object> body = response.getBody();
+                if (body != null) {
                     // Check for validation errors
                     @SuppressWarnings("unchecked")
                     List<Map<String, Object>> validationErrors = (List<Map<String, Object>>) body.get("ValidationErrors");
@@ -246,7 +246,8 @@ public class XeroApiService {
                 }
             }
             
-            String errorBody = response.getBody() != null ? response.getBody().toString() : "No response body";
+            Map<String, Object> responseBody = response.getBody();
+            String errorBody = responseBody != null ? responseBody.toString() : "No response body";
             log.error("Failed to create manual journal. Status: {}, Body: {}", response.getStatusCode(), errorBody);
             throw new RuntimeException("Failed to create manual journal: " + response.getStatusCode() + ". Response: " + errorBody);
         } catch (org.springframework.web.client.HttpClientErrorException e) {

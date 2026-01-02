@@ -139,7 +139,6 @@ public class DailyCronJob {
         int notPostedCount = 0;
         
         for (JournalEntry journalEntry : journalEntrySet) {
-            String xeroManualJournalId = journalEntry.getXeroManualJournalId();
             Boolean posted = journalEntry.getPosted();
             
             // Count statistics

@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -60,21 +61,21 @@ class ScheduleServiceTest {
         savedSchedule.setEndDate(LocalDate.of(2025, 3, 31));
         savedSchedule.setTotalAmount(new BigDecimal("3000.00"));
 
-        when(scheduleRepository.save(any(Schedule.class))).thenReturn(savedSchedule);
-        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> {
-            JournalEntry entry = invocation.getArgument(0);
+        when(scheduleRepository.save(Objects.requireNonNull(any(Schedule.class), "Schedule cannot be null"))).thenReturn(Objects.requireNonNull(savedSchedule, "Saved schedule cannot be null"));
+        when(journalEntryRepository.save(Objects.requireNonNull(any(JournalEntry.class), "Journal entry cannot be null"))).thenAnswer(invocation -> {
+            JournalEntry entry = Objects.requireNonNull(invocation.getArgument(0), "Journal entry cannot be null");
             entry.setId(1L);
             return entry;
         });
         when(journalEntryRepository.findByScheduleId(1L)).thenReturn(Collections.emptyList());
 
-        ScheduleResponse response = scheduleService.createSchedule(createRequest);
+        ScheduleResponse response = Objects.requireNonNull(scheduleService.createSchedule(createRequest), "Schedule response cannot be null");
 
         assertNotNull(response);
         assertEquals("test-tenant", response.getTenantId());
-        verify(scheduleRepository, times(1)).save(any(Schedule.class));
+        verify(scheduleRepository, times(1)).save(Objects.requireNonNull(any(Schedule.class), "Schedule cannot be null"));
         // Should create 3 journal entries (Jan, Feb, Mar)
-        verify(journalEntryRepository, times(3)).save(any(JournalEntry.class));
+        verify(journalEntryRepository, times(3)).save(Objects.requireNonNull(any(JournalEntry.class), "Journal entry cannot be null"));
     }
 
     @Test
@@ -86,7 +87,7 @@ class ScheduleServiceTest {
             scheduleService.createSchedule(createRequest);
         });
 
-        verify(scheduleRepository, never()).save(any(Schedule.class));
+        verify(scheduleRepository, never()).save(Objects.requireNonNull(any(Schedule.class), "Schedule cannot be null"));
     }
 
     @Test
@@ -124,7 +125,7 @@ class ScheduleServiceTest {
         when(scheduleRepository.findById(1L)).thenReturn(Optional.of(schedule));
         when(journalEntryRepository.findByScheduleId(1L)).thenReturn(Collections.emptyList());
 
-        ScheduleResponse response = scheduleService.getScheduleById(1L);
+        ScheduleResponse response = Objects.requireNonNull(scheduleService.getScheduleById(1L), "Schedule response cannot be null");
 
         assertNotNull(response);
         assertEquals(1L, response.getId());

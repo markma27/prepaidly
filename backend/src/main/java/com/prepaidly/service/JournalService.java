@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -25,8 +26,11 @@ public class JournalService {
      */
     @Transactional
     public JournalEntry postJournal(Long journalEntryId, String tenantId) {
-        JournalEntry entry = journalEntryRepository.findById(journalEntryId)
-            .orElseThrow(() -> new RuntimeException("Journal entry not found: " + journalEntryId));
+        JournalEntry entry = Objects.requireNonNull(
+            journalEntryRepository.findById(Objects.requireNonNull(journalEntryId, "Journal entry ID cannot be null"))
+                .orElseThrow(() -> new RuntimeException("Journal entry not found: " + journalEntryId)),
+            "Journal entry cannot be null"
+        );
         
         Schedule schedule = entry.getSchedule();
         

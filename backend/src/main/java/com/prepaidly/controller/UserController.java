@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -266,8 +267,11 @@ public class UserController {
     @GetMapping("/{id}")
     public ResponseEntity<?> getUserById(@PathVariable Long id) {
         try {
-            User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+            User user = Objects.requireNonNull(
+                userRepository.findById(Objects.requireNonNull(id, "User ID cannot be null"))
+                    .orElseThrow(() -> new RuntimeException("User not found with id: " + id)),
+                "User cannot be null"
+            );
             
             UserResponse response = toUserResponse(user);
             return ResponseEntity.ok(response);
@@ -426,8 +430,11 @@ public class UserController {
     @PutMapping("/{id}")
     public ResponseEntity<?> updateUser(@PathVariable Long id, @Valid @RequestBody UpdateUserRequest request) {
         try {
-            User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+            User user = Objects.requireNonNull(
+                userRepository.findById(Objects.requireNonNull(id, "User ID cannot be null"))
+                    .orElseThrow(() -> new RuntimeException("User not found with id: " + id)),
+                "User cannot be null"
+            );
 
             // Check if email is being changed and if new email already exists
             if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
@@ -438,7 +445,7 @@ public class UserController {
                 user.setEmail(request.getEmail());
             }
 
-            user = userRepository.save(user);
+            user = Objects.requireNonNull(userRepository.save(user), "Saved user cannot be null");
             UserResponse response = toUserResponse(user);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
@@ -507,15 +514,16 @@ public class UserController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
         try {
-            if (!userRepository.existsById(id)) {
+            Long idNonNull = Objects.requireNonNull(id, "User ID cannot be null");
+            if (!userRepository.existsById(idNonNull)) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "User not found with id: " + id));
+                    .body(Map.of("error", "User not found with id: " + idNonNull));
             }
 
-            userRepository.deleteById(id);
+            userRepository.deleteById(idNonNull);
             return ResponseEntity.ok(Map.of(
                 "message", "User deleted successfully",
-                "id", id
+                "id", idNonNull
             ));
         } catch (Exception e) {
             log.error("Error deleting user {}", id, e);

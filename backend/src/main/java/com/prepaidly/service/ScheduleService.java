@@ -17,6 +17,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -123,8 +124,11 @@ public class ScheduleService {
      */
     @Transactional(readOnly = true)
     public ScheduleResponse getScheduleById(Long scheduleId) {
-        Schedule schedule = scheduleRepository.findById(scheduleId)
-            .orElseThrow(() -> new RuntimeException("Schedule not found: " + scheduleId));
+        Schedule schedule = Objects.requireNonNull(
+            scheduleRepository.findById(Objects.requireNonNull(scheduleId, "Schedule ID cannot be null"))
+                .orElseThrow(() -> new RuntimeException("Schedule not found: " + scheduleId)),
+            "Schedule cannot be null"
+        );
         return toScheduleResponse(schedule);
     }
     

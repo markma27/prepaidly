@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -58,18 +59,18 @@ class UserControllerTest {
         newUser.setCreatedAt(LocalDateTime.now());
 
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
-        when(userRepository.save(any(User.class))).thenReturn(newUser);
+        when(userRepository.save(Objects.requireNonNull(any(User.class), "User cannot be null"))).thenReturn(Objects.requireNonNull(newUser, "New user cannot be null"));
         doNothing().when(userRepository).flush();
 
         mockMvc.perform(post("/api/users")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
+                .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                .content(Objects.requireNonNull(objectMapper.writeValueAsString(request))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(2L))
                 .andExpect(jsonPath("$.email").value("newuser@example.com"));
 
         verify(userRepository, times(1)).findByEmail("newuser@example.com");
-        verify(userRepository, times(1)).save(any(User.class));
+        verify(userRepository, times(1)).save(Objects.requireNonNull(any(User.class), "User cannot be null"));
     }
 
     @Test
@@ -77,16 +78,16 @@ class UserControllerTest {
         CreateUserRequest request = new CreateUserRequest();
         request.setEmail("test@example.com");
 
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(Objects.requireNonNull(testUser, "Test user cannot be null")));
 
         mockMvc.perform(post("/api/users")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
+                .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                .content(Objects.requireNonNull(objectMapper.writeValueAsString(request))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("User with email test@example.com already exists"));
 
         verify(userRepository, times(1)).findByEmail("test@example.com");
-        verify(userRepository, never()).save(any(User.class));
+        verify(userRepository, never()).save(Objects.requireNonNull(any(User.class), "User cannot be null"));
     }
 
     @Test
@@ -95,11 +96,11 @@ class UserControllerTest {
         request.setEmail("invalid-email");
 
         mockMvc.perform(post("/api/users")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
+                .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                .content(Objects.requireNonNull(objectMapper.writeValueAsString(request))))
                 .andExpect(status().isBadRequest());
 
-        verify(userRepository, never()).save(any(User.class));
+        verify(userRepository, never()).save(Objects.requireNonNull(any(User.class), "User cannot be null"));
     }
 
     @Test
@@ -109,7 +110,10 @@ class UserControllerTest {
         user2.setEmail("user2@example.com");
         user2.setCreatedAt(LocalDateTime.now());
 
-        when(userRepository.findAll()).thenReturn(Arrays.asList(testUser, user2));
+        when(userRepository.findAll()).thenReturn(Arrays.asList(
+            Objects.requireNonNull(testUser, "Test user cannot be null"),
+            Objects.requireNonNull(user2, "User2 cannot be null")
+        ));
 
         mockMvc.perform(get("/api/users"))
                 .andExpect(status().isOk())
@@ -122,7 +126,7 @@ class UserControllerTest {
 
     @Test
     void testGetUserById_Success() throws Exception {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(Objects.requireNonNull(testUser, "Test user cannot be null")));
 
         mockMvc.perform(get("/api/users/1"))
                 .andExpect(status().isOk())
@@ -145,7 +149,7 @@ class UserControllerTest {
 
     @Test
     void testGetUserByEmail_Success() throws Exception {
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(Objects.requireNonNull(testUser, "Test user cannot be null")));
 
         mockMvc.perform(get("/api/users/email/test@example.com"))
                 .andExpect(status().isOk())
@@ -165,21 +169,21 @@ class UserControllerTest {
         updatedUser.setEmail("updated@example.com");
         updatedUser.setCreatedAt(testUser.getCreatedAt());
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(Objects.requireNonNull(testUser, "Test user cannot be null")));
         when(userRepository.findByEmail("updated@example.com")).thenReturn(Optional.empty());
-        when(userRepository.save(any(User.class))).thenReturn(updatedUser);
+        when(userRepository.save(Objects.requireNonNull(any(User.class), "User cannot be null"))).thenReturn(Objects.requireNonNull(updatedUser, "Updated user cannot be null"));
         doNothing().when(userRepository).flush();
 
         mockMvc.perform(put("/api/users/1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
+                .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                .content(Objects.requireNonNull(objectMapper.writeValueAsString(request))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1L))
                 .andExpect(jsonPath("$.email").value("updated@example.com"));
 
         verify(userRepository, times(1)).findById(1L);
         verify(userRepository, times(1)).findByEmail("updated@example.com");
-        verify(userRepository, times(1)).save(any(User.class));
+        verify(userRepository, times(1)).save(Objects.requireNonNull(any(User.class), "User cannot be null"));
     }
 
     @Test
@@ -190,13 +194,13 @@ class UserControllerTest {
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         mockMvc.perform(put("/api/users/999")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
+                .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                .content(Objects.requireNonNull(objectMapper.writeValueAsString(request))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("User not found with id: 999"));
 
         verify(userRepository, times(1)).findById(999L);
-        verify(userRepository, never()).save(any(User.class));
+        verify(userRepository, never()).save(Objects.requireNonNull(any(User.class), "User cannot be null"));
     }
 
     @Test

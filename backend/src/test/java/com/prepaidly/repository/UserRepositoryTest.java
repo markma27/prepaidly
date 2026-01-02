@@ -7,6 +7,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -59,10 +60,10 @@ class UserRepositoryTest {
         user.setCreatedAt(LocalDateTime.now());
         User saved = entityManager.persistAndFlush(user);
 
-        Optional<User> found = userRepository.findById(saved.getId());
+        Optional<User> found = userRepository.findById(Objects.requireNonNull(saved.getId(), "Saved user ID cannot be null"));
 
         assertTrue(found.isPresent());
-        assertEquals(saved.getId(), found.get().getId());
+        assertEquals(saved.getId(), Objects.requireNonNull(found.get().getId(), "Found user ID cannot be null"));
     }
 
     @Test
@@ -72,9 +73,10 @@ class UserRepositoryTest {
         user.setCreatedAt(LocalDateTime.now());
         User saved = entityManager.persistAndFlush(user);
 
-        userRepository.deleteById(saved.getId());
+        Long savedId = Objects.requireNonNull(saved.getId(), "Saved user ID cannot be null");
+        userRepository.deleteById(savedId);
 
-        Optional<User> found = userRepository.findById(saved.getId());
+        Optional<User> found = userRepository.findById(savedId);
         assertFalse(found.isPresent());
     }
 }

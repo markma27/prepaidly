@@ -17,6 +17,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -82,7 +83,10 @@ public class XeroOAuthService {
             // Prepare token request
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-            headers.setBasicAuth(xeroConfig.getClientId(), xeroConfig.getClientSecret());
+            headers.setBasicAuth(
+                Objects.requireNonNull(xeroConfig.getClientId(), "Client ID cannot be null"),
+                Objects.requireNonNull(xeroConfig.getClientSecret(), "Client secret cannot be null")
+            );
             
             MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
             body.add("grant_type", "authorization_code");
@@ -97,20 +101,22 @@ public class XeroOAuthService {
             
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_TOKEN_URL,
-                HttpMethod.POST,
+                Objects.requireNonNull(HttpMethod.POST),
                 request,
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
             log.info("Token exchange response status: {}", response.getStatusCode());
             
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> tokenResponse = response.getBody();
+            Map<String, Object> tokenResponse = response.getBody();
+            if (response.getStatusCode() == HttpStatus.OK && tokenResponse != null) {
                 log.info("Token response keys: {}", tokenResponse.keySet());
                 
                 String accessToken = (String) tokenResponse.get("access_token");
                 String refreshToken = (String) tokenResponse.get("refresh_token");
-                Integer expiresIn = (Integer) tokenResponse.get("expires_in");
+                Object expiresInObj = tokenResponse.get("expires_in");
+                Integer expiresIn = expiresInObj instanceof Integer ? (Integer) expiresInObj : 
+                    expiresInObj instanceof Long ? ((Long) expiresInObj).intValue() : null;
                 
                 if (accessToken == null) {
                     log.error("Access token is null in response. Full response: {}", tokenResponse);
@@ -138,7 +144,8 @@ public class XeroOAuthService {
                 // Get or create user
                 // For development: if userId is 1, try to find default user by email first
                 User user;
-                if (userId == 1L) {
+                Long userIdNonNull = Objects.requireNonNull(userId, "User ID cannot be null");
+                if (userIdNonNull == 1L) {
                     user = userRepository.findByEmail("demo@prepaidly.io")
                         .orElseGet(() -> {
                             // Create default user if not exists
@@ -148,8 +155,8 @@ public class XeroOAuthService {
                         });
                     log.info("Using default user: {} (ID: {})", user.getEmail(), user.getId());
                 } else {
-                    user = userRepository.findById(userId)
-                        .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+                    user = userRepository.findById(userIdNonNull)
+                        .orElseThrow(() -> new RuntimeException("User not found: " + userIdNonNull));
                 }
                 
                 // Check if connection already exists (use actual user ID, not the default userId parameter)
@@ -168,11 +175,13 @@ public class XeroOAuthService {
                 // Encrypt and store tokens
                 connection.setAccessToken(encryptionService.encrypt(accessToken));
                 connection.setRefreshToken(encryptionService.encrypt(refreshToken));
-                connection.setExpiresAt(LocalDateTime.now().plusSeconds(expiresIn));
+                int expiresInSeconds = Objects.requireNonNull(expiresIn, "Expires in cannot be null");
+                connection.setExpiresAt(LocalDateTime.now().plusSeconds(expiresInSeconds));
                 
                 return xeroConnectionRepository.save(connection);
             } else {
-                String errorBody = response.getBody() != null ? response.getBody().toString() : "No response body";
+                Map<String, Object> responseBody = response.getBody();
+                String errorBody = responseBody != null ? responseBody.toString() : "No response body";
                 log.error("Failed to exchange code for tokens. Status: {}, Body: {}", response.getStatusCode(), errorBody);
                 throw new RuntimeException("Failed to exchange code for tokens: " + response.getStatusCode() + ". Response: " + errorBody);
             }
@@ -193,7 +202,10 @@ public class XeroOAuthService {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-            headers.setBasicAuth(xeroConfig.getClientId(), xeroConfig.getClientSecret());
+            headers.setBasicAuth(
+                Objects.requireNonNull(xeroConfig.getClientId(), "Client ID cannot be null"),
+                Objects.requireNonNull(xeroConfig.getClientSecret(), "Client secret cannot be null")
+            );
             
             MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
             body.add("grant_type", "refresh_token");
@@ -203,21 +215,23 @@ public class XeroOAuthService {
             
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_TOKEN_URL,
-                HttpMethod.POST,
+                Objects.requireNonNull(HttpMethod.POST),
                 request,
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> tokenResponse = response.getBody();
-                
+            Map<String, Object> tokenResponse = response.getBody();
+            if (response.getStatusCode() == HttpStatus.OK && tokenResponse != null) {
                 String accessToken = (String) tokenResponse.get("access_token");
                 String refreshToken = (String) tokenResponse.get("refresh_token");
-                Integer expiresIn = (Integer) tokenResponse.get("expires_in");
+                Object expiresInObj = tokenResponse.get("expires_in");
+                Integer expiresIn = expiresInObj instanceof Integer ? (Integer) expiresInObj : 
+                    expiresInObj instanceof Long ? ((Long) expiresInObj).intValue() : null;
                 
                 connection.setAccessToken(encryptionService.encrypt(accessToken));
                 connection.setRefreshToken(encryptionService.encrypt(refreshToken));
-                connection.setExpiresAt(LocalDateTime.now().plusSeconds(expiresIn));
+                int expiresInSeconds = Objects.requireNonNull(expiresIn, "Expires in cannot be null");
+                connection.setExpiresAt(LocalDateTime.now().plusSeconds(expiresInSeconds));
                 
                 return xeroConnectionRepository.save(connection);
             } else {
@@ -246,19 +260,20 @@ public class XeroOAuthService {
     private List<Map<String, Object>> getXeroConnections(String accessToken) {
         try {
             HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(accessToken);
-            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+            headers.setBearerAuth(Objects.requireNonNull(accessToken, "Access token cannot be null"));
+            headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
             
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
                 "https://api.xero.com/connections",
-                HttpMethod.GET,
+                Objects.requireNonNull(HttpMethod.GET),
                 entity,
                 new ParameterizedTypeReference<List<Map<String, Object>>>() {}
             );
             
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                return response.getBody();
+            List<Map<String, Object>> responseBody = response.getBody();
+            if (response.getStatusCode() == HttpStatus.OK && responseBody != null) {
+                return responseBody;
             }
             return Collections.emptyList();
         } catch (Exception e) {
@@ -277,8 +292,8 @@ public class XeroOAuthService {
     public Map<String, Object> getTenantInfo(String accessToken, String tenantId) {
         try {
             HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(accessToken);
-            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+            headers.setBearerAuth(Objects.requireNonNull(accessToken, "Access token cannot be null"));
+            headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
             if (tenantId != null) {
                 headers.set("xero-tenant-id", tenantId);
             }
@@ -286,14 +301,15 @@ public class XeroOAuthService {
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_API_URL + "/Organisation",
-                HttpMethod.GET,
+                Objects.requireNonNull(HttpMethod.GET),
                 entity,
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            Map<String, Object> responseBody = response.getBody();
+            if (response.getStatusCode() == HttpStatus.OK && responseBody != null) {
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object>> organisations = (List<Map<String, Object>>) response.getBody().get("Organisations");
+                List<Map<String, Object>> organisations = (List<Map<String, Object>>) responseBody.get("Organisations");
                 if (organisations != null && !organisations.isEmpty()) {
                     return organisations.get(0);
                 }
