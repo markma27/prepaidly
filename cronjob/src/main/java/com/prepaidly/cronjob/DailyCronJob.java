@@ -1,7 +1,7 @@
 package com.prepaidly.cronjob;
 
 import com.prepaidly.cronjob.config.DatabaseConfig;
-import com.prepaidly.cronjob.model.JournalEntry;
+import com.prepaidly.model.JournalEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -154,11 +154,8 @@ public class DailyCronJob {
                 JournalEntry entry = new JournalEntry();
                 entry.setId(rs.getLong("id"));
                 
-                Long scheduleId = rs.getLong("schedule_id");
-                if (!rs.wasNull()) {
-                    entry.setScheduleId(scheduleId);
-                }
-                
+                // Note: Schedule relationship is not loaded via JDBC, only schedule_id is available
+                // The Schedule field will remain null as we're using JDBC directly, not JPA
                 entry.setPeriodDate(rs.getObject("period_date", LocalDate.class));
                 
                 BigDecimal amount = rs.getBigDecimal("amount");

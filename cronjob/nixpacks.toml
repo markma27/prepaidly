@@ -1,13 +1,14 @@
 # Nixpacks configuration for Railway
+# Note: Builds from repository root to access backend models
 [phases.setup]
 nixPkgs = ["gradle", "jdk21"]
 
 [phases.install]
-cmds = ["chmod +x ./gradlew"]
+cmds = ["chmod +x ../backend/gradlew"]
 
 [phases.build]
-cmds = ["./gradlew clean build -x test --no-daemon"]
+cmds = ["cd .. && ./backend/gradlew :cronjob:clean :cronjob:build -x test --no-daemon"]
 
 [start]
-cmd = "java -jar build/libs/prepaidly-cronjob-0.1.0.jar"
+cmd = "cd cronjob && java -jar build/libs/prepaidly-cronjob-0.1.0.jar"
 

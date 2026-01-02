@@ -1,0 +1,8 @@
+rootProject.name = 'prepaidly'
+
+include 'backend'
+include 'cronjob'
+
+project(':backend').projectDir = file('backend')
+project(':cronjob').projectDir = file('cronjob')
+

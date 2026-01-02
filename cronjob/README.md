@@ -8,10 +8,8 @@ Java-based daily cron job that executes at 12:00 AM daily on Railway.
 cronjob/
 ├── src/main/java/com/prepaidly/cronjob/
 │   ├── DailyCronJob.java           # Main cron job class
-│   ├── config/
-│   │   └── DatabaseConfig.java     # Database connection configuration
-│   └── model/
-│       └── JournalEntry.java       # Journal entry model
+│   └── config/
+│       └── DatabaseConfig.java     # Database connection configuration
 ├── src/main/resources/
 │   ├── logback.xml                  # Logging configuration
 │   └── application.properties       # Application configuration
@@ -21,18 +19,19 @@ cronjob/
 └── README.md                        # This file
 ```
 
+**Note**: Model classes (JournalEntry, Schedule, User, XeroConnection) are shared from the `backend` module to avoid duplication.
+
 ## Building
 
+From the repository root:
 ```bash
-cd cronjob
-chmod +x ../backend/gradlew  # Use backend's gradle wrapper or install gradle
-../backend/gradlew build
+./backend/gradlew :cronjob:build
 ```
 
-Or if you have Gradle installed:
+Or from the cronjob directory:
 ```bash
 cd cronjob
-gradle build
+../backend/gradlew build
 ```
 
 ## Running Locally
@@ -99,13 +98,14 @@ If you encounter build failures on Railway:
 3. **Try building locally first:**
    ```bash
    cd cronjob
-   ./gradlew clean build -x test --no-daemon
+   ../backend/gradlew clean build -x test --no-daemon
    ```
 
 4. **Common issues:**
    - Missing `--no-daemon` flag (Railway doesn't support Gradle daemon)
    - Missing logback.xml (now included)
    - Incorrect root directory (must be set to `cronjob`)
+   - Backend module not found (ensure root `settings.gradle` includes both projects)
 
 5. **If build still fails**, check:
    - Railway build logs for specific Gradle errors
@@ -179,6 +179,7 @@ public void run() {
 ## Dependencies
 
 The cron job includes:
+- **Shared models from backend** - JournalEntry, Schedule, User, XeroConnection
 - SLF4J + Logback for logging
 - PostgreSQL JDBC driver
 - HikariCP connection pool
@@ -186,7 +187,15 @@ The cron job includes:
 - Spring Web (optional, for HTTP calls)
 - Jackson (optional, for JSON processing)
 
-Add more dependencies in `build.gradle` as needed.
+## Shared Models
+
+Model classes are shared from the `backend` module:
+- `com.prepaidly.model.JournalEntry` - Journal entry entity
+- `com.prepaidly.model.Schedule` - Schedule entity  
+- `com.prepaidly.model.User` - User entity
+- `com.prepaidly.model.XeroConnection` - Xero connection entity
+
+These are accessed via the `project(':backend')` dependency in `build.gradle`.
 
 ## Logging
 
@@ -220,3 +229,4 @@ java -jar build/libs/prepaidly-cronjob-0.1.0.jar
 - Make sure to set `restartPolicyType: "never"` so Railway doesn't restart it
 - The job should complete quickly (within Railway's timeout limits)
 - Database connection uses HikariCP connection pooling for efficiency
+- Model classes are shared with backend to avoid code duplication
