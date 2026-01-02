@@ -192,6 +192,12 @@ public class XeroOAuthService {
                     connection.setTenantId(tenantId);
                 }
                 
+                // Store tenant name for display even when tokens expire
+                if (tenantName != null && !tenantName.trim().isEmpty()) {
+                    connection.setTenantName(tenantName);
+                    log.info("Storing tenant name: {} for tenantId: {}", tenantName, tenantId);
+                }
+                
                 // Encrypt and store tokens
                 connection.setAccessToken(encryptionService.encrypt(accessToken));
                 connection.setRefreshToken(encryptionService.encrypt(refreshToken));
@@ -316,6 +322,7 @@ public class XeroOAuthService {
             headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
             if (tenantId != null) {
                 headers.set("xero-tenant-id", tenantId);
+                log.debug("Fetching tenant info for tenantId: {}", tenantId);
             }
             
             HttpEntity<String> entity = new HttpEntity<>(headers);
@@ -327,12 +334,23 @@ public class XeroOAuthService {
             );
             
             Map<String, Object> responseBody = response.getBody();
+            log.debug("Xero API response status: {}, body: {}", response.getStatusCode(), responseBody);
+            
             if (response.getStatusCode() == HttpStatus.OK && responseBody != null) {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> organisations = (List<Map<String, Object>>) responseBody.get("Organisations");
                 if (organisations != null && !organisations.isEmpty()) {
-                    return organisations.get(0);
+                    Map<String, Object> org = organisations.get(0);
+                    log.debug("Found organisation: {}", org);
+                    String orgName = (String) org.get("Name");
+                    log.info("Tenant name for tenantId {}: {}", tenantId, orgName);
+                    return org;
+                } else {
+                    log.warn("No organisations found in response for tenantId: {}", tenantId);
                 }
+            } else {
+                log.warn("Invalid response status or body for tenantId: {}, status: {}, body: {}", 
+                    tenantId, response.getStatusCode(), responseBody);
             }
             return null;
         } catch (Exception e) {

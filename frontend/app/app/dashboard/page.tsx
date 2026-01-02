@@ -1,14 +1,43 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { scheduleApi, journalApi } from '@/lib/api';
+import { scheduleApi } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import type { Schedule, JournalEntry } from '@/lib/types';
+import type { Schedule } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
-import SuccessMessage from '@/components/SuccessMessage';
 import DashboardLayout from '@/components/DashboardLayout';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
+import { 
+  TrendingUp, 
+  Calendar, 
+  DollarSign, 
+  Plus,
+  ArrowRight,
+  MoreHorizontal
+} from 'lucide-react';
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-gray-200 shadow-lg rounded-lg">
+        <p className="text-sm font-semibold text-gray-600 mb-1">{label}</p>
+        <p className="text-sm font-bold text-gray-900">{formatCurrency(payload[0].value)}</p>
+      </div>
+    );
+  }
+  return null;
+};
 
 function DashboardPageContent() {
   const router = useRouter();
@@ -16,21 +45,10 @@ function DashboardPageContent() {
   const [loading, setLoading] = useState(true);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [postingJournalId, setPostingJournalId] = useState<number | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
-    const success = searchParams.get('success');
-
-    if (success === 'true') {
-      // Show success message briefly
-      setTimeout(() => {
-        // Remove success param from URL
-        router.replace(`/app/dashboard?tenantId=${tenantIdParam}`);
-      }, 3000);
-    }
-
     if (tenantIdParam) {
       setTenantId(tenantIdParam);
       loadSchedules(tenantIdParam);
@@ -38,7 +56,7 @@ function DashboardPageContent() {
       setError('Missing Tenant ID');
       setLoading(false);
     }
-  }, [searchParams, router]);
+  }, [searchParams]);
 
   const loadSchedules = async (tid: string) => {
     try {
@@ -54,40 +72,59 @@ function DashboardPageContent() {
     }
   };
 
-  const handlePostJournal = async (journalEntryId: number) => {
-    if (!tenantId) {
-      setError('Missing Tenant ID');
-      return;
-    }
+  const stats = useMemo(() => {
+    const totalSchedules = schedules.length;
+    const totalAmount = schedules.reduce((acc, s) => acc + s.totalAmount, 0);
+    const prepaidSchedules = schedules.filter(s => s.type === 'PREPAID');
+    const unearnedSchedules = schedules.filter(s => s.type === 'UNEARNED');
+    
+    const prepaidBalance = prepaidSchedules.reduce((acc, s) => acc + (s.remainingBalance || 0), 0);
+    const unearnedBalance = unearnedSchedules.reduce((acc, s) => acc + (s.remainingBalance || 0), 0);
 
-    if (!confirm('Are you sure you want to post this journal entry to Xero?')) {
-      return;
-    }
+    return {
+      totalSchedules,
+      totalAmount,
+      prepaidBalance,
+      unearnedBalance,
+      prepaidCount: prepaidSchedules.length,
+      unearnedCount: unearnedSchedules.length
+    };
+  }, [schedules]);
 
-    try {
-      setPostingJournalId(journalEntryId);
-      setError(null);
-
-      await journalApi.postJournal({
-        journalEntryId,
-        tenantId,
-      });
-
-      // Reload schedules to get updated status
-      await loadSchedules(tenantId);
+  const chartData = useMemo(() => {
+    const getProjectedData = (type: 'PREPAID' | 'UNEARNED') => {
+      const data = [];
+      const today = new Date();
       
-      alert('Journal entry successfully posted to Xero!');
-    } catch (err: any) {
-      console.error('Error posting journal:', err);
-      setError(err.message || 'Failed to post journal entry');
-    } finally {
-      setPostingJournalId(null);
-    }
-  };
+      for (let i = 0; i < 12; i++) {
+        const date = new Date(today.getFullYear(), today.getMonth() + i, 1);
+        const monthStr = date.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+        
+        let totalRemaining = 0;
+        schedules.filter(s => s.type === type).forEach(s => {
+          const remainingAtDate = s.journalEntries
+            ?.filter(je => new Date(je.periodDate) > date)
+            .reduce((acc, je) => acc + je.amount, 0) || 0;
+          totalRemaining += remainingAtDate;
+        });
+        
+        data.push({
+          name: monthStr,
+          value: totalRemaining
+        });
+      }
+      return data;
+    };
 
-  if (!tenantId) {
+    return {
+      prepaid: getProjectedData('PREPAID'),
+      unearned: getProjectedData('UNEARNED')
+    };
+  }, [schedules]);
+
+  if (loading && !tenantId) {
     return (
-      <div className="container mx-auto p-8">
+      <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner message="Loading..." />
       </div>
     );
@@ -95,185 +132,213 @@ function DashboardPageContent() {
 
   return (
     <DashboardLayout tenantId={tenantId}>
-      <div className="max-w-7xl">
-      {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <LoadingSpinner message="Loading schedule data..." />
-        </div>
-      ) : (
-        <>
-        <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-dark-900">Dashboard</h1>
-        <div className="flex gap-4">
-          <button
-            onClick={() => router.push(`/app/schedules/new?tenantId=${tenantId}`)}
-            className="px-4 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
-          >
-            Create New Schedule
-          </button>
-          <button
-            onClick={() => tenantId && loadSchedules(tenantId)}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {searchParams.get('success') === 'true' && (
-        <SuccessMessage 
-          message="Schedule created successfully!" 
-          onDismiss={() => router.replace(`/app/dashboard?tenantId=${tenantId}`)}
-        />
-      )}
-
-      {error && (
-        <ErrorMessage 
-          message={error} 
-          onDismiss={() => setError(null)}
-        />
-      )}
-
-      {schedules.length === 0 ? (
-        <div className="bg-white shadow-sm rounded-lg p-12 text-center border border-gray-100">
-          <p className="text-gray-600 mb-4">No schedules created yet</p>
-          <button
-            onClick={() => router.push(`/app/schedules/new?tenantId=${tenantId}`)}
-            className="px-6 py-2 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors font-medium shadow-sm"
-          >
-            Create Your First Schedule
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {schedules.map((schedule) => (
-            <div key={schedule.id} className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-100">
-              {/* Schedule Header */}
-              <div className="bg-gradient-to-r from-gray-50 to-white px-6 py-4 border-b border-gray-100">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <h2 className="text-xl font-semibold text-dark-900">
-                        {schedule.type === 'PREPAID' ? 'Prepaid Expense' : 'Unearned Revenue'}
-                      </h2>
-                      <span className="px-2 py-1 bg-primary-50 text-primary-700 rounded text-sm font-medium">
-                        ID: {schedule.id}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-600">Date Range: </span>
-                        <span className="font-medium">
-                          {formatDate(schedule.startDate)} - {formatDate(schedule.endDate)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Total Amount: </span>
-                        <span className="font-medium">{formatCurrency(schedule.totalAmount)}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Remaining Balance: </span>
-                        <span className="font-medium">
-                          {formatCurrency(schedule.remainingBalance || 0)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Progress: </span>
-                        <span className="font-medium">
-                          {schedule.postedPeriods || 0} / {schedule.totalPeriods || 0} periods
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-2 text-sm text-gray-600">
-                      <span>Account Codes: </span>
-                      {schedule.type === 'PREPAID' && schedule.expenseAcctCode && (
-                        <span className="mr-4">Expense: {schedule.expenseAcctCode}</span>
-                      )}
-                      {schedule.type === 'UNEARNED' && schedule.revenueAcctCode && (
-                        <span className="mr-4">Revenue: {schedule.revenueAcctCode}</span>
-                      )}
-                      <span>Deferral: {schedule.deferralAcctCode}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Journal Entries */}
-              <div className="px-6 py-4">
-                <h3 className="text-lg font-semibold mb-4">Journal Entries</h3>
-                {schedule.journalEntries && schedule.journalEntries.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Period Date
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Amount
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Status
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Xero Journal ID
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {schedule.journalEntries.map((entry) => (
-                          <tr key={entry.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                              {formatDate(entry.periodDate)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {formatCurrency(entry.amount)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              {entry.posted ? (
-                                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
-                                  Posted
-                                </span>
-                              ) : (
-                                <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-semibold">
-                                  Not Posted
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {entry.xeroManualJournalId || '-'}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm">
-                              {!entry.posted ? (
-                                <button
-                                  onClick={() => handlePostJournal(entry.id)}
-                                  disabled={postingJournalId === entry.id}
-                                  className="px-3 py-1 bg-primary-400 text-white rounded-lg hover:bg-primary-500 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-xs font-medium shadow-sm"
-                                >
-                                  {postingJournalId === entry.id ? 'Posting...' : 'Post to Xero'}
-                                </button>
-                              ) : (
-                                <span className="text-gray-400 text-xs">Posted</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-sm">No journal entries available</p>
-                )}
-              </div>
+      <div className="space-y-8 max-w-[1600px] mx-auto">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-medium text-gray-500">Total Schedules</span>
+              <span className="px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-md flex items-center gap-1">
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                Active
+              </span>
             </div>
-          ))}
+            <div className="text-3xl font-bold text-gray-900 mb-2">{stats.totalSchedules}</div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Total created schedules</span>
+            </div>
+            <div className="mt-1 text-xs text-gray-400">Across all time periods</div>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-medium text-gray-500">Total Amount Managed</span>
+              <span className="text-xs font-semibold text-gray-400">$ AUD</span>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-2">{formatCurrency(stats.totalAmount)}</div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <DollarSign className="w-3.5 h-3.5" />
+              <span>Combined prepaid & unearned $</span>
+            </div>
+            <div className="mt-1 text-xs text-gray-400">Total value under management</div>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-medium text-gray-500">Prepaid Expenses</span>
+              <span className="px-2 py-1 bg-gray-50 text-gray-600 text-xs font-semibold rounded-md flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" />
+                {stats.prepaidCount} schedules
+              </span>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-2">{formatCurrency(stats.prepaidBalance)}</div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <span>Prepaid expense schedules</span>
+              <ArrowRight className="w-3 h-3" />
+            </div>
+            <div className="mt-1 text-xs text-gray-400">{stats.prepaidCount} active schedules</div>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-medium text-gray-500">Unearned Revenue</span>
+              <span className="px-2 py-1 bg-gray-50 text-gray-600 text-xs font-semibold rounded-md flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" />
+                {stats.unearnedCount} schedules
+              </span>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-2">{formatCurrency(stats.unearnedBalance)}</div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <span>Unearned revenue schedules</span>
+              <ArrowRight className="w-3 h-3" />
+            </div>
+            <div className="mt-1 text-xs text-gray-400">{stats.unearnedCount} active schedules</div>
+          </div>
         </div>
-      )}
-        </>
-      )}
+
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="mb-6">
+              <h3 className="text-lg font-bold text-gray-900">Prepaid Expenses - Next 12 Months</h3>
+              <p className="text-sm text-gray-500">Remaining prepaid expense balances by month</p>
+            </div>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData.prepaid}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                    tickFormatter={(value) => `$${value/1000}K`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
+                    {chartData.prepaid.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={`rgba(59, 130, 246, ${1 - index * 0.06})`} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="mb-6">
+              <h3 className="text-lg font-bold text-gray-900">Unearned Revenue - Next 12 Months</h3>
+              <p className="text-sm text-gray-500">Remaining unearned revenue balances by month</p>
+            </div>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData.unearned}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                    tickFormatter={(value) => `$${value/1000}K`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
+                    {chartData.unearned.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={`rgba(16, 185, 129, ${1 - index * 0.06})`} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Schedules Table */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-6 flex items-center justify-between border-b border-gray-100">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Recent Schedules</h3>
+              <p className="text-sm text-gray-500">Your 7 most recently created prepayment and unearned revenue schedules</p>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => router.push(`/app/dashboard?tenantId=${tenantId}`)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                View All
+              </button>
+              <button 
+                onClick={() => router.push(`/app/schedules/new?tenantId=${tenantId}`)}
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                New Schedule
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-4">Type</th>
+                  <th className="px-6 py-4">Contact</th>
+                  <th className="px-6 py-4">Account Code & Name</th>
+                  <th className="px-6 py-4">Amount</th>
+                  <th className="px-6 py-4">Period</th>
+                  <th className="px-6 py-4">Description</th>
+                  <th className="px-6 py-4">Created Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {schedules.slice(0, 7).map((schedule) => (
+                  <tr key={schedule.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push(`/app/dashboard?tenantId=${tenantId}`)}>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase ${
+                        schedule.type === 'PREPAID' 
+                          ? 'bg-blue-50 text-blue-600' 
+                          : 'bg-green-50 text-green-600'
+                      }`}>
+                        {schedule.type === 'PREPAID' ? 'Prepaid Expense' : 'Unearned Revenue'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">BCD Trust</td> {/* Placeholder as contact info isn't in Schedule type yet */}
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">{schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode}</div>
+                      <div className="text-xs text-gray-500">{schedule.type === 'PREPAID' ? 'Prepaid Subscriptions' : 'Sales'}</div>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {formatDate(schedule.startDate)} - {formatDate(schedule.endDate)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">Service Income</td> {/* Placeholder */}
+                    <td className="px-6 py-4 text-sm text-gray-500">{formatDate(schedule.createdAt)}</td>
+                  </tr>
+                ))}
+                {schedules.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                      No schedules found. Create your first one to see it here.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   );
@@ -282,7 +347,7 @@ function DashboardPageContent() {
 export default function DashboardPage() {
   return (
     <Suspense fallback={
-      <div className="container mx-auto p-8">
+      <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner message="Loading..." />
       </div>
     }>

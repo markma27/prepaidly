@@ -31,6 +31,10 @@ public class XeroConnection {
     @Column(name = "tenant_id", nullable = false)
     private String tenantId;
 
+    /** Xero tenant/organization name (stored for display when tokens expire) */
+    @Column(name = "tenant_name")
+    private String tenantName;
+
     /** OAuth access token (encrypted, expires after 30 minutes) */
     @Column(name = "access_token", nullable = false, length = 2000)
     private String accessToken; // Encrypted

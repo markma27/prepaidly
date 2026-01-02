@@ -10,23 +10,25 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format date to system locale string
+ * Format date to "DD MMM YYYY" (e.g. 01 Jun 2025)
  */
 export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  const d = new Date(dateString);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = d.getFullYear();
+  return `${day} ${month} ${year}`;
 }
 
 /**
- * Format currency to USD
+ * Format currency to system locale
  */
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number, currency: string = 'USD'): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 

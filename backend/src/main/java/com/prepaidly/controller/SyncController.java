@@ -45,6 +45,7 @@ public class SyncController {
 
     private final XeroOAuthService xeroOAuthService;
     private final XeroConnectionRepository xeroConnectionRepository;
+    private final com.prepaidly.service.TokenRefreshScheduler tokenRefreshScheduler;
 
     /**
      * Sync Xero Connection
@@ -152,6 +153,39 @@ public class SyncController {
             return ResponseEntity.status(500).body(Map.of(
                 "success", false,
                 "error", "Failed to sync: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Refresh All Tokens
+     * 
+     * Manually triggers a refresh of all Xero OAuth tokens. This is useful for:
+     * - Emergency token refresh when tokens are about to expire
+     * - Testing the token refresh mechanism
+     * - Recovering from extended downtime
+     * 
+     * Note: This endpoint triggers the same process as the scheduled token refresh.
+     * Tokens are automatically refreshed every 12 hours, but this endpoint allows
+     * manual triggering when needed.
+     * 
+     * @return ResponseEntity with refresh result
+     */
+    @PostMapping("/refresh-all")
+    public ResponseEntity<?> refreshAllTokens() {
+        try {
+            log.info("Manual token refresh triggered via API");
+            tokenRefreshScheduler.refreshTokensNow();
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Token refresh completed. Check logs for details."
+            ));
+        } catch (Exception e) {
+            log.error("Error during manual token refresh", e);
+            return ResponseEntity.status(500).body(Map.of(
+                "success", false,
+                "error", "Failed to refresh tokens: " + e.getMessage()
             ));
         }
     }

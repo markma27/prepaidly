@@ -15,12 +15,16 @@ CREATE TABLE IF NOT EXISTS xero_connections (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     tenant_id VARCHAR(255) NOT NULL,
+    tenant_name VARCHAR(255), -- Stored for display when tokens expire
     access_token TEXT NOT NULL, -- Encrypted
     refresh_token TEXT NOT NULL, -- Encrypted
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP
 );
+
+-- Migration: Add tenant_name column if it doesn't exist (for existing databases)
+-- ALTER TABLE xero_connections ADD COLUMN IF NOT EXISTS tenant_name VARCHAR(255);
 
 CREATE INDEX idx_xero_connections_user_id ON xero_connections(user_id);
 CREATE INDEX idx_xero_connections_tenant_id ON xero_connections(tenant_id);
