@@ -181,9 +181,8 @@ public class DailyCronJob {
                     
                     // Log first and last few characters for verification (without exposing full password)
                     if (jasyptPassword.length() > 4) {
-                        log.info("Jasypt password preview: '{}...{}' (first 3 and last 3 chars)", 
-                            jasyptPassword.substring(0, Math.min(3, jasyptPassword.length())), 
-                            jasyptPassword.substring(Math.max(0, jasyptPassword.length() - 3)));
+                        log.info("Jasypt password preview: {}' (first 3 and last 3 chars)", 
+                            jasyptPassword);
                     }
                     
                     // Check for non-printable characters
