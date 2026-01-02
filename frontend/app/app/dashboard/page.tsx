@@ -8,6 +8,7 @@ import type { Schedule } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
+import DashboardSkeleton from '@/components/DashboardSkeleton';
 import { 
   BarChart, 
   Bar, 
@@ -132,6 +133,9 @@ function DashboardPageContent() {
 
   return (
     <DashboardLayout tenantId={tenantId}>
+      {loading ? (
+        <DashboardSkeleton />
+      ) : (
       <div className="space-y-8 max-w-[1600px] mx-auto">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -340,6 +344,7 @@ function DashboardPageContent() {
           </div>
         </div>
       </div>
+      )}
     </DashboardLayout>
   );
 }
@@ -347,8 +352,13 @@ function DashboardPageContent() {
 export default function DashboardPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner message="Loading..." />
+      <div className="min-h-screen bg-white">
+        <div className="fixed inset-y-0 left-0 w-56 bg-[#F9FAFB] z-10 border-r border-gray-200"></div>
+        <div className="pl-56">
+          <div className="p-8">
+            <DashboardSkeleton />
+          </div>
+        </div>
       </div>
     }>
       <DashboardPageContent />

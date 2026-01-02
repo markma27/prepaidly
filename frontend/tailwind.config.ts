@@ -7,6 +7,9 @@ const config: Config = {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
+    fontFamily: {
+      sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+    },
     extend: {
       colors: {
         background: "var(--background)",
@@ -42,9 +45,6 @@ const config: Config = {
           hover: "#15803d",
           active: "#166534",
         },
-      },
-      fontFamily: {
-        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
       },
     },
   },

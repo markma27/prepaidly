@@ -12,9 +12,9 @@ import {
   BarChart3, 
   Settings, 
   HelpCircle,
-  ChevronDown,
-  Sun
+  ChevronDown
 } from 'lucide-react';
+import Skeleton from '@/components/Skeleton';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -27,10 +27,12 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   const [connections, setConnections] = useState<XeroConnection[]>([]);
   const [currentConnection, setCurrentConnection] = useState<XeroConnection | null>(null);
   const [isEntityMenuOpen, setIsEntityMenuOpen] = useState(false);
+  const [isLoadingConnections, setIsLoadingConnections] = useState(true);
   const entityMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchConnections = async () => {
+      setIsLoadingConnections(true);
       try {
         const response = await xeroAuthApi.getStatus();
         
@@ -54,10 +56,14 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
         }
       } catch (error) {
         console.error('Error fetching connections:', error);
+      } finally {
+        setIsLoadingConnections(false);
       }
     };
     if (tenantId) {
       fetchConnections();
+    } else {
+      setIsLoadingConnections(false);
     }
   }, [tenantId]);
 
@@ -79,20 +85,24 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   }, [isEntityMenuOpen]);
 
   const mainNavigation = [
-    { name: 'Dashboard', href: `/app/dashboard?tenantId=${tenantId}`, icon: LayoutDashboard },
-    { name: 'New Schedule', href: `/app/schedules/new?tenantId=${tenantId}`, icon: PlusCircle },
-    { name: 'Schedule Register', href: `/app/dashboard?tenantId=${tenantId}`, icon: ListOrdered },
-    { name: 'Analytics', href: `/app/dashboard?tenantId=${tenantId}`, icon: BarChart3 },
+    { name: 'Dashboard', href: `/app/dashboard?tenantId=${tenantId}`, icon: LayoutDashboard, path: '/app/dashboard' },
+    { name: 'New Schedule', href: `/app/schedules/new?tenantId=${tenantId}`, icon: PlusCircle, path: '/app/schedules/new' },
+    { name: 'Schedule Register', href: `/app/dashboard?tenantId=${tenantId}`, icon: ListOrdered, path: '/app/dashboard' },
+    { name: 'Analytics', href: `/app/dashboard?tenantId=${tenantId}`, icon: BarChart3, path: '/app/dashboard' },
   ];
 
   const footerNavigation = [
-    { name: 'Settings', href: `/app/settings?tenantId=${tenantId}`, icon: Settings },
-    { name: 'Help & Support', href: `/app/dashboard?tenantId=${tenantId}`, icon: HelpCircle },
+    { name: 'Settings', href: `/app/settings?tenantId=${tenantId}`, icon: Settings, path: '/app/settings' },
+    { name: 'Help & Support', href: `/app/dashboard?tenantId=${tenantId}`, icon: HelpCircle, path: '/app/dashboard' },
   ];
 
-  const isActive = (href: string) => {
-    const url = new URL(href, 'http://localhost');
-    return pathname === url.pathname;
+  const isActive = (itemPath: string, itemName: string) => {
+    // Only Dashboard should be active when on dashboard page
+    if (pathname === '/app/dashboard') {
+      return itemName === 'Dashboard';
+    }
+    // For other pages, match by pathname
+    return pathname === itemPath;
   };
 
   const handleSwitchEntity = (newTenantId: string) => {
@@ -101,44 +111,48 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   };
 
   return (
-    <div className="min-h-screen bg-white font-inter">
+    <div className="min-h-screen bg-white">
       {/* Sidebar */}
-      <div className="fixed inset-y-0 left-0 w-64 bg-[#F9FAFB] z-10 border-r border-gray-200">
+      <div className="fixed inset-y-0 left-0 w-56 bg-[#F9FAFB] z-10 border-r border-gray-200">
         <div className="flex flex-col h-full">
           {/* Logo/Brand */}
-          <div className="px-6 py-6">
+          <div className="px-4 py-5">
             <Link href={`/app/dashboard?tenantId=${tenantId}`} className="flex items-center gap-2">
-              <img src="/Logo.svg" alt="Prepaidly Logo" className="h-8 w-auto" />
+              <img src="/Logo.svg" alt="Prepaidly Logo" className="h-10 w-auto" />
             </Link>
           </div>
 
           {/* Entity Selector */}
-          <div className="px-4 mb-6 relative" ref={entityMenuRef}>
+          <div className="px-3 mb-4 relative" ref={entityMenuRef}>
             <button 
               onClick={() => setIsEntityMenuOpen(!isEntityMenuOpen)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 bg-transparent hover:bg-gray-100 rounded-lg transition-colors group"
+              className="w-full flex items-center justify-between px-3 py-2 text-sm font-normal text-gray-700 bg-transparent hover:bg-gray-100 rounded-lg transition-colors group"
             >
               <div className="flex flex-col items-start overflow-hidden flex-1 min-w-0">
                 <span className="text-xs text-gray-500 font-normal">Entity</span>
-                <span className="truncate w-full text-left text-sm font-medium text-gray-700">
-                  {(() => {
-                    // First try currentConnection
-                    if (currentConnection?.tenantName && 
-                        currentConnection.tenantName !== 'Unknown' && 
-                        currentConnection.tenantName !== currentConnection.tenantId) {
-                      return currentConnection.tenantName;
-                    }
-                    // Then try finding in connections array
-                    const conn = connections.find(c => c.tenantId === tenantId);
-                    if (conn?.tenantName && 
-                        conn.tenantName !== 'Unknown' && 
-                        conn.tenantName !== conn.tenantId) {
-                      return conn.tenantName;
-                    }
-                    // Fallback to tenantId
-                    return tenantId || 'Select Entity';
-                  })()}
-                </span>
+                {isLoadingConnections ? (
+                  <Skeleton className="h-4 w-32 mt-1" variant="text" />
+                ) : (
+                  <span className="truncate w-full text-left text-sm font-normal text-gray-700">
+                    {(() => {
+                      // First try currentConnection
+                      if (currentConnection?.tenantName && 
+                          currentConnection.tenantName !== 'Unknown' && 
+                          currentConnection.tenantName !== currentConnection.tenantId) {
+                        return currentConnection.tenantName;
+                      }
+                      // Then try finding in connections array
+                      const conn = connections.find(c => c.tenantId === tenantId);
+                      if (conn?.tenantName && 
+                          conn.tenantName !== 'Unknown' && 
+                          conn.tenantName !== conn.tenantId) {
+                        return conn.tenantName;
+                      }
+                      // Don't show tenantId, show placeholder instead
+                      return 'Select Entity';
+                    })()}
+                  </span>
+                )}
               </div>
               <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isEntityMenuOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -166,52 +180,67 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
             )}
           </div>
 
+          {/* Divider under Entity */}
+          <div className="px-3 mb-4">
+            <div className="h-px bg-gray-200"></div>
+          </div>
+
           {/* Main Navigation */}
-          <nav className="flex-1 px-3 space-y-1">
+          <nav className="flex-1 px-2 space-y-0.5">
             {mainNavigation.map((item) => {
-              const active = isActive(item.href);
+              const active = isActive(item.path, item.name);
               const Icon = item.icon;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                  className={`flex items-center px-3 py-2.5 text-sm font-normal rounded-lg transition-all ${
                     active
-                      ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                      ? 'bg-primary-600 text-white'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 mr-3 ${active ? 'text-gray-900' : 'text-gray-400'}`} />
+                  <Icon className={`w-4 h-4 mr-3 ${active ? 'text-white' : 'text-gray-400'}`} />
                   {item.name}
                 </Link>
               );
             })}
           </nav>
 
+          {/* Divider before Footer Navigation */}
+          <div className="px-3 mb-4">
+            <div className="h-px bg-gray-200"></div>
+          </div>
+
           {/* Footer Navigation */}
-          <div className="px-3 py-4 space-y-1 border-t border-gray-200">
+          <div className="px-2 py-4 space-y-0.5">
             {footerNavigation.map((item) => {
-              const active = isActive(item.href);
+              const active = isActive(item.path, item.name);
               const Icon = item.icon;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                  className={`flex items-center px-3 py-2.5 text-sm font-normal rounded-lg transition-all ${
                     active
-                      ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                      ? 'bg-primary-600 text-white'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 mr-3 ${active ? 'text-gray-900' : 'text-gray-400'}`} />
+                  <Icon className={`w-4 h-4 mr-3 ${active ? 'text-white' : 'text-gray-400'}`} />
                   {item.name}
                 </Link>
               );
             })}
           </div>
 
+          {/* Divider before User Profile */}
+          <div className="px-3 mb-3">
+            <div className="h-px bg-gray-200"></div>
+          </div>
+
           {/* User Profile */}
-          <div className="p-4 border-t border-gray-200 flex items-center justify-between">
+          <div className="p-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-bold uppercase">
                 {currentConnection?.tenantName?.charAt(0) || 'N'}
@@ -229,23 +258,12 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
       </div>
 
       {/* Main Content Area */}
-      <div className="pl-64 flex flex-col min-h-screen">
+      <div className="pl-56 flex flex-col min-h-screen">
         {/* Top Header */}
         <header className="h-16 border-b border-gray-200 flex items-center justify-between px-8 bg-white sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <LayoutDashboard className="w-5 h-5 text-gray-400" />
             <span className="text-sm font-medium text-gray-900">Dashboard</span>
-          </div>
-          <div className="flex items-center gap-6">
-            <button className="text-gray-400 hover:text-gray-600">
-              <Sun className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => router.push('/app')}
-              className="px-4 py-1.5 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Sign Out
-            </button>
           </div>
         </header>
 
