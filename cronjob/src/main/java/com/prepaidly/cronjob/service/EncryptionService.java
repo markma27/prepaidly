@@ -16,8 +16,11 @@ public class EncryptionService {
     
     public EncryptionService(String encryptionPassword) {
         if (encryptionPassword == null || encryptionPassword.isEmpty()) {
-            throw new IllegalArgumentException("Encryption password cannot be null or empty");
+            log.error("Encryption password is null or empty. Please set JASYPT_ENCRYPTOR_PASSWORD environment variable.");
+            throw new IllegalArgumentException("Encryption password cannot be null or empty. Please set JASYPT_ENCRYPTOR_PASSWORD environment variable.");
         }
+        
+        log.info("Initializing EncryptionService with password length: {}", encryptionPassword.length());
         
         PooledPBEStringEncryptor pooledEncryptor = new PooledPBEStringEncryptor();
         SimpleStringPBEConfig config = new SimpleStringPBEConfig();
@@ -30,7 +33,7 @@ public class EncryptionService {
         pooledEncryptor.setConfig(config);
         this.encryptor = pooledEncryptor;
         
-        log.info("EncryptionService initialized");
+        log.info("EncryptionService initialized successfully");
     }
     
     public String encrypt(String plainText) {
@@ -45,9 +48,21 @@ public class EncryptionService {
             return null;
         }
         try {
-            return encryptor.decrypt(encryptedText);
+            log.debug("Attempting to decrypt text (length: {})", encryptedText != null ? encryptedText.length() : 0);
+            String decrypted = encryptor.decrypt(encryptedText);
+            log.debug("Successfully decrypted text");
+            return decrypted;
+        } catch (org.jasypt.exceptions.EncryptionOperationNotPossibleException e) {
+            log.error("Failed to decrypt text - EncryptionOperationNotPossibleException. This usually means:");
+            log.error("1. The encryption password (JASYPT_ENCRYPTOR_PASSWORD) is incorrect");
+            log.error("2. The encrypted text was encrypted with a different password");
+            log.error("3. The encrypted text is corrupted or not properly encrypted");
+            log.error("Encrypted text length: {}", encryptedText != null ? encryptedText.length() : 0);
+            log.error("Encrypted text preview: {}", encryptedText != null && encryptedText.length() > 20 
+                ? encryptedText.substring(0, 20) + "..." : encryptedText);
+            throw new RuntimeException("Failed to decrypt: The encryption password (JASYPT_ENCRYPTOR_PASSWORD) may be incorrect or the data was encrypted with a different password. " + e.getMessage(), e);
         } catch (Exception e) {
-            log.error("Failed to decrypt text", e);
+            log.error("Failed to decrypt text - Unexpected error", e);
             throw new RuntimeException("Failed to decrypt: " + e.getMessage(), e);
         }
     }

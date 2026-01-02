@@ -157,10 +157,30 @@ public class DailyCronJob {
                 Properties props = loadProperties();
                 String xeroClientId = props.getProperty("xero.client.id", System.getenv("XERO_CLIENT_ID"));
                 String xeroClientSecret = props.getProperty("xero.client.secret", System.getenv("XERO_CLIENT_SECRET"));
-                String jasyptPassword = props.getProperty("jasypt.encryptor.password", System.getenv("JASYPT_ENCRYPTOR_PASSWORD"));
+                // Try both environment variable names for compatibility
+                String jasyptPassword = props.getProperty("jasypt.encryptor.password", 
+                    System.getenv("JASYPT_ENCRYPTOR_PASSWORD") != null 
+                        ? System.getenv("JASYPT_ENCRYPTOR_PASSWORD")
+                        : System.getenv("JASYPT_PASSWORD"));
                 
-                if (xeroClientId == null || xeroClientSecret == null || jasyptPassword == null) {
-                    throw new RuntimeException("Missing Xero configuration. Please set XERO_CLIENT_ID, XERO_CLIENT_SECRET, and JASYPT_ENCRYPTOR_PASSWORD environment variables.");
+                // Log configuration status (without exposing secrets)
+                log.info("Xero Client ID configured: {}", xeroClientId != null && !xeroClientId.isEmpty());
+                log.info("Xero Client Secret configured: {}", xeroClientSecret != null && !xeroClientSecret.isEmpty());
+                log.info("Jasypt password configured: {}", jasyptPassword != null && !jasyptPassword.isEmpty());
+                if (jasyptPassword != null) {
+                    log.info("Jasypt password length: {}", jasyptPassword.length());
+                }
+                
+                if (xeroClientId == null || xeroClientId.isEmpty()) {
+                    throw new RuntimeException("Missing XERO_CLIENT_ID environment variable");
+                }
+                if (xeroClientSecret == null || xeroClientSecret.isEmpty()) {
+                    throw new RuntimeException("Missing XERO_CLIENT_SECRET environment variable");
+                }
+                if (jasyptPassword == null || jasyptPassword.isEmpty()) {
+                    throw new RuntimeException("Missing JASYPT_PASSWORD or JASYPT_ENCRYPTOR_PASSWORD environment variable. " +
+                        "This must match the password used to encrypt tokens in the backend. " +
+                        "Check your Railway environment variables and ensure it matches the backend's JASYPT_PASSWORD.");
                 }
                 
                 EncryptionService encryptionService = new EncryptionService(jasyptPassword);
