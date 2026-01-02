@@ -1,0 +1,43 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.prepaidly'
+version = '0.1.0'
+
+java {
+    sourceCompatibility = '21'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Logging
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'ch.qos.logback:logback-classic:1.4.14'
+    
+    // HTTP client for API calls (if needed)
+    implementation 'org.springframework:spring-web:6.1.5'
+    
+    // JSON processing (if needed)
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+}
+
+application {
+    mainClass = 'com.prepaidly.cronjob.DailyCronJob'
+}
+
+// Create a runnable JAR
+jar {
+    manifest {
+        attributes 'Main-Class': 'com.prepaidly.cronjob.DailyCronJob'
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
