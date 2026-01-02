@@ -155,18 +155,22 @@ public class DailyCronJob {
                 
                 // Initialize Xero services
                 Properties props = loadProperties();
-                String xeroClientId = props.getProperty("xero.client.id", System.getenv("XERO_CLIENT_ID"));
-                String xeroClientSecret = props.getProperty("xero.client.secret", System.getenv("XERO_CLIENT_SECRET"));
+                String xeroClientId = getPropertyOrEnv(props, "xero.client.id", "XERO_CLIENT_ID");
+                String xeroClientSecret = getPropertyOrEnv(props, "xero.client.secret", "XERO_CLIENT_SECRET");
                 // Read JASYPT_PASSWORD environment variable
-                // IMPORTANT: Do NOT trim - Spring @Value doesn't trim, so we must match exactly
-                String jasyptPassword = props.getProperty("jasypt.encryptor.password", 
-                    System.getenv("JASYPT_PASSWORD"));
+                // IMPORTANT: Prioritize environment variable, then check properties file
+                // Do NOT trim - Spring @Value doesn't trim, so we must match exactly
+                String jasyptPassword = getPropertyOrEnv(props, "jasypt.encryptor.password", "JASYPT_PASSWORD");
                 
                 // Log configuration status (without exposing secrets)
                 log.info("Xero Client ID configured: {}", xeroClientId != null && !xeroClientId.isEmpty());
                 log.info("Xero Client Secret configured: {}", xeroClientSecret != null && !xeroClientSecret.isEmpty());
                 log.info("Jasypt password configured: {}", jasyptPassword != null && !jasyptPassword.isEmpty());
-                log.info("Jasypt password source: {}", System.getenv("JASYPT_PASSWORD") != null ? "JASYPT_PASSWORD" : "NONE");
+                String jasyptPasswordSource = System.getenv("JASYPT_PASSWORD") != null ? "JASYPT_PASSWORD (env var)" : 
+                    (props.getProperty("jasypt.encryptor.password") != null && 
+                     !props.getProperty("jasypt.encryptor.password").contains("${")) ? 
+                    "application.properties" : "NONE";
+                log.info("Jasypt password source: {}", jasyptPasswordSource);
                 
                 if (jasyptPassword != null) {
                     log.info("Jasypt password length: {}", jasyptPassword.length());
@@ -379,6 +383,38 @@ public class DailyCronJob {
                 entriesToPost.size(), journalEntrySet.size());
         
         return entriesToPost;
+    }
+    
+    /**
+     * Get property value from properties file or environment variable.
+     * Prioritizes environment variable, then checks properties file.
+     * If property value looks like a placeholder (contains ${}), it's ignored.
+     * 
+     * @param props Properties object loaded from application.properties
+     * @param propertyKey Key in properties file
+     * @param envVarName Environment variable name
+     * @return Property value, or null if not found
+     */
+    private String getPropertyOrEnv(Properties props, String propertyKey, String envVarName) {
+        // First, check environment variable (highest priority)
+        String envValue = System.getenv(envVarName);
+        if (envValue != null && !envValue.isEmpty()) {
+            return envValue;
+        }
+        
+        // Then check properties file
+        String propValue = props.getProperty(propertyKey);
+        if (propValue != null && !propValue.isEmpty()) {
+            // If it looks like a placeholder (e.g., ${VAR:default}), ignore it
+            // This happens because we're not using Spring Boot's property resolution
+            if (propValue.contains("${") && propValue.contains("}")) {
+                log.debug("Property {} contains placeholder syntax, ignoring: {}", propertyKey, propValue);
+                return null;
+            }
+            return propValue;
+        }
+        
+        return null;
     }
     
     /**
