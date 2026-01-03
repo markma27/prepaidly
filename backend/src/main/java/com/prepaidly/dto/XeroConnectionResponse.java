@@ -48,6 +48,7 @@ public class XeroConnectionResponse {
      * 
      * - true: Connection is valid and tokens are working
      * - false: Connection has issues (e.g., tokens expired, API error)
+     * - null: Connection status not validated yet (fast path - tenant name available from DB)
      */
     private Boolean connected;
     

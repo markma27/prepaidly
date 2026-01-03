@@ -140,32 +140,14 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   }, []);
 
   useEffect(() => {
-    const fetchConnections = async () => {
-      // Check sessionStorage cache first
-      const now = Date.now();
-      const cached = getCachedConnections();
-      
-      if (
-        cached &&
-        now - cached.timestamp < CACHE_DURATION &&
-        cached.data.length > 0
-      ) {
-        setConnections(cached.data);
-        setIsLoadingConnections(false);
-        // Still fetch in background to ensure we have latest data
-        // but don't block UI
-        fetchConnectionsFromApi();
-        return;
+    const fetchConnectionsFromApi = async (validateTokens: boolean = false, showLoading: boolean = true) => {
+      if (showLoading) {
+        setIsLoadingConnections(true);
       }
-
-      // Fetch if no cache or cache expired
-      await fetchConnectionsFromApi();
-    };
-    
-    const fetchConnectionsFromApi = async () => {
-      setIsLoadingConnections(true);
       try {
-        const response = await xeroAuthApi.getStatus();
+        // Fast path: Get connections without token validation first (for immediate display)
+        // This returns tenant names from database immediately
+        const response = await xeroAuthApi.getStatus(undefined, validateTokens);
         
         if (response && response.connections) {
           // Update sessionStorage cache
@@ -180,12 +162,65 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
           setConnections(fallbackCache.data);
         }
       } finally {
-        setIsLoadingConnections(false);
+        if (showLoading) {
+          setIsLoadingConnections(false);
+        }
       }
     };
+
+    const fetchConnections = async () => {
+      // Check sessionStorage cache first
+      const now = Date.now();
+      const cached = getCachedConnections();
+      
+      if (
+        cached &&
+        now - cached.timestamp < CACHE_DURATION &&
+        cached.data.length > 0
+      ) {
+        // Show cached data immediately for fast UX
+        // Don't show loading state if we have valid cache
+        setConnections(cached.data);
+        setIsLoadingConnections(false);
+        // Still fetch in background to ensure we have latest data
+        // but don't block UI and don't show loading - use fast path (no token validation)
+        fetchConnectionsFromApi(false, false);
+        return;
+      }
+
+      // Fetch if no cache or cache expired
+      // Use fast path first (no token validation) for immediate display
+      await fetchConnectionsFromApi(false, true);
+      
+      // Optionally validate tokens in background after initial load
+      // This updates connection status without blocking UI or showing loading
+      setTimeout(() => {
+        fetchConnectionsFromApi(true, false).catch(err => {
+          console.debug('Background token validation failed:', err);
+          // Ignore errors - we already have the entity names displayed
+        });
+      }, 1000);
+    };
+    
+    // Only fetch if tenantId exists and we don't have valid cached connections
+    // This prevents unnecessary refetching when navigating between pages with same tenantId
+    const cached = getCachedConnections();
+    const now = Date.now();
+    const hasValidCache = cached && 
+                          now - cached.timestamp < CACHE_DURATION && 
+                          cached.data.length > 0;
     
     if (tenantId) {
-      fetchConnections();
+      if (hasValidCache) {
+        // Use cache immediately, no loading state
+        setConnections(cached.data);
+        setIsLoadingConnections(false);
+        // Silently refresh in background without showing loading
+        fetchConnectionsFromApi(false, false);
+      } else {
+        // Only fetch if no valid cache
+        fetchConnections();
+      }
     } else {
       setIsLoadingConnections(false);
     }
@@ -195,7 +230,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
       if (e.key === CACHE_KEY && e.newValue === null) {
         // Cache was cleared, refresh connections
         console.log('Connections cache cleared, refreshing...');
-        fetchConnectionsFromApi();
+        fetchConnectionsFromApi(false, true);
       }
     };
     
@@ -204,7 +239,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
     // Also listen for custom event for same-tab cache clearing
     const handleCacheClear = () => {
       console.log('Connections cache cleared via custom event, refreshing...');
-      fetchConnectionsFromApi();
+      fetchConnectionsFromApi(false, true);
     };
     
     window.addEventListener('connections-cache-cleared', handleCacheClear);

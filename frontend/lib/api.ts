@@ -85,10 +85,14 @@ async function fetchApi<T>(
 export const xeroAuthApi = {
   /**
    * Get Xero connection status
+   * @param userId Optional user ID
+   * @param validateTokens If true, validates tokens (slower). If false, returns stored names immediately (faster).
    */
-  getStatus: async (userId?: number): Promise<XeroConnectionStatusResponse> => {
-    const params = userId ? `?userId=${userId}` : '';
-    return fetchApi<XeroConnectionStatusResponse>(`/api/auth/xero/status${params}`);
+  getStatus: async (userId?: number, validateTokens: boolean = false): Promise<XeroConnectionStatusResponse> => {
+    const params = new URLSearchParams();
+    if (userId) params.append('userId', userId.toString());
+    params.append('validateTokens', validateTokens.toString());
+    return fetchApi<XeroConnectionStatusResponse>(`/api/auth/xero/status?${params.toString()}`);
   },
 
   /**

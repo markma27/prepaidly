@@ -16,7 +16,7 @@ export interface XeroAccountResponse {
 export interface XeroConnection {
   tenantId: string;
   tenantName: string;
-  connected: boolean;
+  connected: boolean | null; // null means "unknown" - not validated yet
   message: string;
 }
 
