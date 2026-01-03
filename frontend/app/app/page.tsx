@@ -78,15 +78,21 @@ export default function AppPage() {
 
       // Auto-refresh all tokens when user logs into app page
       // This ensures tokens are fresh even if they expired (30 min expiry)
-      // Do this silently in the background - don't wait for it
-      syncApi.refreshAll().catch(err => {
-        // Silently handle errors - token refresh is best effort
-        // If it fails, the status check below will still work
-        console.debug('Background token refresh failed (non-critical):', err);
-      });
+      // Wait for refresh to complete before checking status to ensure tokens are valid
+      try {
+        console.log('Refreshing all tokens before checking status...');
+        await syncApi.refreshAll();
+        console.log('Token refresh completed');
+      } catch (err) {
+        // Log error but continue - status check will attempt to refresh tokens if needed
+        console.warn('Token refresh failed, will attempt refresh during status check:', err);
+      }
 
-      console.log('Fetching connection status from API (returns all connections)');
-      const status = await xeroAuthApi.getStatus(userId);
+      // Fetch status with token validation enabled
+      // This ensures tokens are validated and refreshed if needed
+      // Since we just refreshed all tokens, they should be valid, but this provides a fallback
+      console.log('Fetching connection status from API with token validation (returns all connections)');
+      const status = await xeroAuthApi.getStatus(userId, true); // validateTokens=true
       console.log('API Response:', JSON.stringify(status, null, 2));
       console.log('Total connections:', status?.totalConnections);
       console.log('Connections array length:', status?.connections?.length);

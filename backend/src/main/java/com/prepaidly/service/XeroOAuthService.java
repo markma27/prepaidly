@@ -327,13 +327,24 @@ public class XeroOAuthService {
      * This method handles token refresh. If refresh fails, it throws an exception immediately.
      * The refreshTokens method uses REQUIRES_NEW propagation to ensure it runs in its own
      * transaction, preventing transaction abort issues.
+     * 
+     * Refreshes tokens if:
+     * - Token is already expired (expiresAt is before now)
+     * - Token expires within 5 minutes (expiresAt is before now + 5 minutes)
      */
     public String getValidAccessToken(XeroConnection connection) {
         try {
-            if (connection.getExpiresAt().isBefore(LocalDateTime.now().plusMinutes(5))) {
-                // Token expires soon, refresh it
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime expiresAt = connection.getExpiresAt();
+            
+            // Refresh if token is expired or expires within 5 minutes
+            if (expiresAt == null || expiresAt.isBefore(now.plusMinutes(5))) {
+                log.info("Token for tenant {} is expired or expires soon (expiresAt: {}), refreshing...", 
+                    connection.getTenantId(), expiresAt);
                 // refreshTokens uses REQUIRES_NEW so it runs in its own transaction
                 connection = refreshTokens(connection);
+                log.info("Token refreshed for tenant {}, new expiresAt: {}", 
+                    connection.getTenantId(), connection.getExpiresAt());
             }
             return encryptionService.decrypt(connection.getAccessToken());
         } catch (Exception e) {
