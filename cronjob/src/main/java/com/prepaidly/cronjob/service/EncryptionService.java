@@ -80,28 +80,7 @@ public class EncryptionService {
             log.debug("Successfully decrypted text");
             return decrypted;
         } catch (org.jasypt.exceptions.EncryptionOperationNotPossibleException e) {
-            log.error("=== DECRYPTION FAILED ===");
-            log.error("Failed to decrypt text - EncryptionOperationNotPossibleException");
-            log.error("This usually means:");
-            log.error("1. The encryption password (JASYPT_PASSWORD) is incorrect or different from backend");
-            log.error("2. The encrypted text was encrypted with a different password");
-            log.error("3. The encrypted text is corrupted or not properly encrypted");
-            log.error("4. There may be whitespace/encoding differences in the password");
-            log.error("");
-            log.error("Encrypted text details:");
-            log.error("  - Length: {}", encryptedText != null ? encryptedText.length() : 0);
-            log.error("  - Preview (first 30 chars): {}", encryptedText != null && encryptedText.length() > 30 
-                ? encryptedText.substring(0, 30) + "..." : encryptedText);
-            log.error("  - Preview (last 30 chars): {}", encryptedText != null && encryptedText.length() > 30 
-                ? "..." + encryptedText.substring(encryptedText.length() - 30) : encryptedText);
-            log.error("");
-            log.error("TROUBLESHOOTING:");
-            log.error("1. Verify JASYPT_PASSWORD in Railway cronjob matches backend EXACTLY");
-            log.error("2. Check for any whitespace before/after the password");
-            log.error("3. Ensure the password hasn't been changed since tokens were encrypted");
-            log.error("4. Try copying the password again from backend Railway service");
-            log.error("5. If tokens were encrypted with old password, reconnect to Xero in backend to regenerate tokens");
-            throw new RuntimeException("Failed to decrypt: The encryption password (JASYPT_PASSWORD) may be incorrect or the data was encrypted with a different password. " + e.getMessage(), e);
+            throw new RuntimeException(e.getMessage(), e);
         } catch (Exception e) {
             log.error("Failed to decrypt text - Unexpected error", e);
             throw new RuntimeException("Failed to decrypt: " + e.getMessage(), e);
