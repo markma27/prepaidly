@@ -1,4 +1,28 @@
+'use client'
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+
 export default function Home() {
+  const router = useRouter()
+
+  useEffect(() => {
+    // Check for Supabase invite token in hash fragment
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.substring(1) // Remove the '#'
+      if (hash) {
+        const params = new URLSearchParams(hash)
+        const type = params.get('type')
+        
+        // If it's an invite, redirect to accept-invite page with the hash
+        if (type === 'invite') {
+          router.replace(`/auth/accept-invite${window.location.hash}`)
+          return
+        }
+      }
+    }
+  }, [router])
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24">
       <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">

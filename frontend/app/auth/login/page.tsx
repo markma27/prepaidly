@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,40 +9,75 @@ import { Card, CardContent } from '@/components/ui/card'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Loader2 } from 'lucide-react'
-import { authApi, ApiError } from '@/lib/api'
+import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    // Check for error or success messages in URL params
+    const errorParam = searchParams.get('error')
+    const errorDescription = searchParams.get('error_description')
+    const messageParam = searchParams.get('message')
+
+    if (errorParam) {
+      setError(errorDescription || errorParam)
+    } else if (messageParam === 'password_reset_success') {
+      setSuccess('Your password has been successfully reset. Please log in with your new password.')
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setSuccess(null) // Clear success message when attempting to login
     setLoading(true)
 
     try {
-      const { user } = await authApi.login(email, password)
+      const supabase = createClient()
       
-      // Store user info in sessionStorage (in production, use proper session management)
+      // Sign in with Supabase Auth
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      })
+
+      if (signInError) {
+        if (signInError.message.includes('Invalid login credentials') || 
+            signInError.message.includes('Email not confirmed')) {
+          setError('Invalid email or password')
+        } else {
+          setError(signInError.message || 'Sign in failed, please try again')
+        }
+        return
+      }
+
+      if (!data.user) {
+        setError('Sign in failed. No user data returned.')
+        return
+      }
+
+      // Store user info in sessionStorage for backward compatibility with existing code
+      // The Supabase session is automatically stored in cookies by @supabase/ssr
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem('user', JSON.stringify(user))
+        sessionStorage.setItem('user', JSON.stringify({
+          id: data.user.id,
+          email: data.user.email,
+          // Add any other user metadata you need
+        }))
       }
 
       router.push('/app')
       router.refresh()
-    } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.status === 404) {
-          setError('Invalid email or password')
-        } else {
-          setError(err.message || 'Sign in failed, please try again')
-        }
-      } else {
-        setError('Sign in failed, please try again')
-      }
+    } catch (err: any) {
+      console.error('Login error:', err)
+      setError(err.message || 'Sign in failed, please try again')
     } finally {
       setLoading(false)
     }
@@ -66,7 +101,7 @@ export default function LoginPage() {
 
         {/* Login Card */}
         <Card className="shadow-xl border-slate-200/60 rounded-2xl overflow-hidden bg-white">
-          <div className="bg-gradient-to-r from-[#6d69ff]/50 via-[#6d69ff]/25 to-[#6d69ff]/10 py-4 flex items-center justify-center border-b border-slate-100">
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/35 to-[#6d69ff]/10 py-4 flex items-center justify-center border-b border-slate-100">
             <h2 className="text-xl font-bold text-slate-800 tracking-tight">Sign In</h2>
           </div>
           <CardContent className="p-8">
@@ -102,6 +137,16 @@ export default function LoginPage() {
                   {error}
                 </div>
               )}
+              {success && (
+                <div className="rounded-lg bg-green-50 p-3 text-xs font-medium text-green-600 border border-green-100">
+                  {success}
+                </div>
+              )}
+              <div className="text-right">
+                <Link href="/auth/forgot-password" className="text-xs text-slate-600 hover:text-slate-900 hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
               <Button 
                 type="submit" 
                 className="w-full h-11 bg-[#6d69ff] text-white hover:bg-[#5a56e6] active:bg-[#4a46cc] active:scale-[0.98] transition-all duration-150 font-bold text-sm shadow-lg shadow-[#6d69ff]/10 mt-2" 

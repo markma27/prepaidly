@@ -438,29 +438,10 @@ public class XeroAuthController {
             
             List<XeroConnection> connections;
             
-            // For development: if userId is 1 or not provided, try to find user by email first
-            // If not found, or if no userId specified, return ALL connections (for development convenience)
-            if (userId == null || userId == DEFAULT_USER_ID) {
-                User user = userRepository.findByEmail("demo@prepaidly.io").orElse(null);
-                if (user != null) {
-                    log.info("Using default user: {} (ID: {})", user.getEmail(), user.getId());
-                    connections = xeroConnectionRepository.findByUserId(user.getId());
-                } else {
-                    // Development mode: if default user not found, return all connections
-                    log.info("Default user not found, returning all connections for development");
-                    connections = xeroConnectionRepository.findAll();
-                }
-            } else {
-                User user = userRepository.findById(userId).orElse(null);
-                if (user == null) {
-                    log.warn("User not found with ID: {}", userId);
-                    XeroConnectionStatusResponse emptyResponse = new XeroConnectionStatusResponse();
-                    emptyResponse.setConnections(List.of());
-                    emptyResponse.setTotalConnections(0);
-                    return ResponseEntity.ok(emptyResponse);
-                }
-                connections = xeroConnectionRepository.findByUserId(user.getId());
-            }
+            // Return ALL connections so all users can see all Xero entities
+            // This allows multiple users to access the same Xero connections
+            log.info("Returning all Xero connections for user ID: {}", userId);
+            connections = xeroConnectionRepository.findAll();
             
             log.info("Found {} total connections to process", connections.size());
             

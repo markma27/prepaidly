@@ -6,6 +6,7 @@ import { xeroAuthApi } from '@/lib/api';
 import type { XeroConnectionStatusResponse } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
+import { createClient } from '@/lib/supabase/client';
 
 export default function AppPage() {
   const router = useRouter();
@@ -14,36 +15,59 @@ export default function AppPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if user is logged in
-    const userStr = typeof window !== 'undefined' ? sessionStorage.getItem('user') : null;
-    if (!userStr) {
-      // User not logged in, redirect to login
-      router.push('/auth/login');
-      return;
-    }
-
-    checkConnectionStatus();
+    // Check if user is logged in using Supabase Auth
+    checkAuthAndLoadData();
   }, [router]);
+
+  const checkAuthAndLoadData = async () => {
+    try {
+      const supabase = createClient();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        // User not logged in, redirect to login
+        router.push('/auth/login');
+        return;
+      }
+
+      // Store user info in sessionStorage for backward compatibility
+      if (typeof window !== 'undefined' && session.user) {
+        sessionStorage.setItem('user', JSON.stringify({
+          id: session.user.id,
+          email: session.user.email,
+        }));
+      }
+
+      // User is authenticated, load connection status
+      checkConnectionStatus();
+    } catch (err) {
+      console.error('Error checking auth:', err);
+      router.push('/auth/login');
+    }
+  };
 
   const checkConnectionStatus = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Get user ID from sessionStorage
+      // Get user email from Supabase session (stored in sessionStorage for backward compatibility)
+      // Note: The backend API now returns all connections, so userId is optional
       const userStr = typeof window !== 'undefined' ? sessionStorage.getItem('user') : null;
       let userId: number | undefined;
       
       if (userStr) {
         try {
           const user = JSON.parse(userStr);
-          userId = user.id;
+          // Backend uses numeric IDs, but we can pass undefined since API returns all connections
+          // If needed in the future, we can look up user by email to get backend user ID
+          userId = undefined; // API now returns all connections regardless of userId
         } catch (e) {
           console.error('Error parsing user from sessionStorage:', e);
         }
       }
 
-      console.log('Fetching connection status from API for user:', userId);
+      console.log('Fetching connection status from API (returns all connections)');
       const status = await xeroAuthApi.getStatus(userId);
       console.log('API Response:', JSON.stringify(status, null, 2));
       console.log('Total connections:', status?.totalConnections);
