@@ -664,13 +664,34 @@ public class XeroAuthController {
                     .body(Map.of("error", "Connection not found for tenant: " + tenantId));
             }
             
+            // First, try to disconnect from Xero's side
+            boolean xeroDisconnected = false;
+            try {
+                xeroDisconnected = xeroOAuthService.disconnectFromXero(connection);
+                if (xeroDisconnected) {
+                    log.info("Successfully disconnected from Xero API for tenant: {}", tenantId);
+                } else {
+                    log.warn("Could not disconnect from Xero API for tenant: {} (connection may already be removed)", tenantId);
+                }
+            } catch (Exception xeroError) {
+                log.error("Error disconnecting from Xero API for tenant: {}", tenantId, xeroError);
+                // Continue with database deletion even if Xero disconnect fails
+                // This ensures we clean up our side even if Xero API is unavailable
+            }
+            
+            // Delete from our database
             xeroConnectionRepository.delete(connection);
-            log.info("Deleted Xero connection for tenant: {}", tenantId);
+            log.info("Deleted Xero connection from database for tenant: {}", tenantId);
+            
+            String message = xeroDisconnected 
+                ? "Successfully disconnected from Xero" 
+                : "Disconnected from Prepaidly. Note: Connection may still appear in Xero until manually removed.";
             
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "tenantId", tenantId,
-                "message", "Successfully disconnected from Xero"
+                "message", message,
+                "xeroDisconnected", xeroDisconnected
             ));
         } catch (Exception e) {
             log.error("Error disconnecting tenant {}", tenantId, e);

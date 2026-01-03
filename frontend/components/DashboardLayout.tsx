@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { xeroAuthApi } from '@/lib/api';
 import { XeroConnection } from '@/lib/types';
+import { createClient } from '@/lib/supabase/client';
 import { 
   LayoutDashboard, 
   PlusCircle, 
@@ -14,7 +15,8 @@ import {
   HelpCircle,
   ChevronDown,
   ChevronRight,
-  Calendar
+  Calendar,
+  ArrowLeft
 } from 'lucide-react';
 import Skeleton from '@/components/Skeleton';
 
@@ -72,6 +74,11 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   const [isEntityMenuOpen, setIsEntityMenuOpen] = useState(false);
   const [isLoadingConnections, setIsLoadingConnections] = useState(initialConnections.length === 0);
   const entityMenuRef = useRef<HTMLDivElement>(null);
+  
+  // User profile state
+  const [userEmail, setUserEmail] = useState<string>('user@example.com');
+  const [userName, setUserName] = useState<string>('User');
+  const [userInitial, setUserInitial] = useState<string>('P');
 
   // Memoize current connection lookup to avoid recalculation
   const memoizedCurrentConnection = useMemo(() => {
@@ -96,6 +103,38 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
     }
   }, [memoizedCurrentConnection]);
 
+  // Fetch current user info from Supabase
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error fetching user session:', error);
+          return;
+        }
+        
+        if (session?.user) {
+          const email = session.user.email || 'user@example.com';
+          const name = session.user.user_metadata?.full_name || 
+                      session.user.user_metadata?.name || 
+                      email.split('@')[0] || 
+                      'User';
+          const initial = name.charAt(0).toUpperCase() || 'P';
+          
+          setUserEmail(email);
+          setUserName(name);
+          setUserInitial(initial);
+        }
+      } catch (err) {
+        console.error('Error loading user info:', err);
+      }
+    };
+    
+    fetchUserInfo();
+  }, []);
+
   useEffect(() => {
     const fetchConnections = async () => {
       // Check sessionStorage cache first
@@ -109,10 +148,17 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
       ) {
         setConnections(cached.data);
         setIsLoadingConnections(false);
+        // Still fetch in background to ensure we have latest data
+        // but don't block UI
+        fetchConnectionsFromApi();
         return;
       }
 
       // Fetch if no cache or cache expired
+      await fetchConnectionsFromApi();
+    };
+    
+    const fetchConnectionsFromApi = async () => {
       setIsLoadingConnections(true);
       try {
         const response = await xeroAuthApi.getStatus();
@@ -139,6 +185,30 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
     } else {
       setIsLoadingConnections(false);
     }
+    
+    // Listen for storage events to detect when cache is cleared (e.g., after disconnect)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === CACHE_KEY && e.newValue === null) {
+        // Cache was cleared, refresh connections
+        console.log('Connections cache cleared, refreshing...');
+        fetchConnectionsFromApi();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom event for same-tab cache clearing
+    const handleCacheClear = () => {
+      console.log('Connections cache cleared via custom event, refreshing...');
+      fetchConnectionsFromApi();
+    };
+    
+    window.addEventListener('connections-cache-cleared', handleCacheClear);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('connections-cache-cleared', handleCacheClear);
+    };
   }, [tenantId]);
 
   // Close entity menu when clicking outside
@@ -353,6 +423,14 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
             </Link>
               );
             })}
+            {/* Return to Entity List */}
+            <Link
+              href="/app"
+              className="flex items-center px-2.5 py-2 text-[13px] font-medium rounded-lg transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2.5 text-gray-400" />
+              Return to Entity List
+            </Link>
           </div>
 
           {/* Divider before User Profile */}
@@ -364,11 +442,11 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
           <div className="p-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-bold uppercase">
-                P
+                {userInitial}
               </div>
               <div className="flex flex-col">
-                <span className="text-[13px] font-medium text-gray-900 truncate w-24">User</span>
-                <span className="text-[13px] font-medium text-gray-500 truncate w-24">user@example.com</span>
+                <span className="text-[13px] font-medium text-gray-900 truncate w-24">{userName}</span>
+                <span className="text-[13px] font-medium text-gray-500 truncate w-24">{userEmail}</span>
               </div>
             </div>
             <button className="text-gray-400 hover:text-gray-600">

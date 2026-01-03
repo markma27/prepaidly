@@ -145,6 +145,17 @@ export default function AppPage() {
 
     try {
       await xeroAuthApi.disconnect(tenantId);
+      
+      // Clear the connections cache in sessionStorage so Dashboard will refresh
+      const CACHE_KEY = 'xero_connections_cache';
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(CACHE_KEY);
+        console.log('Cleared connections cache after disconnect');
+        
+        // Dispatch custom event to notify Dashboard to refresh (for same-tab)
+        window.dispatchEvent(new Event('connections-cache-cleared'));
+      }
+      
       // Refresh the connection status after disconnecting
       await checkConnectionStatus();
     } catch (err: any) {

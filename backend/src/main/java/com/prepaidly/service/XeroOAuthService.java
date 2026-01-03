@@ -372,6 +372,69 @@ public class XeroOAuthService {
     }
     
     /**
+     * Disconnect from Xero by revoking the connection on Xero's side
+     * 
+     * This method calls Xero's API to remove the connection, which will revoke
+     * access tokens and remove the app from the organization's connected apps list.
+     * 
+     * @param connection The XeroConnection to disconnect
+     * @return true if disconnection was successful, false otherwise
+     */
+    public boolean disconnectFromXero(XeroConnection connection) {
+        try {
+            // Get a valid access token (will refresh if needed)
+            String accessToken = getValidAccessToken(connection);
+            
+            // Get all connections to find the connectionId for this tenant
+            List<Map<String, Object>> allConnections = getXeroConnections(accessToken);
+            
+            // Find the connection that matches our tenantId
+            String connectionId = null;
+            for (Map<String, Object> conn : allConnections) {
+                String tenantId = (String) conn.get("tenantId");
+                if (tenantId != null && tenantId.equals(connection.getTenantId())) {
+                    connectionId = (String) conn.get("id");
+                    break;
+                }
+            }
+            
+            if (connectionId == null) {
+                log.warn("Connection ID not found for tenantId: {}. Connection may already be disconnected in Xero.", 
+                    connection.getTenantId());
+                // Connection might already be removed from Xero, but we'll still delete from our DB
+                return false;
+            }
+            
+            // Delete the connection from Xero
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(Objects.requireNonNull(accessToken, "Access token cannot be null"));
+            headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
+            
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<Void> response = restTemplate.exchange(
+                "https://api.xero.com/connections/" + connectionId,
+                Objects.requireNonNull(HttpMethod.DELETE),
+                entity,
+                Void.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.NO_CONTENT || response.getStatusCode() == HttpStatus.OK) {
+                log.info("Successfully disconnected from Xero for tenantId: {}, connectionId: {}", 
+                    connection.getTenantId(), connectionId);
+                return true;
+            } else {
+                log.warn("Unexpected status code when disconnecting from Xero: {} for tenantId: {}", 
+                    response.getStatusCode(), connection.getTenantId());
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Error disconnecting from Xero for tenantId: {}", connection.getTenantId(), e);
+            // Don't throw - we'll still delete from our database even if Xero disconnect fails
+            return false;
+        }
+    }
+    
+    /**
      * Get tenant information from Xero API
      */
     public Map<String, Object> getTenantInfo(String accessToken) {
