@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { xeroApi, xeroAuthApi } from '@/lib/api';
+import { xeroApi, xeroAuthApi, syncApi } from '@/lib/api';
 import type { XeroAccount, XeroConnectionStatusResponse } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -30,7 +30,20 @@ function SettingsPageContent() {
 
   const loadConnectionStatus = async () => {
     try {
-      const status = await xeroAuthApi.getStatus();
+      // Auto-refresh all tokens before checking status
+      // This ensures tokens are fresh even if they expired (30 min expiry)
+      try {
+        console.log('Refreshing all tokens before checking status...');
+        await syncApi.refreshAll();
+        console.log('Token refresh completed');
+      } catch (err) {
+        // Log error but continue - status check will attempt to refresh tokens if needed
+        console.warn('Token refresh failed, will attempt refresh during status check:', err);
+      }
+
+      // Fetch status with token validation enabled
+      // This ensures tokens are validated and refreshed if needed
+      const status = await xeroAuthApi.getStatus(undefined, true); // validateTokens=true
       setConnectionStatus(status);
       
       if (status.totalConnections > 0 && status.connections[0].connected) {
@@ -53,8 +66,20 @@ function SettingsPageContent() {
       setLoading(true);
       setError(null);
 
-      // Load connection status
-      const status = await xeroAuthApi.getStatus();
+      // Auto-refresh all tokens before checking status
+      // This ensures tokens are fresh even if they expired (30 min expiry)
+      try {
+        console.log('Refreshing all tokens before loading data...');
+        await syncApi.refreshAll();
+        console.log('Token refresh completed');
+      } catch (err) {
+        // Log error but continue - status check will attempt to refresh tokens if needed
+        console.warn('Token refresh failed, will attempt refresh during status check:', err);
+      }
+
+      // Load connection status with token validation enabled
+      // This ensures tokens are validated and refreshed if needed
+      const status = await xeroAuthApi.getStatus(undefined, true); // validateTokens=true
       setConnectionStatus(status);
 
       // Load accounts
@@ -153,7 +178,17 @@ function SettingsPageContent() {
                   </button>
                 )}
                 <button
-                  onClick={() => tenantId && loadData(tenantId)}
+                  onClick={async () => {
+                    if (tenantId) {
+                      // Refresh tokens first, then reload data
+                      try {
+                        await syncApi.refreshAll();
+                      } catch (err) {
+                        console.warn('Token refresh failed:', err);
+                      }
+                      await loadData(tenantId);
+                    }
+                  }}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
                 >
                   Refresh

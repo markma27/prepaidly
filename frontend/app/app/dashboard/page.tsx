@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { scheduleApi } from '@/lib/api';
+import { scheduleApi, syncApi } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import type { Schedule } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -52,7 +52,21 @@ function DashboardPageContent() {
     const tenantIdParam = searchParams.get('tenantId');
     if (tenantIdParam) {
       setTenantId(tenantIdParam);
-      loadSchedules(tenantIdParam);
+      // Auto-refresh all tokens when dashboard page is loaded
+      // This ensures tokens are fresh even if they expired (30 min expiry)
+      const refreshAndLoad = async () => {
+        try {
+          console.log('Refreshing all tokens before loading dashboard...');
+          await syncApi.refreshAll();
+          console.log('Token refresh completed');
+        } catch (err) {
+          // Log error but continue - token refresh is best effort
+          console.warn('Token refresh failed (non-critical):', err);
+        }
+        // Load schedules after token refresh
+        loadSchedules(tenantIdParam);
+      };
+      refreshAndLoad();
     } else {
       setError('Missing Tenant ID');
       setLoading(false);
