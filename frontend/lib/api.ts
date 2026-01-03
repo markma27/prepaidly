@@ -191,6 +191,16 @@ export const syncApi = {
       method: 'POST',
     });
   },
+
+  /**
+   * Refresh all Xero OAuth tokens
+   * This refreshes tokens for all connected Xero organizations
+   */
+  refreshAll: async () => {
+    return fetchApi<{ success: boolean; message: string }>('/api/sync/refresh-all', {
+      method: 'POST',
+    });
+  },
 };
 
 // Auth API

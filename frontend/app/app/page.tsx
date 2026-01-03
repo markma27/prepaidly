@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { xeroAuthApi } from '@/lib/api';
+import { xeroAuthApi, syncApi } from '@/lib/api';
 import type { XeroConnectionStatusResponse } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -75,6 +75,15 @@ export default function AppPage() {
           console.error('Error parsing user from sessionStorage:', e);
         }
       }
+
+      // Auto-refresh all tokens when user logs into app page
+      // This ensures tokens are fresh even if they expired (30 min expiry)
+      // Do this silently in the background - don't wait for it
+      syncApi.refreshAll().catch(err => {
+        // Silently handle errors - token refresh is best effort
+        // If it fails, the status check below will still work
+        console.debug('Background token refresh failed (non-critical):', err);
+      });
 
       console.log('Fetching connection status from API (returns all connections)');
       const status = await xeroAuthApi.getStatus(userId);
