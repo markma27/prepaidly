@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 
 const supabase = createClient()
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [password, setPassword] = useState('')
@@ -333,6 +333,38 @@ export default function ResetPasswordPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center p-4 bg-gray-50">
+        <div className="w-full max-w-[400px] space-y-8">
+          <div className="flex justify-center mb-2 scale-110">
+            <Link href="/" className="relative w-64 h-24 hover:opacity-90 transition-all active:scale-[0.98]">
+              <Image
+                src="/Logo.svg"
+                alt="Logo"
+                fill
+                className="object-contain"
+                priority
+              />
+            </Link>
+          </div>
+          <Card className="shadow-xl border-slate-200/60 rounded-2xl overflow-hidden bg-white">
+            <CardContent className="p-8">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin text-[#6d69ff]" />
+                <p className="text-sm text-gray-600">Loading...</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
   )
 }
 
