@@ -60,7 +60,12 @@ function DashboardPageContent() {
   }, [searchParams]);
 
   // Remove black border on bar chart click
+  // Only run once on mount, not when schedules change
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    let rafId: number;
+    let intervalId: NodeJS.Timeout;
+    
     const removeBlackStroke = () => {
       // Remove stroke from bar rectangles (only black, preserve blue and green)
       const barRectangles = document.querySelectorAll('.recharts-bar-rectangle');
@@ -117,51 +122,50 @@ function DashboardPageContent() {
       }
     };
 
+    // Debounced version for MutationObserver to reduce frequency
+    const debouncedRemoveBlackStroke = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(removeBlackStroke, 50);
+    };
+
     // Remove black stroke immediately
     removeBlackStroke();
     
     // Use requestAnimationFrame for immediate removal
-    const rafId = requestAnimationFrame(() => {
+    rafId = requestAnimationFrame(() => {
       removeBlackStroke();
     });
 
-    // Remove on any click with immediate execution
-    const handleClick = (e: MouseEvent) => {
+    // Remove on any click with immediate execution (but only once per click)
+    const handleClick = () => {
       removeBlackStroke();
-      // Use setTimeout to catch any delayed changes
-      setTimeout(removeBlackStroke, 0);
-      setTimeout(removeBlackStroke, 10);
-      setTimeout(removeBlackStroke, 50);
     };
     
     document.addEventListener('click', handleClick, true); // Use capture phase
     
-    // Use MutationObserver with more aggressive watching
-    const observer = new MutationObserver(() => {
-      removeBlackStroke();
-    });
+    // Use MutationObserver with debouncing to reduce frequency
+    const observer = new MutationObserver(debouncedRemoveBlackStroke);
     
-    const chartContainers = document.querySelectorAll('.recharts-wrapper');
-    chartContainers.forEach((container) => {
-      observer.observe(container, { 
-        attributes: true, 
-        subtree: true, 
-        attributeFilter: ['stroke', 'style', 'tabindex'],
-        childList: true,
-        characterData: false
-      });
+    // Observe the document body instead of individual containers to reduce overhead
+    observer.observe(document.body, { 
+      attributes: true, 
+      subtree: true, 
+      attributeFilter: ['stroke', 'style', 'tabindex'],
+      childList: true,
+      characterData: false
     });
 
-    // Also check periodically
-    const intervalId = setInterval(removeBlackStroke, 100);
+    // Check periodically with reduced frequency (500ms instead of 100ms)
+    intervalId = setInterval(removeBlackStroke, 500);
 
     return () => {
-      cancelAnimationFrame(rafId);
+      if (rafId) cancelAnimationFrame(rafId);
+      if (timeoutId) clearTimeout(timeoutId);
       document.removeEventListener('click', handleClick, true);
       observer.disconnect();
-      clearInterval(intervalId);
+      if (intervalId) clearInterval(intervalId);
     };
-  }, [schedules]);
+  }, []); // Empty dependency array - only run once on mount
 
   const loadSchedules = async (tid: string) => {
     try {
