@@ -230,6 +230,20 @@ public class XeroAuthController {
             
             XeroConnection connection = xeroOAuthService.exchangeCodeForTokens(code, state, targetUserId);
             
+            // Log all connections that were created/updated
+            // Note: exchangeCodeForTokens now processes ALL connections from the OAuth response
+            // but returns the first one for backward compatibility
+            log.info("OAuth callback completed. First connection tenantId: {}, tenantName: {}", 
+                connection.getTenantId(), connection.getTenantName());
+            
+            // Get all connections to verify all were saved
+            List<XeroConnection> allConnections = xeroConnectionRepository.findAll();
+            log.info("Total Xero connections in database after OAuth callback: {}", allConnections.size());
+            for (XeroConnection conn : allConnections) {
+                log.info("  - Connection: tenantId={}, tenantName={}, userId={}", 
+                    conn.getTenantId(), conn.getTenantName(), conn.getUser().getId());
+            }
+            
             // Immediately trigger a token refresh to ensure the connection is active
             // This also helps verify the connection works and updates tenant name if needed
             try {
@@ -241,14 +255,16 @@ public class XeroAuthController {
                 log.warn("Could not immediately refresh tokens for new connection (will be retried by scheduler): {}", e.getMessage());
             }
             
-            // Redirect to frontend success page
-            String redirectUrl = frontendUrl + "/app/connected?success=true&tenantId=" + connection.getTenantId();
-            log.info("Redirecting to frontend: {}", redirectUrl);
+            // Redirect to /app page to show all connections instead of just the first one
+            // This allows users to see all connected organizations
+            String redirectUrl = frontendUrl + "/app";
+            log.info("Redirecting to frontend /app page to show all {} connection(s): {}", 
+                allConnections.size(), redirectUrl);
             return ResponseEntity.status(HttpStatus.FOUND)
                 .header("Location", redirectUrl)
                 .body(Map.of(
                     "success", true,
-                    "tenantId", connection.getTenantId(),
+                    "totalConnections", allConnections.size(),
                     "message", "Successfully connected to Xero"
                 ));
         } catch (Exception e) {
@@ -443,8 +459,30 @@ public class XeroAuthController {
             log.info("Returning all Xero connections for user ID: {}", userId);
             connections = xeroConnectionRepository.findAll();
             
-            log.info("Found {} total connections to process", connections.size());
+            log.info("Found {} total connections in database to process", connections.size());
+            if (connections.isEmpty()) {
+                log.warn("No connections found in database! This may indicate a problem with connection saving.");
+            } else {
+                for (XeroConnection conn : connections) {
+                    try {
+                        Long connUserId = null;
+                        try {
+                            User user = conn.getUser();
+                            if (user != null) {
+                                connUserId = user.getId();
+                            }
+                        } catch (Exception e) {
+                            log.debug("Could not access user for connection {}: {}", conn.getId(), e.getMessage());
+                        }
+                        log.info("  - Connection ID: {}, TenantID: {}, TenantName: {}, UserID: {}", 
+                            conn.getId(), conn.getTenantId(), conn.getTenantName(), connUserId);
+                    } catch (Exception e) {
+                        log.warn("Error logging connection {}: {}", conn.getId(), e.getMessage());
+                    }
+                }
+            }
             
+            // Process all connections (even if empty) to create response list
             List<XeroConnectionResponse> connectionResponses = connections.stream()
                 .map(conn -> {
                     try {
@@ -492,24 +530,54 @@ public class XeroAuthController {
                         return response;
                     } catch (Exception e) {
                         log.error("Error processing connection for tenantId {}: {}", conn.getTenantId(), e.getMessage(), e);
-                        // Return a response with error status
+                        // Return a response with error status - IMPORTANT: Always return something
                         XeroConnectionResponse errorResponse = new XeroConnectionResponse();
                         errorResponse.setTenantId(conn.getTenantId());
                         errorResponse.setTenantName(conn.getTenantName() != null ? conn.getTenantName() : conn.getTenantId());
                         errorResponse.setConnected(false);
                         errorResponse.setMessage("Error processing connection: " + e.getMessage());
+                        log.warn("Returning error response for tenantId {}: {}", conn.getTenantId(), errorResponse.getMessage());
                         return errorResponse;
                     }
                 })
                 .collect(Collectors.toList());
             
+            log.info("Processed {} connections, returning {} responses", connections.size(), connectionResponses.size());
+            if (connectionResponses.isEmpty() && !connections.isEmpty()) {
+                log.error("CRITICAL: Had {} connections in database but processed 0 responses! This should never happen.", connections.size());
+            }
+            
             XeroConnectionStatusResponse statusResponse = new XeroConnectionStatusResponse();
             statusResponse.setConnections(connectionResponses);
             statusResponse.setTotalConnections(connectionResponses.size());
             
+            log.info("Returning status response with {} connections (totalConnections: {})", 
+                connectionResponses.size(), statusResponse.getTotalConnections());
+            
             return ResponseEntity.ok(statusResponse);
         } catch (Exception e) {
             log.error("Error getting connection status", e);
+            // Even on error, try to return at least basic connection info from database
+            try {
+                List<XeroConnection> fallbackConnections = xeroConnectionRepository.findAll();
+                log.warn("Attempting fallback: Found {} connections in database", fallbackConnections.size());
+                List<XeroConnectionResponse> fallbackResponses = new java.util.ArrayList<>();
+                for (XeroConnection conn : fallbackConnections) {
+                    XeroConnectionResponse fallbackResponse = new XeroConnectionResponse();
+                    fallbackResponse.setTenantId(conn.getTenantId());
+                    fallbackResponse.setTenantName(conn.getTenantName() != null ? conn.getTenantName() : conn.getTenantId());
+                    fallbackResponse.setConnected(false);
+                    fallbackResponse.setMessage("Error: " + e.getMessage());
+                    fallbackResponses.add(fallbackResponse);
+                }
+                XeroConnectionStatusResponse fallbackStatus = new XeroConnectionStatusResponse();
+                fallbackStatus.setConnections(fallbackResponses);
+                fallbackStatus.setTotalConnections(fallbackResponses.size());
+                log.warn("Returning fallback response with {} connections", fallbackResponses.size());
+                return ResponseEntity.ok(fallbackStatus);
+            } catch (Exception fallbackError) {
+                log.error("Fallback also failed", fallbackError);
+            }
             // Return error response with details for debugging
             XeroConnectionStatusResponse errorResponse = new XeroConnectionStatusResponse();
             errorResponse.setConnections(List.of());

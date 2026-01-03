@@ -95,6 +95,12 @@ export const xeroAuthApi = {
    * Get Xero authorization URL (redirects to Xero login)
    */
   getConnectUrl: (userId?: number): string => {
+    if (!API_BASE_URL) {
+      throw new ApiError(
+        'API base URL is not configured. Please set NEXT_PUBLIC_API_URL environment variable.',
+        500
+      );
+    }
     const params = userId ? `?userId=${userId}` : '';
     return `${API_BASE_URL}/api/auth/xero/connect${params}`;
   },

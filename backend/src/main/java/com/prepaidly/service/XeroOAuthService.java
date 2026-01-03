@@ -154,12 +154,12 @@ public class XeroOAuthService {
                     throw new RuntimeException("No Xero connections found. Please ensure you selected a tenant during authorization.");
                 }
                 
-                // Use the first connection (user selected tenant)
-                Map<String, Object> xeroConnectionData = connections.get(0);
-                String tenantId = (String) xeroConnectionData.get("tenantId");
-                String tenantName = (String) xeroConnectionData.get("tenantName");
-                
-                log.info("Found connection - Tenant ID: {}, Tenant Name: {}", tenantId, tenantName);
+                log.info("Found {} Xero organization(s) to connect", connections.size());
+                for (int i = 0; i < connections.size(); i++) {
+                    Map<String, Object> conn = connections.get(i);
+                    log.info("  Connection {}: tenantId={}, tenantName={}", 
+                        i + 1, conn.get("tenantId"), conn.get("tenantName"));
+                }
                 
                 // Get or create user
                 // For development: if userId is 1, try to find default user by email first
@@ -179,32 +179,82 @@ public class XeroOAuthService {
                         .orElseThrow(() -> new RuntimeException("User not found: " + userIdNonNull));
                 }
                 
-                // Check if connection already exists (use actual user ID, not the default userId parameter)
-                Optional<XeroConnection> existingConnection = 
-                    xeroConnectionRepository.findByUserIdAndTenantId(user.getId(), tenantId);
-                
-                XeroConnection connection;
-                if (existingConnection.isPresent()) {
-                    connection = existingConnection.get();
-                } else {
-                    connection = new XeroConnection();
-                    connection.setUser(user);
-                    connection.setTenantId(tenantId);
-                }
-                
-                // Store tenant name for display even when tokens expire
-                if (tenantName != null && !tenantName.trim().isEmpty()) {
-                    connection.setTenantName(tenantName);
-                    log.info("Storing tenant name: {} for tenantId: {}", tenantName, tenantId);
-                }
-                
-                // Encrypt and store tokens
-                connection.setAccessToken(encryptionService.encrypt(accessToken));
-                connection.setRefreshToken(encryptionService.encrypt(refreshToken));
+                // Process ALL connections (not just the first one)
+                // When user selects multiple organizations in Xero, we need to save all of them
+                XeroConnection firstConnection = null;
                 int expiresInSeconds = Objects.requireNonNull(expiresIn, "Expires in cannot be null");
-                connection.setExpiresAt(LocalDateTime.now().plusSeconds(expiresInSeconds));
+                List<String> savedTenantIds = new java.util.ArrayList<>();
                 
-                return xeroConnectionRepository.save(connection);
+                for (int i = 0; i < connections.size(); i++) {
+                    Map<String, Object> xeroConnectionData = connections.get(i);
+                    String tenantId = (String) xeroConnectionData.get("tenantId");
+                    String tenantName = (String) xeroConnectionData.get("tenantName");
+                    
+                    log.info("[{}/{}] Processing connection - Tenant ID: {}, Tenant Name: {}", 
+                        i + 1, connections.size(), tenantId, tenantName);
+                    
+                    // Check if connection already exists (use actual user ID, not the default userId parameter)
+                    Optional<XeroConnection> existingConnection = 
+                        xeroConnectionRepository.findByUserIdAndTenantId(user.getId(), tenantId);
+                    
+                    XeroConnection connection;
+                    boolean isNew = false;
+                    if (existingConnection.isPresent()) {
+                        connection = existingConnection.get();
+                        log.info("[{}/{}] Updating existing connection for tenantId: {}", 
+                            i + 1, connections.size(), tenantId);
+                    } else {
+                        connection = new XeroConnection();
+                        connection.setUser(user);
+                        connection.setTenantId(tenantId);
+                        isNew = true;
+                        log.info("[{}/{}] Creating new connection for tenantId: {}", 
+                            i + 1, connections.size(), tenantId);
+                    }
+                    
+                    // Store tenant name for display even when tokens expire
+                    if (tenantName != null && !tenantName.trim().isEmpty()) {
+                        connection.setTenantName(tenantName);
+                        log.info("[{}/{}] Storing tenant name: {} for tenantId: {}", 
+                            i + 1, connections.size(), tenantName, tenantId);
+                    }
+                    
+                    // Encrypt and store tokens (same tokens for all connections from same OAuth flow)
+                    connection.setAccessToken(encryptionService.encrypt(accessToken));
+                    connection.setRefreshToken(encryptionService.encrypt(refreshToken));
+                    connection.setExpiresAt(LocalDateTime.now().plusSeconds(expiresInSeconds));
+                    
+                    try {
+                        // Use saveAndFlush to ensure immediate commit (important for multiple connections)
+                        XeroConnection savedConnection = xeroConnectionRepository.saveAndFlush(connection);
+                        savedTenantIds.add(tenantId);
+                        log.info("[{}/{}] Successfully {} connection for tenantId: {}, tenantName: {}, connectionId: {}", 
+                            i + 1, connections.size(), isNew ? "created" : "updated", 
+                            tenantId, tenantName, savedConnection.getId());
+                        
+                        // Keep track of first connection for return value (backward compatibility)
+                        if (firstConnection == null) {
+                            firstConnection = savedConnection;
+                        }
+                    } catch (Exception e) {
+                        log.error("[{}/{}] Failed to save connection for tenantId: {}, tenantName: {}", 
+                            i + 1, connections.size(), tenantId, tenantName, e);
+                        // Don't throw immediately - try to save remaining connections
+                        // But log the error so we know which ones failed
+                        log.error("Error details for tenantId {}: {}", tenantId, e.getMessage(), e);
+                        // Continue with next connection instead of failing all
+                        // We'll check at the end if we saved at least one
+                    }
+                }
+                
+                if (firstConnection == null) {
+                    throw new RuntimeException("Failed to save any connections");
+                }
+                
+                log.info("Successfully processed {} connection(s). Saved tenantIds: {}. Returning first connection: {}", 
+                    connections.size(), savedTenantIds, firstConnection.getTenantId());
+                
+                return firstConnection;
             } else {
                 Map<String, Object> responseBody = response.getBody();
                 String errorBody = responseBody != null ? responseBody.toString() : "No response body";
