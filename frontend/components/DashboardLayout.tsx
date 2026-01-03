@@ -16,7 +16,9 @@ import {
   ChevronDown,
   ChevronRight,
   Calendar,
-  ArrowLeft
+  ArrowLeft,
+  User,
+  LogOut
 } from 'lucide-react';
 import Skeleton from '@/components/Skeleton';
 
@@ -79,6 +81,8 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   const [userEmail, setUserEmail] = useState<string>('user@example.com');
   const [userName, setUserName] = useState<string>('User');
   const [userInitial, setUserInitial] = useState<string>('P');
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Memoize current connection lookup to avoid recalculation
   const memoizedCurrentConnection = useMemo(() => {
@@ -217,16 +221,19 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
       if (entityMenuRef.current && !entityMenuRef.current.contains(event.target as Node)) {
         setIsEntityMenuOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
     };
 
-    if (isEntityMenuOpen) {
+    if (isEntityMenuOpen || isUserMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isEntityMenuOpen]);
+  }, [isEntityMenuOpen, isUserMenuOpen]);
 
   const mainNavigation = [
     { name: 'Dashboard', href: `/app/dashboard?tenantId=${tenantId || ''}`, icon: LayoutDashboard, path: '/app/dashboard' },
@@ -273,6 +280,24 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   const handleSwitchEntity = (newTenantId: string) => {
     setIsEntityMenuOpen(false);
     router.push(`${pathname}?tenantId=${newTenantId}`);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      
+      // Clear session storage
+      if (typeof window !== 'undefined') {
+        sessionStorage.clear();
+      }
+      
+      // Redirect to login
+      router.push('/auth/login');
+      router.refresh();
+    } catch (err) {
+      console.error('Error signing out:', err);
+    }
   };
 
   // Get page title based on pathname
@@ -433,26 +458,6 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
             </Link>
           </div>
 
-          {/* Divider before User Profile */}
-          <div className="px-3 mb-3">
-            <div className="h-px bg-gray-200"></div>
-          </div>
-
-          {/* User Profile */}
-          <div className="p-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-bold uppercase">
-                {userInitial}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[13px] font-medium text-gray-900 truncate w-24">{userName}</span>
-                <span className="text-[13px] font-medium text-gray-500 truncate w-24">{userEmail}</span>
-              </div>
-            </div>
-            <button className="text-gray-400 hover:text-gray-600">
-              <ChevronDown className="w-4 h-4" />
-            </button>
-          </div>
         </div>
       </div>
 
@@ -460,7 +465,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
       <div className="pl-56 flex flex-col min-h-screen">
         {/* Top Header */}
         <header className="sticky top-0 z-10 bg-gradient-to-r from-white via-gray-50/50 to-white border-b border-gray-200/80 backdrop-blur-sm">
-          <div className="px-8 py-2.5 flex items-center">
+          <div className="px-8 py-2.5 flex items-center justify-between">
             {/* Breadcrumb and Title Section */}
             <div className="flex items-center gap-3">
               <div className="flex items-stretch gap-3">
@@ -475,6 +480,62 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* User Menu */}
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6d69ff] to-[#5a56e8] flex items-center justify-center text-white text-sm font-semibold shadow-sm">
+                  {userInitial}
+                </div>
+                <div className="hidden md:flex flex-col items-start">
+                  <span className="text-[13px] font-medium text-gray-900 leading-tight">{userName}</span>
+                  <span className="text-[11px] text-gray-500 leading-tight">{userEmail}</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''} hidden md:block`} />
+              </button>
+
+              {isUserMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                  {/* User Info Section */}
+                  <div className="px-4 py-3 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#6d69ff] to-[#5a56e8] flex items-center justify-center text-white text-sm font-semibold shadow-sm">
+                        {userInitial}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 truncate">{userName}</div>
+                        <div className="text-xs text-gray-500 truncate">{userEmail}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Menu Items */}
+                  <div className="py-1.5">
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        // TODO: Navigate to profile page when implemented
+                      }}
+                      className="w-full flex items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <User className="w-4 h-4 mr-3 text-gray-400" />
+                      Profile Settings
+                    </button>
+                    <div className="h-px bg-gray-100 my-1"></div>
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full flex items-center px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4 mr-3 text-red-500" />
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
