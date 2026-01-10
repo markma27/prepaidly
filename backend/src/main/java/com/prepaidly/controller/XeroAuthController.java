@@ -501,6 +501,30 @@ public class XeroAuthController {
                             // This allows UI to load immediately
                             response.setConnected(null); // null means "unknown" - not validated
                             response.setMessage("Not validated");
+                            
+                            // If tenant name is missing, try to fetch it in background (non-blocking)
+                            // This helps populate tenant names that were lost due to transaction errors
+                            if (storedTenantName == null || storedTenantName.trim().isEmpty() || 
+                                storedTenantName.equals(conn.getTenantId())) {
+                                try {
+                                    // Try to get a valid token (may fail if expired, that's OK)
+                                    String accessToken = xeroOAuthService.getValidAccessToken(conn);
+                                    Map<String, Object> tenantInfo = xeroOAuthService.getTenantInfo(accessToken, conn.getTenantId());
+                                    if (tenantInfo != null) {
+                                        String apiTenantName = (String) tenantInfo.get("Name");
+                                        if (apiTenantName != null && !apiTenantName.trim().isEmpty()) {
+                                            response.setTenantName(apiTenantName);
+                                            // Update stored name for future use
+                                            conn.setTenantName(apiTenantName);
+                                            xeroConnectionRepository.save(conn);
+                                            log.info("Updated stored tenant name (fast path): {} for tenantId: {}", apiTenantName, conn.getTenantId());
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    // Silently fail - tokens might be expired, that's OK for fast path
+                                    log.debug("Could not fetch tenant name in fast path for tenantId {}: {}", conn.getTenantId(), e.getMessage());
+                                }
+                            }
                         }
                         return response;
                     } catch (Exception e) {

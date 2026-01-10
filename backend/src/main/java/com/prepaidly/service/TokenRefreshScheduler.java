@@ -88,14 +88,13 @@ public class TokenRefreshScheduler {
             log.info("✓ Successfully refreshed tokens for tenant {} ({}). New expiry: {}", 
                 tenantName, tenantId, refreshedConnection.getExpiresAt());
             
-            // If tenant name is missing, try to fetch and store it
-            if (refreshedConnection.getTenantName() == null || refreshedConnection.getTenantName().trim().isEmpty()) {
-                try {
-                    updateTenantName(refreshedConnection);
-                } catch (Exception e) {
-                    // Don't fail the refresh if tenant name update fails
-                    log.warn("Could not update tenant name for {}: {}", tenantId, e.getMessage());
-                }
+            // Always try to update tenant name during refresh to keep it current
+            // This ensures tenant names are populated even if they were lost due to transaction errors
+            try {
+                updateTenantName(refreshedConnection);
+            } catch (Exception e) {
+                // Don't fail the refresh if tenant name update fails
+                log.warn("Could not update tenant name for {}: {}", tenantId, e.getMessage());
             }
         } catch (org.springframework.web.client.HttpClientErrorException e) {
             // Handle HTTP errors (401, 403, etc.) - these indicate token is invalid/expired
@@ -137,9 +136,12 @@ public class TokenRefreshScheduler {
             if (tenantInfo != null) {
                 String tenantName = (String) tenantInfo.get("Name");
                 if (tenantName != null && !tenantName.trim().isEmpty()) {
-                    connection.setTenantName(tenantName);
-                    xeroConnectionRepository.save(connection);
-                    log.info("Updated tenant name to '{}' for tenant {}", tenantName, connection.getTenantId());
+                    // Only update if different to avoid unnecessary database writes
+                    if (!tenantName.equals(connection.getTenantName())) {
+                        connection.setTenantName(tenantName);
+                        xeroConnectionRepository.save(connection);
+                        log.info("Updated tenant name to '{}' for tenant {}", tenantName, connection.getTenantId());
+                    }
                 }
             }
         } catch (Exception e) {
