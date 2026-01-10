@@ -9,7 +9,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import ScheduleDetailSkeleton from '@/components/ScheduleDetailSkeleton';
-import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink } from 'lucide-react';
 
 function ScheduleDetailContent() {
   const router = useRouter();
@@ -250,7 +250,18 @@ function ScheduleDetailContent() {
                     </td>
                     <td className="px-5 py-3">
                       {entry.xeroManualJournalId ? (
-                        <div className="text-xs text-gray-600 font-mono">{entry.xeroManualJournalId}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-xs text-gray-600 font-mono">{entry.xeroManualJournalId}</div>
+                          <a
+                            href={`https://go.xero.com/Journal/View.aspx?invoiceID=${entry.xeroManualJournalId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#6d69ff] hover:text-[#5a56e6] transition-colors"
+                            title="Open in Xero"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
                       ) : (
                         <div className="text-xs text-gray-400">-</div>
                       )}

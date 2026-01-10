@@ -273,6 +273,7 @@ function DashboardPageContent() {
     const getProjectedData = (type: 'PREPAID' | 'UNEARNED') => {
       const data = [];
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       
       for (let i = 0; i < 12; i++) {
         const date = new Date(today.getFullYear(), today.getMonth() + i, 1);
@@ -280,10 +281,36 @@ function DashboardPageContent() {
         
         let totalRemaining = 0;
         schedules.filter(s => s.type === type).forEach(s => {
-          const remainingAtDate = s.journalEntries
-            ?.filter(je => new Date(je.periodDate) > date)
-            .reduce((acc, je) => acc + je.amount, 0) || 0;
-          totalRemaining += remainingAtDate;
+          const scheduleStartDate = new Date(s.startDate);
+          scheduleStartDate.setHours(0, 0, 0, 0);
+          const scheduleStartMonth = new Date(scheduleStartDate.getFullYear(), scheduleStartDate.getMonth(), 1);
+          const scheduleEndDate = new Date(s.endDate);
+          scheduleEndDate.setHours(23, 59, 59, 999);
+          const scheduleEndMonth = new Date(scheduleEndDate.getFullYear(), scheduleEndDate.getMonth(), 1);
+          
+          // Check if this month falls within the schedule's period
+          // Include schedule if: month >= schedule start month AND month <= schedule end month
+          if (date >= scheduleStartMonth && date <= scheduleEndMonth) {
+            // If schedule has journal entries, calculate remaining based on period dates only
+            // The chart shows theoretical remaining balance, not affected by posting status
+            if (s.journalEntries && Array.isArray(s.journalEntries) && s.journalEntries.length > 0) {
+              // For remaining balance at this month, sum all journal entries with period dates AFTER this month
+              // This represents what would still be remaining after this month's recognition
+              const remainingAtDate = s.journalEntries
+                .filter(je => {
+                  const jeDate = new Date(je.periodDate);
+                  const jeMonth = new Date(jeDate.getFullYear(), jeDate.getMonth(), 1);
+                  // Include entries for months after the current chart month (not including current month)
+                  return jeMonth > date;
+                })
+                .reduce((acc, je) => acc + je.amount, 0);
+              totalRemaining += remainingAtDate;
+            } else {
+              // For schedules without journal entries (future schedules or schedules not yet processed)
+              // Use totalAmount as remaining balance
+              totalRemaining += s.totalAmount;
+            }
+          }
         });
         
         data.push({
