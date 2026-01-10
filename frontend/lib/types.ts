@@ -33,6 +33,7 @@ export interface JournalEntry {
   periodDate: string;
   amount: number;
   xeroManualJournalId?: string;
+  xeroJournalNumber?: number;
   posted: boolean;
   createdAt: string;
 }

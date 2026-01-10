@@ -67,6 +67,15 @@ public class JournalEntryResponse {
     private String xeroManualJournalId;
     
     /**
+     * Xero journal number
+     * 
+     * The journal number assigned by Xero when this entry was posted.
+     * Null if the entry has not been posted yet or if the number is not available.
+     * Example: 8, 16, 17
+     */
+    private Integer xeroJournalNumber;
+    
+    /**
      * Posted status
      * 
      * Indicates whether this journal entry has been posted to Xero.

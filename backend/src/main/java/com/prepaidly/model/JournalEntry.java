@@ -41,6 +41,10 @@ public class JournalEntry {
     @Column(name = "xero_manual_journal_id")
     private String xeroManualJournalId;
 
+    /** Xero journal number (set when posted to Xero) */
+    @Column(name = "xero_journal_number")
+    private Integer xeroJournalNumber;
+
     /** Whether this entry has been posted to Xero */
     @Column(nullable = false)
     private Boolean posted = false;

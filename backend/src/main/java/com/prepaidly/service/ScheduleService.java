@@ -292,6 +292,7 @@ public class ScheduleService {
         response.setPeriodDate(entry.getPeriodDate());
         response.setAmount(entry.getAmount());
         response.setXeroManualJournalId(entry.getXeroManualJournalId());
+        response.setXeroJournalNumber(entry.getXeroJournalNumber());
         response.setPosted(entry.getPosted());
         response.setCreatedAt(entry.getCreatedAt());
         return response;

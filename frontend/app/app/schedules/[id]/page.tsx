@@ -317,7 +317,7 @@ function ScheduleDetailContent() {
                   <th className="px-5 py-3">Period Date</th>
                   <th className="px-5 py-3">Amount</th>
                   <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Xero Journal ID</th>
+                  <th className="px-5 py-3">Xero Journal #</th>
                   <th className="px-5 py-3">Action</th>
                 </tr>
               </thead>
@@ -345,18 +345,15 @@ function ScheduleDetailContent() {
                     </td>
                     <td className="px-5 py-3">
                       {entry.xeroManualJournalId ? (
-                        <div className="flex items-center gap-2">
-                          <div className="text-xs text-gray-600 font-mono">{entry.xeroManualJournalId}</div>
-                          <a
-                            href={`https://go.xero.com/Journal/View.aspx?invoiceID=${entry.xeroManualJournalId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[#6d69ff] hover:text-[#5a56e6] transition-colors"
-                            title="Open in Xero"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        </div>
+                        <a
+                          href={`https://go.xero.com/Journal/View.aspx?invoiceID=${entry.xeroManualJournalId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-[#6d69ff] hover:text-[#5a56e6] transition-colors hover:underline"
+                          title="Open in Xero"
+                        >
+                          Posted Manual Journal #{entry.xeroJournalNumber || entry.id}
+                        </a>
                       ) : (
                         <div className="text-xs text-gray-400">-</div>
                       )}
@@ -404,69 +401,49 @@ function ScheduleDetailContent() {
         {/* Audit Trail Section */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
           <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-            <h3 className="text-base font-bold text-gray-900">Audit Trail</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              History of all changes and updates to this schedule
-            </p>
+            <h3 className="text-sm font-semibold text-gray-700">Audit Trail</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  <th className="px-5 py-3">Date & Time</th>
-                  <th className="px-5 py-3">Action</th>
-                  <th className="px-5 py-3">Description</th>
-                  <th className="px-5 py-3">Details</th>
+                  <th className="px-5 py-2">Date & Time</th>
+                  <th className="px-5 py-2">Action</th>
+                  <th className="px-5 py-2">Description</th>
+                  <th className="px-5 py-2">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {auditTrail.length > 0 ? (
                   auditTrail.map((entry) => (
                     <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-gray-400" />
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {new Date(entry.date).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric'
-                              })}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(entry.date).toLocaleTimeString('en-US', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit'
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700">
-                          {entry.action === 'Schedule Created' ? (
-                            <FileText className="w-3 h-3" />
-                          ) : (
-                            <Upload className="w-3 h-3" />
-                          )}
-                          {entry.action}
+                      <td className="px-5 py-2">
+                        <span className="text-xs text-gray-600">
+                          {new Date(entry.date).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}, {new Date(entry.date).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                          })}
                         </span>
                       </td>
-                      <td className="px-5 py-3">
-                        <div className="text-sm text-gray-900">{entry.description}</div>
+                      <td className="px-5 py-2">
+                        <span className="text-xs text-gray-700">{entry.action}</span>
+                      </td>
+                      <td className="px-5 py-2">
+                        <span className="text-xs text-gray-900">{entry.description}</span>
                         {(entry.userName || entry.userId) && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <User className="w-3 h-3 text-gray-400" />
-                            <span className="text-xs text-gray-500">
-                              {entry.userName || `User ID: ${entry.userId}`}
-                            </span>
-                          </div>
+                          <span className="text-xs text-gray-500 ml-2">
+                            by {entry.userName || `User ID: ${entry.userId}`}
+                          </span>
                         )}
                       </td>
-                      <td className="px-5 py-3">
-                        <div className="text-xs text-gray-600 font-mono">{entry.details || '-'}</div>
+                      <td className="px-5 py-2">
+                        <span className="text-xs text-gray-600 font-mono">{entry.details || '-'}</span>
                       </td>
                     </tr>
                   ))
@@ -475,7 +452,7 @@ function ScheduleDetailContent() {
                     <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
                       <div className="flex flex-col items-center gap-2">
                         <Clock className="w-8 h-8 text-gray-300" />
-                        <p>No audit trail entries available.</p>
+                        <p className="text-xs">No audit trail entries available.</p>
                       </div>
                     </td>
                   </tr>

@@ -57,7 +57,7 @@ public class JournalService {
         
         try {
             // Create manual journal in Xero
-            String xeroJournalId = xeroApiService.createManualJournal(
+            com.prepaidly.service.XeroApiService.ManualJournalResult result = xeroApiService.createManualJournal(
                 tenantId,
                 narration,
                 entry.getPeriodDate(),
@@ -65,7 +65,10 @@ public class JournalService {
             );
             
             // Update journal entry
-            entry.setXeroManualJournalId(xeroJournalId);
+            entry.setXeroManualJournalId(result.getJournalId());
+            if (result.getJournalNumber() != null) {
+                entry.setXeroJournalNumber(result.getJournalNumber());
+            }
             entry.setPosted(true);
             
             return journalEntryRepository.save(entry);
