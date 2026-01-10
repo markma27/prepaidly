@@ -1,29 +1,35 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { scheduleApi } from '@/lib/api';
+import { scheduleApi, xeroApi } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import type { Schedule } from '@/lib/types';
+import type { Schedule, XeroAccount } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import Skeleton from '@/components/Skeleton';
-import { ArrowRight, Calendar, DollarSign } from 'lucide-react';
+import { Calendar, DollarSign, Search } from 'lucide-react';
 
 function ScheduleRegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [accounts, setAccounts] = useState<XeroAccount[]>([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
     if (tenantIdParam) {
       setTenantId(tenantIdParam);
-      loadSchedules(tenantIdParam);
+      Promise.all([
+        loadSchedules(tenantIdParam),
+        loadAccounts(tenantIdParam)
+      ]);
     } else {
       setError('Missing Tenant ID');
       setLoading(false);
@@ -44,9 +50,80 @@ function ScheduleRegisterContent() {
     }
   };
 
+  const loadAccounts = async (tid: string) => {
+    try {
+      const response = await xeroApi.getAccounts(tid);
+      setAccounts(response.accounts || []);
+      setAccountsLoaded(true);
+    } catch (err: any) {
+      console.error('Error loading accounts:', err);
+      // Mark as loaded even on error to prevent infinite loading state
+      setAccountsLoaded(true);
+    }
+  };
+
   const handleRowClick = (scheduleId: number) => {
     router.push(`/app/schedules/${scheduleId}?tenantId=${tenantId}`);
   };
+
+  // Create a lookup map for accounts by code
+  const accountMap = useMemo(() => {
+    const map = new Map<string, string>();
+    accounts.forEach(account => {
+      if (account.code) {
+        map.set(account.code, account.name);
+      }
+    });
+    return map;
+  }, [accounts]);
+
+  // Helper function to get account name by code
+  const getAccountName = (code: string | undefined): string => {
+    if (!code) return '';
+    return accountMap.get(code) || '';
+  };
+
+  // Filter schedules based on search query
+  const filteredSchedules = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return schedules;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return schedules.filter(schedule => {
+      // Search by type
+      const typeMatch = schedule.type.toLowerCase().includes(query) ||
+        (schedule.type === 'PREPAID' ? 'prepaid expense' : 'unearned revenue').includes(query);
+      
+      // Search by account codes
+      const expenseCode = schedule.expenseAcctCode?.toLowerCase() || '';
+      const revenueCode = schedule.revenueAcctCode?.toLowerCase() || '';
+      const deferralCode = schedule.deferralAcctCode?.toLowerCase() || '';
+      const accountCodeMatch = expenseCode.includes(query) || 
+                               revenueCode.includes(query) || 
+                               deferralCode.includes(query);
+      
+      // Search by account names
+      const expenseName = getAccountName(schedule.expenseAcctCode).toLowerCase();
+      const revenueName = getAccountName(schedule.revenueAcctCode).toLowerCase();
+      const accountNameMatch = expenseName.includes(query) || revenueName.includes(query);
+      
+      // Search by amount
+      const amountStr = formatCurrency(schedule.totalAmount).toLowerCase();
+      const remainingStr = schedule.remainingBalance !== undefined 
+        ? formatCurrency(schedule.remainingBalance).toLowerCase() 
+        : '';
+      const amountMatch = amountStr.includes(query) || remainingStr.includes(query);
+      
+      // Search by dates
+      const startDate = formatDate(schedule.startDate).toLowerCase();
+      const endDate = formatDate(schedule.endDate).toLowerCase();
+      const createdDate = formatDate(schedule.createdAt).toLowerCase();
+      const dateMatch = startDate.includes(query) || endDate.includes(query) || createdDate.includes(query);
+      
+      return typeMatch || accountCodeMatch || accountNameMatch || amountMatch || dateMatch;
+    });
+  }, [schedules, searchQuery, accountMap]);
 
   if (loading && !tenantId) {
     return (
@@ -58,13 +135,19 @@ function ScheduleRegisterContent() {
 
   return (
     <DashboardLayout tenantId={tenantId}>
-      <div className="space-y-7 max-w-[1440px] mx-auto">
-        {/* Header */}
+      <div className="space-y-7 max-w-[1800px] mx-auto">
+        {/* Search Bar */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-bold text-gray-900">Schedule Register</h2>
-              <p className="text-xs text-gray-500 mt-0.5">All prepayment and unearned revenue schedules</p>
+          <div className="p-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search schedules by type, account code, account name, amount, or date..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+              />
             </div>
           </div>
         </div>
@@ -80,17 +163,22 @@ function ScheduleRegisterContent() {
                   <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     <th className="px-5 py-3"><div className="h-3 w-12 bg-gray-200 rounded animate-pulse"></div></th>
                     <th className="px-5 py-3"><div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div></th>
-                    <th className="px-5 py-3"><div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div></th>
                     <th className="px-5 py-3"><div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div></th>
                     <th className="px-5 py-3"><div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div></th>
+                    <th className="px-5 py-3"><div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div></th>
+                    <th className="px-5 py-3"><div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div></th>
                     <th className="px-5 py-3"><div className="h-3 w-20 bg-gray-200 rounded animate-pulse"></div></th>
-                    <th className="px-5 py-3"><div className="h-3 w-4 bg-gray-200 rounded animate-pulse"></div></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
                     <tr key={i}>
                       <td className="px-5 py-3"><Skeleton className="h-5 w-20" variant="rectangular" /></td>
+                      <td className="px-5 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
+                      <td className="px-5 py-3">
+                        <Skeleton className="h-4 w-20 mb-1" variant="text" />
+                        <Skeleton className="h-3 w-32" variant="text" />
+                      </td>
                       <td className="px-5 py-3">
                         <Skeleton className="h-4 w-24 mb-1" variant="text" />
                         <Skeleton className="h-3 w-32" variant="text" />
@@ -99,13 +187,8 @@ function ScheduleRegisterContent() {
                         <Skeleton className="h-4 w-32 mb-1" variant="text" />
                         <Skeleton className="h-3 w-24" variant="text" />
                       </td>
-                      <td className="px-5 py-3">
-                        <Skeleton className="h-4 w-20 mb-1" variant="text" />
-                        <Skeleton className="h-3 w-24" variant="text" />
-                      </td>
                       <td className="px-5 py-3"><Skeleton className="h-5 w-16" variant="rectangular" /></td>
                       <td className="px-5 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
-                      <td className="px-5 py-3"><Skeleton className="h-4 w-4" variant="circular" /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -119,16 +202,16 @@ function ScheduleRegisterContent() {
                 <thead>
                   <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     <th className="px-5 py-3">Type</th>
+                    <th className="px-5 py-3">Contact</th>
+                    <th className="px-5 py-3">Account Code & Name</th>
                     <th className="px-5 py-3">Amount</th>
                     <th className="px-5 py-3">Period</th>
-                    <th className="px-5 py-3">Account Code</th>
                     <th className="px-5 py-3">Status</th>
                     <th className="px-5 py-3">Created Date</th>
-                    <th className="px-5 py-3"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {schedules.map((schedule) => {
+                  {filteredSchedules.map((schedule) => {
                     const postedCount = schedule.postedPeriods || 0;
                     const totalCount = schedule.totalPeriods || 0;
                     const isComplete = postedCount === totalCount && totalCount > 0;
@@ -150,6 +233,18 @@ function ScheduleRegisterContent() {
                             {schedule.type === 'PREPAID' ? 'Prepaid Expense' : 'Unearned Revenue'}
                           </span>
                         </td>
+                        <td className="px-5 py-3 text-sm font-medium text-gray-900">BCD Trust</td> {/* Placeholder as contact info isn't in Schedule type yet */}
+                        <td className="px-5 py-3">
+                          <div className="text-sm text-gray-900">{schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode}</div>
+                          {accountsLoaded && (
+                            <div className="text-xs text-gray-500">
+                              {getAccountName(schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode) || ''}
+                            </div>
+                          )}
+                          {!accountsLoaded && (
+                            <div className="text-xs text-gray-400 italic">Loading...</div>
+                          )}
+                        </td>
                         <td className="px-5 py-3">
                           <div className="text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount)}</div>
                           {schedule.remainingBalance !== undefined && (
@@ -162,45 +257,48 @@ function ScheduleRegisterContent() {
                           <div className="text-sm text-gray-900">
                             {formatDate(schedule.startDate)} - {formatDate(schedule.endDate)}
                           </div>
-                          <div className="text-xs text-gray-500 mt-0.5">
-                            {totalCount} {totalCount === 1 ? 'period' : 'periods'}
-                          </div>
+                          {schedule.totalPeriods !== undefined && (
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {schedule.totalPeriods} {schedule.totalPeriods === 1 ? 'period' : 'periods'}
+                            </div>
+                          )}
                         </td>
                         <td className="px-5 py-3">
-                          <div className="text-sm text-gray-900">
-                            {schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {schedule.deferralAcctCode} (Deferral)
-                          </div>
-                        </td>
-                        <td className="px-5 py-3">
-                          <div className="flex items-center gap-2">
-                            {isComplete ? (
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
-                                Complete
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-yellow-100 text-yellow-700">
-                                {postedCount}/{totalCount} Posted
-                              </span>
-                            )}
-                          </div>
+                          {(() => {
+                            const isNotPosted = postedCount === 0 && totalCount > 0;
+                            
+                            if (isComplete) {
+                              return (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-100 text-purple-700">
+                                  {postedCount}/{totalCount} Posted
+                                </span>
+                              );
+                            } else if (isNotPosted) {
+                              return (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-700">
+                                  {postedCount}/{totalCount} Posted
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-yellow-100 text-yellow-700">
+                                  {postedCount}/{totalCount} Posted
+                                </span>
+                              );
+                            }
+                          })()}
                         </td>
                         <td className="px-5 py-3 text-sm text-gray-500">{formatDate(schedule.createdAt)}</td>
-                        <td className="px-5 py-3">
-                          <ArrowRight className="w-4 h-4 text-gray-400" />
-                        </td>
                       </tr>
                     );
                   })}
-                  {schedules.length === 0 && (
+                  {filteredSchedules.length === 0 && (
                     <tr>
                       <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                         <div className="flex flex-col items-center gap-2">
                           <Calendar className="w-8 h-8 text-gray-300" />
-                          <p>No schedules found.</p>
-                          <p className="text-xs">Create your first schedule to see it here.</p>
+                          <p>{searchQuery ? 'No schedules found matching your search.' : 'No schedules found.'}</p>
+                          <p className="text-xs">{searchQuery ? 'Try adjusting your search query.' : 'Create your first schedule to see it here.'}</p>
                         </div>
                       </td>
                     </tr>

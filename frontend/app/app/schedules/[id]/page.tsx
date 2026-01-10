@@ -102,7 +102,7 @@ function ScheduleDetailContent() {
   if (error && !schedule) {
     return (
       <DashboardLayout tenantId={tenantId}>
-        <div className="max-w-[1440px] mx-auto">
+        <div className="max-w-[1800px] mx-auto">
           <ErrorMessage message={error} />
         </div>
       </DashboardLayout>
@@ -112,7 +112,7 @@ function ScheduleDetailContent() {
   if (!schedule) {
     return (
       <DashboardLayout tenantId={tenantId}>
-        <div className="max-w-[1440px] mx-auto">
+        <div className="max-w-[1800px] mx-auto">
           <ErrorMessage message="Schedule not found" />
         </div>
       </DashboardLayout>
@@ -126,7 +126,7 @@ function ScheduleDetailContent() {
 
   return (
     <DashboardLayout tenantId={tenantId}>
-      <div className="space-y-7 max-w-[1440px] mx-auto">
+      <div className="space-y-7 max-w-[1800px] mx-auto">
         {/* Back Button */}
         <button
           onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}

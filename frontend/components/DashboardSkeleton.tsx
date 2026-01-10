@@ -2,7 +2,7 @@ import Skeleton from './Skeleton';
 
 export default function DashboardSkeleton() {
   return (
-    <div className="space-y-7 max-w-[1440px] mx-auto">
+    <div className="space-y-7 max-w-[1800px] mx-auto">
       {/* Summary Cards Skeleton */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {[1, 2, 3, 4].map((i) => (
@@ -64,6 +64,9 @@ export default function DashboardSkeleton() {
                   <Skeleton className="h-3 w-16" variant="text" />
                 </th>
                 <th className="px-5 py-3">
+                  <Skeleton className="h-3 w-16" variant="text" />
+                </th>
+                <th className="px-5 py-3">
                   <Skeleton className="h-3 w-20" variant="text" />
                 </th>
               </tr>
@@ -85,6 +88,9 @@ export default function DashboardSkeleton() {
                   </td>
                   <td className="px-5 py-3">
                     <Skeleton className="h-4 w-32" variant="text" />
+                  </td>
+                  <td className="px-5 py-3">
+                    <Skeleton className="h-4 w-20" variant="text" />
                   </td>
                   <td className="px-5 py-3">
                     <Skeleton className="h-4 w-24" variant="text" />

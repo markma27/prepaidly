@@ -2,9 +2,9 @@
 
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { scheduleApi, syncApi } from '@/lib/api';
+import { scheduleApi, syncApi, xeroApi } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import type { Schedule } from '@/lib/types';
+import type { Schedule, XeroAccount } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -45,6 +45,8 @@ function DashboardPageContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [accounts, setAccounts] = useState<XeroAccount[]>([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
 
@@ -63,8 +65,11 @@ function DashboardPageContent() {
           // Log error but continue - token refresh is best effort
           console.warn('Token refresh failed (non-critical):', err);
         }
-        // Load schedules after token refresh
-        loadSchedules(tenantIdParam);
+        // Load schedules and accounts after token refresh
+        await Promise.all([
+          loadSchedules(tenantIdParam),
+          loadAccounts(tenantIdParam)
+        ]);
       };
       refreshAndLoad();
     } else {
@@ -195,6 +200,18 @@ function DashboardPageContent() {
     }
   };
 
+  const loadAccounts = async (tid: string) => {
+    try {
+      const response = await xeroApi.getAccounts(tid);
+      setAccounts(response.accounts || []);
+      setAccountsLoaded(true);
+    } catch (err: any) {
+      console.error('Error loading accounts:', err);
+      // Mark as loaded even on error to prevent infinite loading state
+      setAccountsLoaded(true);
+    }
+  };
+
   const stats = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -283,6 +300,43 @@ function DashboardPageContent() {
     };
   }, [schedules]);
 
+  // Create a lookup map for accounts by code
+  const accountMap = useMemo(() => {
+    const map = new Map<string, string>();
+    accounts.forEach(account => {
+      if (account.code) {
+        map.set(account.code, account.name);
+      }
+    });
+    return map;
+  }, [accounts]);
+
+  // Helper function to get account name by code
+  const getAccountName = (code: string | undefined): string => {
+    if (!code) return '';
+    return accountMap.get(code) || '';
+  };
+
+  // Helper function to get schedule status
+  const getScheduleStatus = (schedule: Schedule): 'Future' | 'In Progress' | 'Completed' => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const startDate = new Date(schedule.startDate);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(schedule.endDate);
+    endDate.setHours(23, 59, 59, 999);
+    
+    if (today < startDate) {
+      return 'Future';
+    } else if (today > endDate) {
+      return 'Completed';
+    } else {
+      return 'In Progress';
+    }
+  };
+
   if (loading && !tenantId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -296,7 +350,7 @@ function DashboardPageContent() {
       {loading ? (
         <DashboardSkeleton />
       ) : (
-      <div className="space-y-7 max-w-[1440px] mx-auto">
+      <div className="space-y-7 max-w-[1800px] mx-auto">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {/* Prepayment Schedule */}
@@ -348,7 +402,7 @@ function DashboardPageContent() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
             <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-              <h3 className="text-base font-bold text-gray-900">Prepayment - Next 12 Months</h3>
+              <h3 className="text-base font-bold text-gray-900">Remaining Prepayment - Next 12 Months</h3>
             </div>
             <div className="p-5">
               <div className="h-[270px] w-full">
@@ -395,7 +449,7 @@ function DashboardPageContent() {
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
             <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-              <h3 className="text-base font-bold text-gray-900">Unearned Revenue - Next 12 Months</h3>
+              <h3 className="text-base font-bold text-gray-900">Remaining Unearned Revenue - Next 12 Months</h3>
             </div>
             <div className="p-5">
               <div className="h-[270px] w-full">
@@ -450,7 +504,7 @@ function DashboardPageContent() {
             </div>
             <div className="flex gap-2">
               <button 
-                onClick={() => router.push(`/app/dashboard?tenantId=${tenantId}`)}
+                onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}
                 className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 View All
@@ -474,12 +528,13 @@ function DashboardPageContent() {
                   <th className="px-5 py-3">Account Code & Name</th>
                   <th className="px-5 py-3">Amount</th>
                   <th className="px-5 py-3">Period</th>
+                  <th className="px-5 py-3">Status</th>
                   <th className="px-5 py-3">Created Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {schedules.slice(0, 10).map((schedule) => (
-                  <tr key={schedule.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push(`/app/dashboard?tenantId=${tenantId}`)}>
+                  <tr key={schedule.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push(`/app/schedules/${schedule.id}?tenantId=${tenantId}`)}>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
                         schedule.type === 'PREPAID' 
@@ -492,18 +547,67 @@ function DashboardPageContent() {
                     <td className="px-5 py-3 text-sm font-medium text-gray-900">BCD Trust</td> {/* Placeholder as contact info isn't in Schedule type yet */}
                     <td className="px-5 py-3">
                       <div className="text-sm text-gray-900">{schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode}</div>
-                      <div className="text-xs text-gray-500">{schedule.type === 'PREPAID' ? 'Prepaid Subscriptions' : 'Sales'}</div>
+                      {accountsLoaded && (
+                        <div className="text-xs text-gray-500">
+                          {getAccountName(schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode) || ''}
+                        </div>
+                      )}
+                      {!accountsLoaded && (
+                        <div className="text-xs text-gray-400 italic">Loading...</div>
+                      )}
                     </td>
-                    <td className="px-5 py-3 text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount)}</td>
-                    <td className="px-5 py-3 text-sm text-gray-600">
-                      {formatDate(schedule.startDate)} - {formatDate(schedule.endDate)}
+                    <td className="px-5 py-3">
+                      <div className="text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount)}</div>
+                      {schedule.remainingBalance !== undefined && (
+                        <div className="text-xs text-gray-500">
+                          Remaining: {formatCurrency(schedule.remainingBalance)}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="text-sm text-gray-900">
+                        {formatDate(schedule.startDate)} - {formatDate(schedule.endDate)}
+                      </div>
+                      {schedule.totalPeriods !== undefined && (
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {schedule.totalPeriods} {schedule.totalPeriods === 1 ? 'period' : 'periods'}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      {(() => {
+                        const postedCount = schedule.postedPeriods || 0;
+                        const totalCount = schedule.totalPeriods || 0;
+                        const isComplete = postedCount === totalCount && totalCount > 0;
+                        const isNotPosted = postedCount === 0 && totalCount > 0;
+                        
+                        if (isComplete) {
+                          return (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-100 text-purple-700">
+                              {postedCount}/{totalCount} Posted
+                            </span>
+                          );
+                        } else if (isNotPosted) {
+                          return (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-700">
+                              {postedCount}/{totalCount} Posted
+                            </span>
+                          );
+                        } else {
+                          return (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-yellow-100 text-yellow-700">
+                              {postedCount}/{totalCount} Posted
+                            </span>
+                          );
+                        }
+                      })()}
                     </td>
                     <td className="px-5 py-3 text-sm text-gray-500">{formatDate(schedule.createdAt)}</td>
                   </tr>
                 ))}
                 {schedules.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                       No schedules found. Create your first one to see it here.
                     </td>
                   </tr>
