@@ -314,7 +314,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
 
   const handleSwitchEntity = (newTenantId: string) => {
     setIsEntityMenuOpen(false);
-    router.push(`${pathname}?tenantId=${newTenantId}`);
+    router.push(`/app/dashboard?tenantId=${newTenantId}`);
   };
 
   const handleSignOut = async () => {
