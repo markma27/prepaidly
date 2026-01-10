@@ -118,6 +118,14 @@ public class ScheduleResponse {
     private Long createdBy;
     
     /**
+     * Name of the user who created the schedule
+     * 
+     * Display name of the creator, extracted from email if name is not available.
+     * Example: "john.doe" (from email "john.doe@example.com")
+     */
+    private String createdByName;
+    
+    /**
      * Timestamp when the schedule was created
      * 
      * Automatically set when the schedule is created. Format: ISO 8601 date-time.

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import { scheduleApi, journalApi } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
@@ -9,7 +9,8 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import ScheduleDetailSkeleton from '@/components/ScheduleDetailSkeleton';
-import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink, Clock, User, FileText } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 function ScheduleDetailContent() {
   const router = useRouter();
@@ -22,6 +23,100 @@ function ScheduleDetailContent() {
   const [tenantId, setTenantId] = useState<string>('');
 
   const scheduleId = params?.id ? parseInt(params.id as string) : null;
+
+  // Get current user name from Supabase
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error fetching user session:', error);
+          return;
+        }
+        
+        if (session?.user) {
+          const email = session.user.email || 'user@example.com';
+          const name = session.user.user_metadata?.full_name || 
+                      session.user.user_metadata?.name || 
+                      email.split('@')[0] || 
+                      'User';
+          
+          setCurrentUserName(name);
+          
+          // Also get user ID from sessionStorage for backward compatibility
+          try {
+            const userStr = sessionStorage.getItem('user');
+            if (userStr) {
+              const user = JSON.parse(userStr);
+              setCurrentUserId(user.id || null);
+            }
+          } catch (e) {
+            console.error('Error parsing user from sessionStorage:', e);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading user info:', err);
+      }
+    };
+    
+    fetchUserInfo();
+  }, []);
+
+  // Build audit trail from available data (must be called before any conditional returns)
+  const auditTrail = useMemo(() => {
+    if (!schedule) return [];
+    
+    const trail: Array<{
+      id: string;
+      date: string;
+      action: string;
+      description: string;
+      userName?: string;
+      userId?: number;
+      details?: string;
+    }> = [];
+
+    const journalEntries = schedule.journalEntries || [];
+
+    // Schedule creation
+    if (schedule.createdAt) {
+      trail.push({
+        id: `schedule-created-${schedule.id}`,
+        date: schedule.createdAt,
+        action: 'Schedule Created',
+        description: `Schedule ${schedule.id} was created`,
+        userName: schedule.createdByName, // Use creator name from backend
+        userId: schedule.createdBy,
+        details: `Type: ${schedule.type === 'PREPAID' ? 'Prepaid Expense' : 'Unearned Revenue'}, Amount: ${formatCurrency(schedule.totalAmount)}`
+      });
+    }
+
+    // Journal entry postings (only posted entries)
+    // Note: Backend doesn't currently track postedBy, so we show current user if available
+    // For historical posts, user info won't be available until backend is updated
+    journalEntries
+      .filter(entry => entry.posted && entry.xeroManualJournalId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .forEach(entry => {
+        trail.push({
+          id: `journal-posted-${entry.id}`,
+          date: entry.createdAt,
+          action: 'Journal Posted',
+          description: `Journal entry for ${formatDate(entry.periodDate)} posted to Xero`,
+          userName: currentUserName || undefined, // Show current user name if available
+          userId: currentUserId || undefined,
+          details: `Amount: ${formatCurrency(entry.amount)}, Xero Journal ID: ${entry.xeroManualJournalId}`
+        });
+      });
+
+    // Sort by date (newest first)
+    return trail.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [schedule, currentUserName, currentUserId]);
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
@@ -119,7 +214,7 @@ function ScheduleDetailContent() {
     );
   }
 
-  const journalEntries = schedule.journalEntries || [];
+  const journalEntries = schedule?.journalEntries || [];
   const sortedEntries = [...journalEntries].sort((a, b) => 
     new Date(a.periodDate).getTime() - new Date(b.periodDate).getTime()
   );
@@ -297,6 +392,90 @@ function ScheduleDetailContent() {
                       <div className="flex flex-col items-center gap-2">
                         <Calendar className="w-8 h-8 text-gray-300" />
                         <p>No journal entries found for this schedule.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Audit Trail Section */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+            <h3 className="text-base font-bold text-gray-900">Audit Trail</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              History of all changes and updates to this schedule
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th className="px-5 py-3">Date & Time</th>
+                  <th className="px-5 py-3">Action</th>
+                  <th className="px-5 py-3">Description</th>
+                  <th className="px-5 py-3">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {auditTrail.length > 0 ? (
+                  auditTrail.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {new Date(entry.date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(entry.date).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit'
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700">
+                          {entry.action === 'Schedule Created' ? (
+                            <FileText className="w-3 h-3" />
+                          ) : (
+                            <Upload className="w-3 h-3" />
+                          )}
+                          {entry.action}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="text-sm text-gray-900">{entry.description}</div>
+                        {(entry.userName || entry.userId) && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <User className="w-3 h-3 text-gray-400" />
+                            <span className="text-xs text-gray-500">
+                              {entry.userName || `User ID: ${entry.userId}`}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="text-xs text-gray-600 font-mono">{entry.details || '-'}</div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                      <div className="flex flex-col items-center gap-2">
+                        <Clock className="w-8 h-8 text-gray-300" />
+                        <p>No audit trail entries available.</p>
                       </div>
                     </td>
                   </tr>

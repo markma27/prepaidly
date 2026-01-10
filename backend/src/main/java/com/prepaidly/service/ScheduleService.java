@@ -7,6 +7,7 @@ import com.prepaidly.model.JournalEntry;
 import com.prepaidly.model.Schedule;
 import com.prepaidly.repository.JournalEntryRepository;
 import com.prepaidly.repository.ScheduleRepository;
+import com.prepaidly.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class ScheduleService {
     
     private final ScheduleRepository scheduleRepository;
     private final JournalEntryRepository journalEntryRepository;
+    private final UserRepository userRepository;
     
     /**
      * Create a new schedule and generate journal entries
@@ -191,6 +193,23 @@ public class ScheduleService {
         response.setDeferralAcctCode(schedule.getDeferralAcctCode());
         response.setCreatedBy(schedule.getCreatedBy());
         response.setCreatedAt(schedule.getCreatedAt());
+        
+        // Look up creator's name from user repository
+        if (schedule.getCreatedBy() != null) {
+            try {
+                userRepository.findById(schedule.getCreatedBy())
+                    .ifPresent(user -> {
+                        // Extract name from email (e.g., "john.doe@example.com" -> "john.doe")
+                        String name = user.getEmail() != null && user.getEmail().contains("@")
+                            ? user.getEmail().split("@")[0]
+                            : "User";
+                        response.setCreatedByName(name);
+                    });
+            } catch (Exception e) {
+                log.warn("Failed to look up creator name for schedule {}: {}", schedule.getId(), e.getMessage());
+                // Continue without creator name if lookup fails
+            }
+        }
         
         // Get journal entries with error handling to prevent transaction abort
         try {

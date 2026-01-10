@@ -7,6 +7,7 @@ import type { XeroAccount, XeroConnectionStatusResponse } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
+import SettingsSkeleton from '@/components/SettingsSkeleton';
 
 function SettingsPageContent() {
   const searchParams = useSearchParams();
@@ -15,6 +16,10 @@ function SettingsPageContent() {
   const [connectionStatus, setConnectionStatus] = useState<XeroConnectionStatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [defaultPrepaymentAccount, setDefaultPrepaymentAccount] = useState<string>('');
+  const [defaultUnearnedAccount, setDefaultUnearnedAccount] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
@@ -90,6 +95,20 @@ function SettingsPageContent() {
           (acc) => !acc.isSystemAccount && acc.status !== 'ARCHIVED'
         );
         setAccounts(filteredAccounts);
+        
+        // Load saved default accounts from localStorage
+        if (typeof window !== 'undefined') {
+          const savedDefaults = localStorage.getItem(`defaultAccounts_${tid}`);
+          if (savedDefaults) {
+            try {
+              const defaults = JSON.parse(savedDefaults);
+              setDefaultPrepaymentAccount(defaults.prepaymentAccount || '');
+              setDefaultUnearnedAccount(defaults.unearnedAccount || '');
+            } catch (e) {
+              console.error('Error parsing saved default accounts:', e);
+            }
+          }
+        }
       } catch (accountsErr: any) {
         console.error('Error loading accounts:', accountsErr);
         // Check if it's a token/connection issue
@@ -122,25 +141,71 @@ function SettingsPageContent() {
     conn => conn.tenantId === tenantId || conn.tenantId.toLowerCase() === tenantId?.toLowerCase()
   ) || connectionStatus?.connections?.[0];
 
+  // Filter accounts by type
+  const prepaymentAccounts = accounts.filter(acc => 
+    acc.type === 'ASSET' || 
+    acc.type === 'CURRENT_ASSET' || 
+    acc.type === 'NONCURRENT_ASSET' ||
+    acc.type === 'CURRENT' ||
+    acc.type === 'NONCURRENT'
+  );
+
+  const unearnedAccounts = accounts.filter(acc => 
+    acc.type === 'LIABILITY' || 
+    acc.type === 'CURRENT_LIABILITY' || 
+    acc.type === 'NONCURRENT_LIABILITY' ||
+    acc.type === 'CURRLIAB'
+  );
+
+  // Handle account selection changes (not saved until button is clicked)
+  const handlePrepaymentAccountChange = (accountCode: string) => {
+    setDefaultPrepaymentAccount(accountCode);
+    setSaveSuccess(false);
+  };
+
+  const handleUnearnedAccountChange = (accountCode: string) => {
+    setDefaultUnearnedAccount(accountCode);
+    setSaveSuccess(false);
+  };
+
+  // Save default accounts to localStorage
+  const handleSaveDefaults = () => {
+    if (!tenantId || typeof window === 'undefined') return;
+    
+    setSaving(true);
+    setSaveSuccess(false);
+    
+    try {
+      const defaults = {
+        prepaymentAccount: defaultPrepaymentAccount,
+        unearnedAccount: defaultUnearnedAccount
+      };
+      localStorage.setItem(`defaultAccounts_${tenantId}`, JSON.stringify(defaults));
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (err) {
+      console.error('Error saving default accounts:', err);
+      setError('Failed to save default accounts');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <DashboardLayout tenantId={tenantId}>
-      <div className="max-w-6xl p-6">
-        <div className="mb-5">
-          <h1 className="text-2xl font-bold text-dark-900">Settings</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Manage your Xero connection and view chart of accounts
-          </p>
-        </div>
+      {loading ? (
+        <SettingsSkeleton />
+      ) : (
+        <div className="max-w-[1800px] mx-auto p-6">
+          {error && (
+            <ErrorMessage 
+              message={error} 
+              onDismiss={() => setError(null)}
+            />
+          )}
 
-        {error && (
-          <ErrorMessage 
-            message={error} 
-            onDismiss={() => setError(null)}
-          />
-        )}
-
-        {/* Connection Status */}
-        {currentConnection && (
+          {/* Connection Status */}
+          {currentConnection && (
           <div className="bg-white shadow-sm rounded-lg p-6 mb-6 border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
@@ -198,9 +263,77 @@ function SettingsPageContent() {
           </div>
         )}
 
+        {/* Default Accounts */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Default Accounts</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Set default accounts for new schedules</p>
+              </div>
+              <button
+                onClick={handleSaveDefaults}
+                disabled={saving}
+                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  saving
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : saveSuccess
+                    ? 'bg-green-500 text-white'
+                    : 'bg-[#6d69ff] text-white hover:bg-[#5a56e6]'
+                }`}
+              >
+                {saving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}
+              </button>
+            </div>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Default Prepayment Asset Account */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Default Prepayment Asset Account
+                </label>
+                <select
+                  value={defaultPrepaymentAccount}
+                  onChange={(e) => handlePrepaymentAccountChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                >
+                  <option value="">Select account...</option>
+                  {prepaymentAccounts.map((account) => (
+                    <option key={account.accountID} value={account.code}>
+                      [{account.code}] {account.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Used as Dr account for prepayment schedules</p>
+              </div>
+
+              {/* Default Unearned Revenue Liability Account */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Default Unearned Revenue Liability Account
+                </label>
+                <select
+                  value={defaultUnearnedAccount}
+                  onChange={(e) => handleUnearnedAccountChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                >
+                  <option value="">Select account...</option>
+                  {unearnedAccounts.map((account) => (
+                    <option key={account.accountID} value={account.code}>
+                      [{account.code}] {account.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Used as Cr account for unearned revenue schedules</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Chart of Accounts */}
         <div className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-100">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-dark-900">Chart of Accounts</h2>
               <span className="text-sm text-gray-600">
@@ -209,11 +342,7 @@ function SettingsPageContent() {
             </div>
           </div>
 
-          {loading ? (
-            <div className="p-12 text-center">
-              <LoadingSpinner message="Loading accounts..." />
-            </div>
-          ) : accounts.length === 0 ? (
+          {accounts.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
               <p>No account data available</p>
               <button
@@ -272,7 +401,8 @@ function SettingsPageContent() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

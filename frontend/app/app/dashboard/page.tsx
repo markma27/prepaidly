@@ -416,7 +416,7 @@ function DashboardPageContent() {
             </div>
             <div className="p-5">
               <div className="text-2xl font-bold text-gray-900 mb-2">{stats.prepaidScheduleCount}</div>
-              <div className="text-xs text-gray-500">Active prepayment schedules</div>
+              <div className="text-xs text-gray-500">In progress schedules</div>
             </div>
           </div>
 
@@ -438,7 +438,7 @@ function DashboardPageContent() {
             </div>
             <div className="p-5">
               <div className="text-2xl font-bold text-gray-900 mb-2">{stats.unearnedScheduleCount}</div>
-              <div className="text-xs text-gray-500">Active unearned revenue schedules</div>
+              <div className="text-xs text-gray-500">In progress schedules</div>
             </div>
           </div>
 

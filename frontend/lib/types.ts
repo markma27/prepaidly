@@ -49,6 +49,7 @@ export interface Schedule {
   revenueAcctCode?: string;
   deferralAcctCode: string;
   createdBy?: number;
+  createdByName?: string;
   createdAt: string;
   journalEntries?: JournalEntry[];
   remainingBalance?: number;
