@@ -375,71 +375,6 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
             </Link>
           </div>
 
-          {/* Entity Selector */}
-          <div className="px-3 mb-4 relative" ref={entityMenuRef}>
-            <button 
-              onClick={() => setIsEntityMenuOpen(!isEntityMenuOpen)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm font-normal text-gray-700 bg-transparent hover:bg-gray-100 rounded-lg transition-colors group"
-            >
-              <div className="flex flex-col items-start overflow-hidden flex-1 min-w-0">
-                <span className="text-[9px] text-gray-500 font-medium">Entity</span>
-                {isLoadingConnections || (connections.length === 0 && tenantId) ? (
-                  <Skeleton className="h-4 w-32 mt-1" variant="text" />
-                ) : (
-                  <span className="truncate w-full text-left text-[13px] font-medium text-gray-700">
-                    {(() => {
-                      // Use memoizedCurrentConnection for immediate display
-                      const activeConnection = memoizedCurrentConnection || currentConnection;
-                      
-                      // First try active connection
-                      if (activeConnection?.tenantName && 
-                          activeConnection.tenantName !== 'Unknown' && 
-                          activeConnection.tenantName !== activeConnection.tenantId) {
-                        return activeConnection.tenantName;
-                      }
-                      // Then try finding in connections array
-                      const conn = connections.find(c => c.tenantId === tenantId);
-                      if (conn?.tenantName && 
-                          conn.tenantName !== 'Unknown' && 
-                          conn.tenantName !== conn.tenantId) {
-                        return conn.tenantName;
-                      }
-                      // Show placeholder if no valid name found
-                      return 'Select Entity';
-                    })()}
-                  </span>
-                )}
-              </div>
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isEntityMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {isEntityMenuOpen && (
-              <div className="absolute left-4 right-4 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 max-h-64 overflow-y-auto">
-                {connections.length > 0 ? (
-                  connections.map((conn) => (
-                    <button
-                      key={conn.tenantId}
-                      onClick={() => handleSwitchEntity(conn.tenantId)}
-                      className={`w-full text-left px-4 py-2 text-[13px] font-medium hover:bg-gray-50 transition-colors ${
-                        conn.tenantId === tenantId || conn.tenantId.toLowerCase() === tenantId.toLowerCase()
-                          ? 'font-semibold text-blue-600 bg-blue-50' 
-                          : 'text-gray-700'
-                      }`}
-                    >
-                      {conn.tenantName}
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-4 py-2 text-[13px] font-medium text-gray-500">No entities available</div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Divider under Entity */}
-          <div className="px-3 mb-4">
-            <div className="h-px bg-gray-200"></div>
-          </div>
 
           {/* Main Navigation */}
           <nav className="flex-1 px-2 space-y-1">
@@ -493,48 +428,30 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
             </Link>
           </div>
 
-        </div>
-      </div>
+          {/* Divider above User Profile */}
+          <div className="px-3 mt-auto mb-2">
+            <div className="h-px bg-gray-200"></div>
+          </div>
 
-      {/* Main Content Area */}
-      <div className="pl-56 flex flex-col min-h-screen">
-        {/* Top Header */}
-        <header className="sticky top-0 z-10 bg-gradient-to-r from-white via-gray-50/50 to-white border-b border-gray-200/80 backdrop-blur-sm">
-          <div className="px-8 py-2.5 flex items-center justify-between">
-            {/* Breadcrumb and Title Section */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-stretch gap-3">
-                <div className="p-2.5 rounded-lg bg-gradient-to-br from-[#6d69ff]/10 to-[#6d69ff]/5 flex items-center justify-center self-stretch">
-                  <PageIcon className="w-6 h-6 text-[#6d69ff]" />
-                </div>
-                <div className="flex flex-col justify-center">
-                  <h1 className="text-xl font-bold text-gray-900 leading-tight">{getPageTitle()}</h1>
-                  <div className="flex items-center gap-1.5 text-[9px] text-gray-500 mt-0.5">
-                    <Calendar className="w-3 h-3" />
-                    <span>{getCurrentDate()}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* User Menu */}
+          {/* User Profile */}
+          <div className="px-3 pb-4">
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors group"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors group"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6d69ff] to-[#5a56e8] flex items-center justify-center text-white text-sm font-semibold shadow-sm">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#6d69ff] to-[#5a56e8] flex items-center justify-center text-white text-sm font-semibold shadow-sm flex-shrink-0">
                   {userInitial}
                 </div>
-                <div className="hidden md:flex flex-col items-start">
-                  <span className="text-[13px] font-medium text-gray-900 leading-tight">{userName}</span>
-                  <span className="text-[11px] text-gray-500 leading-tight">{userEmail}</span>
+                <div className="flex flex-col items-start justify-center flex-1 min-w-0 text-left">
+                  <span className="text-[13px] font-semibold text-gray-900 leading-tight truncate w-full text-left">{userName}</span>
+                  <span className="text-[11px] text-gray-500 leading-tight truncate w-full text-left mt-0.5">{userEmail}</span>
                 </div>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''} hidden md:block`} />
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {isUserMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                <div className="absolute left-2 right-2 bottom-full mb-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
                   {/* User Info Section */}
                   <div className="px-4 py-3 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100">
                     <div className="flex items-center gap-3">
@@ -571,6 +488,91 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="pl-56 flex flex-col min-h-screen">
+        {/* Top Header */}
+        <header className="sticky top-0 z-10 bg-gradient-to-r from-white via-gray-50/50 to-white border-b border-gray-200/80 backdrop-blur-sm">
+          <div className="px-8 py-2.5 flex items-center justify-between">
+            {/* Breadcrumb and Title Section */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-stretch gap-3">
+                <div className="p-2.5 rounded-lg bg-gradient-to-br from-[#6d69ff]/10 to-[#6d69ff]/5 flex items-center justify-center self-stretch">
+                  <PageIcon className="w-6 h-6 text-[#6d69ff]" />
+                </div>
+                <div className="flex flex-col justify-center">
+                  <h1 className="text-xl font-bold text-gray-900 leading-tight">{getPageTitle()}</h1>
+                  <div className="flex items-center gap-1.5 text-[9px] text-gray-500 mt-0.5">
+                    <Calendar className="w-3 h-3" />
+                    <span>{getCurrentDate()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Entity Selector */}
+            <div className="relative" ref={entityMenuRef}>
+              <button 
+                onClick={() => setIsEntityMenuOpen(!isEntityMenuOpen)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors group"
+              >
+                  {isLoadingConnections || (connections.length === 0 && tenantId) ? (
+                    <Skeleton className="h-4 w-32" variant="text" />
+                  ) : (
+                    <>
+                      <span className="whitespace-nowrap text-[13px] font-medium text-gray-700">
+                        {(() => {
+                          // Use memoizedCurrentConnection for immediate display
+                          const activeConnection = memoizedCurrentConnection || currentConnection;
+                          
+                          // First try active connection
+                          if (activeConnection?.tenantName && 
+                              activeConnection.tenantName !== 'Unknown' && 
+                              activeConnection.tenantName !== activeConnection.tenantId) {
+                            return activeConnection.tenantName;
+                          }
+                          // Then try finding in connections array
+                          const conn = connections.find(c => c.tenantId === tenantId);
+                          if (conn?.tenantName && 
+                              conn.tenantName !== 'Unknown' && 
+                              conn.tenantName !== conn.tenantId) {
+                            return conn.tenantName;
+                          }
+                          // Show placeholder if no valid name found
+                          return 'Select Entity';
+                        })()}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isEntityMenuOpen ? 'rotate-180' : ''}`} />
+                    </>
+                  )}
+                </button>
+
+                {isEntityMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[200px] max-w-md max-h-64 overflow-y-auto">
+                    {connections.length > 0 ? (
+                      connections.map((conn) => (
+                        <button
+                          key={conn.tenantId}
+                          onClick={() => handleSwitchEntity(conn.tenantId)}
+                          className={`w-full text-left px-4 py-2 text-[13px] font-medium hover:bg-gray-50 transition-colors whitespace-nowrap ${
+                            conn.tenantId === tenantId || conn.tenantId.toLowerCase() === tenantId.toLowerCase()
+                              ? 'font-semibold text-blue-600 bg-blue-50' 
+                              : 'text-gray-700'
+                          }`}
+                        >
+                          {conn.tenantName}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-2 text-[13px] font-medium text-gray-500">No entities available</div>
+                    )}
+                  </div>
+                )}
             </div>
           </div>
         </header>
