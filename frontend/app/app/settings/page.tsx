@@ -305,7 +305,7 @@ function SettingsPageContent() {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Used as Dr account for prepayment schedules</p>
+                <p className="text-xs text-gray-500 mt-1">Used as Dr account for prepayment schedule</p>
               </div>
 
               {/* Default Unearned Revenue Liability Account */}

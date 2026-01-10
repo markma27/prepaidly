@@ -92,7 +92,7 @@ This TODO list is based on the development roadmap in [PRD.md](./PRD.md) Section
 
 #### Backend - Business Logic
 - [ ] Implement amortisation calculation logic
-  - [ ] Handle prepaid expenses (debit expense, credit deferral)
+  - [ ] Handle prepayment (debit expense, credit deferral)
   - [ ] Handle unearned revenue (credit revenue, debit deferral)
   - [ ] Support monthly recognition periods
   - [ ] Calculate remaining balance

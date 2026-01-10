@@ -93,7 +93,7 @@ function ScheduleRegisterContent() {
     return schedules.filter(schedule => {
       // Search by type
       const typeMatch = schedule.type.toLowerCase().includes(query) ||
-        (schedule.type === 'PREPAID' ? 'prepaid expense' : 'unearned revenue').includes(query);
+        (schedule.type === 'PREPAID' ? 'prepayment' : 'unearned revenue').includes(query);
       
       // Search by account codes
       const expenseCode = schedule.expenseAcctCode?.toLowerCase() || '';
@@ -230,7 +230,7 @@ function ScheduleRegisterContent() {
                                 : 'bg-green-50 text-green-600'
                             }`}
                           >
-                            {schedule.type === 'PREPAID' ? 'Prepaid Expense' : 'Unearned Revenue'}
+                            {schedule.type === 'PREPAID' ? 'Prepayment' : 'Unearned Revenue'}
                           </span>
                         </td>
                         <td className="px-5 py-3 text-sm font-medium text-gray-900">BCD Trust</td> {/* Placeholder as contact info isn't in Schedule type yet */}

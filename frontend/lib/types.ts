@@ -36,6 +36,8 @@ export interface JournalEntry {
   xeroJournalNumber?: number;
   posted: boolean;
   createdAt: string;
+  postedAt?: string;
+  updatedAt?: string;
 }
 
 export interface Schedule {

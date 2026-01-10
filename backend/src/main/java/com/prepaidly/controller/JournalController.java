@@ -16,7 +16,7 @@ import java.util.Map;
  * 
  * REST controller for managing journal entry operations, specifically posting
  * journal entries to Xero. Journal entries are created as part of amortization
- * schedules (prepaid expenses or unearned revenue) and represent monthly recognition
+ * schedules (prepayment or unearned revenue) and represent monthly recognition
  * entries that need to be posted to Xero accounting software.
  * 
  * This controller handles the integration with Xero's API to create manual journal
@@ -45,7 +45,7 @@ public class JournalController {
      * - Be associated with a valid schedule
      * 
      * The method creates a manual journal in Xero with appropriate journal lines
-     * based on the schedule type (prepaid expense or unearned revenue) and updates
+     * based on the schedule type (prepayment or unearned revenue) and updates
      * the journal entry record with the Xero journal ID and posted status.
      * 
      * @param request PostJournalRequest containing:

@@ -1,6 +1,6 @@
 # 🧾 Prepaidly
 
-Prepaidly is a cloud-based **Xero add-on** that automates the management of **prepaid expenses** and **unearned revenue schedules**.
+Prepaidly is a cloud-based **Xero add-on** that automates the management of **prepayment** and **unearned revenue schedules**.
 
 ## Project Structure
 

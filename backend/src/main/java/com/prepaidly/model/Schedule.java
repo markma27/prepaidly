@@ -10,7 +10,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Schedule entity representing an amortization schedule for prepaid expenses or unearned revenue.
+ * Schedule entity representing an amortization schedule for prepayment or unearned revenue.
  * Automatically generates monthly journal entries when created.
  */
 @Entity
@@ -57,7 +57,7 @@ public class Schedule {
     @Column(name = "revenue_acct_code")
     private String revenueAcctCode;
 
-    /** Deferral account code (prepaid expenses asset or unearned revenue liability) */
+    /** Deferral account code (prepayment asset or unearned revenue liability) */
     @Column(name = "deferral_acct_code", nullable = false)
     private String deferralAcctCode;
 
@@ -76,7 +76,7 @@ public class Schedule {
 
     /** Schedule type enumeration */
     public enum ScheduleType {
-        /** Prepaid expense schedule (expenses paid upfront, recognized monthly) */
+        /** Prepayment schedule (expenses paid upfront, recognized monthly) */
         PREPAID,
         /** Unearned revenue schedule (revenue received upfront, recognized monthly) */
         UNEARNED

@@ -245,8 +245,14 @@ function DashboardPageContent() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Current month date (first day of current month) - same as chart calculation
+    // Current month (first day) - same as chart calculation
     const currentMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    // Last day of current month for display (e.g., January 31)
+    const lastDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    
+    // Format last day for display (e.g., "31 January 2026")
+    const lastDayFormatted = `${lastDayOfCurrentMonth.getDate()} ${lastDayOfCurrentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
     
     const prepaidSchedules = schedules.filter(s => s.type === 'PREPAID');
     const unearnedSchedules = schedules.filter(s => s.type === 'UNEARNED');
@@ -259,7 +265,7 @@ function DashboardPageContent() {
       end.setHours(23, 59, 59, 999);
       return start <= today && today <= end;
     });
-    
+
     const activeUnearnedSchedules = unearnedSchedules.filter(s => {
       const start = new Date(s.startDate);
       const end = new Date(s.endDate);
@@ -267,25 +273,62 @@ function DashboardPageContent() {
       end.setHours(23, 59, 59, 999);
       return start <= today && today <= end;
     });
-    
+
     // Remaining amounts for current month - same calculation as chart
-    // Sum of journal entries with periodDate > currentMonthDate
+    // Only include schedules where current month falls within schedule period
+    // Sum journal entries with period dates AFTER current month (matching chart logic)
     const remainingPrepaid = prepaidSchedules.reduce((acc, s) => {
-      if (s.journalEntries && Array.isArray(s.journalEntries) && s.journalEntries.length > 0) {
-        const remainingAtDate = s.journalEntries
-          .filter(je => new Date(je.periodDate) > currentMonthDate)
-          .reduce((sum, je) => sum + (je.amount || 0), 0);
-        return acc + remainingAtDate;
+      const scheduleStartDate = new Date(s.startDate);
+      scheduleStartDate.setHours(0, 0, 0, 0);
+      const scheduleStartMonth = new Date(scheduleStartDate.getFullYear(), scheduleStartDate.getMonth(), 1);
+      const scheduleEndDate = new Date(s.endDate);
+      scheduleEndDate.setHours(23, 59, 59, 999);
+      const scheduleEndMonth = new Date(scheduleEndDate.getFullYear(), scheduleEndDate.getMonth(), 1);
+      
+      // Only include if current month falls within schedule period (same as chart)
+      if (currentMonthDate >= scheduleStartMonth && currentMonthDate <= scheduleEndMonth) {
+        if (s.journalEntries && Array.isArray(s.journalEntries) && s.journalEntries.length > 0) {
+          const remainingAtDate = s.journalEntries
+            .filter(je => {
+              const jeDate = new Date(je.periodDate);
+              const jeMonth = new Date(jeDate.getFullYear(), jeDate.getMonth(), 1);
+              // Include entries for months after the current month (not including current month)
+              return jeMonth > currentMonthDate;
+            })
+            .reduce((sum, je) => sum + (je.amount || 0), 0);
+          return acc + remainingAtDate;
+        } else {
+          // For schedules without journal entries, use totalAmount (same as chart)
+          return acc + (s.totalAmount || 0);
+        }
       }
       return acc;
     }, 0);
     
     const remainingUnearned = unearnedSchedules.reduce((acc, s) => {
-      if (s.journalEntries && Array.isArray(s.journalEntries) && s.journalEntries.length > 0) {
-        const remainingAtDate = s.journalEntries
-          .filter(je => new Date(je.periodDate) > currentMonthDate)
-          .reduce((sum, je) => sum + (je.amount || 0), 0);
-        return acc + remainingAtDate;
+      const scheduleStartDate = new Date(s.startDate);
+      scheduleStartDate.setHours(0, 0, 0, 0);
+      const scheduleStartMonth = new Date(scheduleStartDate.getFullYear(), scheduleStartDate.getMonth(), 1);
+      const scheduleEndDate = new Date(s.endDate);
+      scheduleEndDate.setHours(23, 59, 59, 999);
+      const scheduleEndMonth = new Date(scheduleEndDate.getFullYear(), scheduleEndDate.getMonth(), 1);
+      
+      // Only include if current month falls within schedule period (same as chart)
+      if (currentMonthDate >= scheduleStartMonth && currentMonthDate <= scheduleEndMonth) {
+        if (s.journalEntries && Array.isArray(s.journalEntries) && s.journalEntries.length > 0) {
+          const remainingAtDate = s.journalEntries
+            .filter(je => {
+              const jeDate = new Date(je.periodDate);
+              const jeMonth = new Date(jeDate.getFullYear(), jeDate.getMonth(), 1);
+              // Include entries for months after the current month (not including current month)
+              return jeMonth > currentMonthDate;
+            })
+            .reduce((sum, je) => sum + (je.amount || 0), 0);
+          return acc + remainingAtDate;
+        } else {
+          // For schedules without journal entries, use totalAmount (same as chart)
+          return acc + (s.totalAmount || 0);
+        }
       }
       return acc;
     }, 0);
@@ -294,7 +337,8 @@ function DashboardPageContent() {
       prepaidScheduleCount: activePrepaidSchedules.length,
       remainingPrepayment: remainingPrepaid,
       unearnedScheduleCount: activeUnearnedSchedules.length,
-      remainingUnearned: remainingUnearned
+      remainingUnearned: remainingUnearned,
+      lastDayFormatted: lastDayFormatted
     };
   }, [schedules]);
 
@@ -423,11 +467,13 @@ function DashboardPageContent() {
           {/* Remaining Prepayment */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300 cursor-pointer">
             <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-              <h3 className="text-sm font-bold text-gray-900">Remaining Prepayment</h3>
+              <h3 className="text-sm font-bold text-gray-900">Prepayment Balance</h3>
             </div>
             <div className="p-5">
               <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingPrepayment)}</div>
-              <div className="text-xs text-gray-500">Amount not yet processed</div>
+              <div className="text-xs text-gray-500">
+                Balance as of {stats.lastDayFormatted}
+              </div>
             </div>
           </div>
 
@@ -445,11 +491,13 @@ function DashboardPageContent() {
           {/* Remaining Unearned Revenue */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300 cursor-pointer">
             <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-              <h3 className="text-sm font-bold text-gray-900">Remaining Unearned Revenue</h3>
+              <h3 className="text-sm font-bold text-gray-900">Unearned Revenue Balance</h3>
             </div>
             <div className="p-5">
               <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingUnearned)}</div>
-              <div className="text-xs text-gray-500">Amount not yet processed</div>
+              <div className="text-xs text-gray-500">
+                Balance as of {stats.lastDayFormatted}
+              </div>
             </div>
           </div>
         </div>
@@ -458,7 +506,7 @@ function DashboardPageContent() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
             <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-              <h3 className="text-base font-bold text-gray-900">Remaining Prepayment - Next 12 Months</h3>
+              <h3 className="text-base font-bold text-gray-900">Prepayment Balance Projection</h3>
             </div>
             <div className="p-5">
               <div className="h-[270px] w-full">
@@ -505,7 +553,7 @@ function DashboardPageContent() {
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
             <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-              <h3 className="text-base font-bold text-gray-900">Remaining Unearned Revenue - Next 12 Months</h3>
+              <h3 className="text-base font-bold text-gray-900">Unearned Revenue Balance Projection</h3>
             </div>
             <div className="p-5">
               <div className="h-[270px] w-full">
@@ -597,7 +645,7 @@ function DashboardPageContent() {
                           ? 'bg-blue-50 text-blue-600' 
                           : 'bg-green-50 text-green-600'
                       }`}>
-                        {schedule.type === 'PREPAID' ? 'Prepaid Expense' : 'Unearned Revenue'}
+                        {schedule.type === 'PREPAID' ? 'Prepayment' : 'Unearned Revenue'}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-sm font-medium text-gray-900">BCD Trust</td> {/* Placeholder as contact info isn't in Schedule type yet */}

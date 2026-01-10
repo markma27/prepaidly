@@ -181,7 +181,7 @@ public class XeroController {
      * 
      * This data is useful for:
      * - Linking schedules to specific invoices/bills
-     * - Reference when creating prepaid expense or unearned revenue schedules
+     * - Reference when creating prepayment or unearned revenue schedules
      * - Displaying invoice history
      * - Validating invoice amounts
      * 

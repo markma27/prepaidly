@@ -159,16 +159,16 @@ public class XeroApiService {
         List<JournalLine> lines = new ArrayList<>();
         
         if (schedule.getType() == Schedule.ScheduleType.PREPAID) {
-            // Prepaid Expense: Debit Expense, Credit Deferral
+            // Prepayment: Debit Expense, Credit Deferral
             JournalLine expenseLine = new JournalLine();
             expenseLine.setAccountCode(schedule.getExpenseAcctCode());
-            expenseLine.setDescription("Prepaid expense recognition");
+            expenseLine.setDescription("Prepayment recognition");
             expenseLine.setLineAmount(entry.getAmount());
             lines.add(expenseLine);
             
             JournalLine deferralLine = new JournalLine();
             deferralLine.setAccountCode(schedule.getDeferralAcctCode());
-            deferralLine.setDescription("Prepaid expense deferral reduction");
+            deferralLine.setDescription("Prepayment deferral reduction");
             deferralLine.setLineAmount(entry.getAmount().negate());
             lines.add(deferralLine);
         } else {

@@ -16,13 +16,13 @@ import java.util.Map;
  * Schedule Controller
  * 
  * REST controller for managing amortization schedules. A schedule represents a plan
- * to recognize prepaid expenses or unearned revenue over a period of time (typically
+ * to recognize prepayment or unearned revenue over a period of time (typically
  * monthly). Schedules are used to automate the accounting process of spreading costs
  * or revenue across multiple accounting periods.
  * 
  * When a schedule is created, the system automatically generates monthly journal entries
  * that can later be posted to Xero. Each schedule can be one of two types:
- * - PREPAID: For prepaid expenses (e.g., insurance paid upfront, recognized monthly)
+ * - PREPAID: For prepayment (e.g., insurance paid upfront, recognized monthly)
  * - UNEARNED: For unearned revenue (e.g., subscription revenue received upfront, recognized monthly)
  * 
  * The controller provides endpoints to:
@@ -84,7 +84,7 @@ public class ScheduleController {
      *         - Schedule does not span at least one month
      *         - Required fields are missing or invalid
      * 
-     * @example Request (Prepaid Expense):
+     * @example Request (Prepayment):
      * {
      *   "tenantId": "tenant-abc-123",
      *   "type": "PREPAID",

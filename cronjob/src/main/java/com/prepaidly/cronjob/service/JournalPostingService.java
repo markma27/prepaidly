@@ -62,7 +62,7 @@ public class JournalPostingService {
         // Create narration
         String narration = String.format(
             "%s Recognition - %s (Period: %s)",
-            schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepaid Expense" : "Unearned Revenue",
+            schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepayment" : "Unearned Revenue",
             schedule.getType() == Schedule.ScheduleType.PREPAID ? "Expense" : "Revenue",
             entry.getPeriodDate().toString()
         );

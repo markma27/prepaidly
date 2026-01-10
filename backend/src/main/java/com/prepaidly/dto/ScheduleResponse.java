@@ -52,7 +52,7 @@ public class ScheduleResponse {
     /**
      * Schedule type
      * 
-     * Either PREPAID (prepaid expenses) or UNEARNED (unearned revenue).
+     * Either PREPAID (prepayment) or UNEARNED (unearned revenue).
      * 
      * @see com.prepaidly.model.Schedule.ScheduleType
      */
@@ -103,7 +103,7 @@ public class ScheduleResponse {
     /**
      * Deferral account code
      * 
-     * Chart of Accounts code for the deferral account (prepaid expenses asset or
+     * Chart of Accounts code for the deferral account (prepayment asset or
      * unearned revenue liability account).
      * Example: "2000" or "2500"
      */

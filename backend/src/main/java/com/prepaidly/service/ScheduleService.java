@@ -295,6 +295,8 @@ public class ScheduleService {
         response.setXeroJournalNumber(entry.getXeroJournalNumber());
         response.setPosted(entry.getPosted());
         response.setCreatedAt(entry.getCreatedAt());
+        response.setPostedAt(entry.getPostedAt());
+        response.setUpdatedAt(entry.getUpdatedAt());
         return response;
     }
 }

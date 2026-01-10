@@ -1,7 +1,7 @@
 # 🧾 Prepaidly – Product Requirements Document (PRD)
 
 ## 1. Overview
-**Prepaidly** is a cloud-based **Xero add-on** that automates the management of **prepaid expenses** and **unearned revenue schedules**.  
+**Prepaidly** is a cloud-based **Xero add-on** that automates the management of **prepayment** and **unearned revenue schedules**.  
 It connects securely to Xero via OAuth 2.0, creates amortisation schedules, and posts monthly recognition journals back into Xero.
 
 Prepaidly is built as a **multi-tenant SaaS platform**, allowing accounting firms to manage multiple clients (Xero organisations) within one secure application.

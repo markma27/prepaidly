@@ -92,5 +92,24 @@ public class JournalEntryResponse {
      * Example: "2025-01-15T10:30:00"
      */
     private LocalDateTime createdAt;
+    
+    /**
+     * Timestamp when the journal entry was posted to Xero
+     * 
+     * Set when the journal entry is successfully posted to Xero.
+     * Null if the entry has not been posted yet.
+     * Format: ISO 8601 date-time.
+     * Example: "2025-01-20T14:30:00"
+     */
+    private LocalDateTime postedAt;
+    
+    /**
+     * Timestamp when the journal entry was last updated
+     * 
+     * Automatically maintained by JPA when the entry is updated (e.g., when posted).
+     * Format: ISO 8601 date-time.
+     * Example: "2025-01-20T14:30:00"
+     */
+    private LocalDateTime updatedAt;
 }
 

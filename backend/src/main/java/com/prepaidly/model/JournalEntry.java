@@ -53,12 +53,26 @@ public class JournalEntry {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** Timestamp when the journal entry was posted to Xero */
+    @Column(name = "posted_at")
+    private LocalDateTime postedAt;
+
+    /** Timestamp when the journal entry was last updated */
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
         if (posted == null) {
             posted = false;
         }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }
 

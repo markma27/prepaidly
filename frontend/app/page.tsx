@@ -28,10 +28,10 @@ export default function Home() {
       <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
         <h1 className="text-4xl font-bold mb-8">🧾 Prepaidly</h1>
         <p className="text-lg mb-4">
-          Automate Xero prepaid expenses and unearned revenue schedule management
+          Automate Xero prepayment and unearned revenue schedule management
         </p>
         <p className="text-sm text-gray-600 mb-8">
-          Automate prepaid expenses and unearned revenue schedules with Xero
+          Automate prepayment and unearned revenue schedules with Xero
         </p>
         <div className="mt-8 flex gap-4">
           <a

@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Prepaidly - Xero Prepaid & Unearned Revenue Management",
-  description: "Automate prepaid expenses and unearned revenue schedules with Xero",
+  description: "Automate prepayment and unearned revenue schedules with Xero",
   icons: {
     icon: "/Favicon.png",
     shortcut: "/Favicon.png",

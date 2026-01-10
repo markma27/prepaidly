@@ -214,8 +214,12 @@ public class XeroApiService {
             return journalNumber;
         }
         
-        // If not found, try to find it in the Journals endpoint
-        log.info("JournalNumber not found in ManualJournals endpoint, trying Journals endpoint...");
+        // If not found, wait a moment for Xero to process, then try Journals endpoint
+        try {
+            Thread.sleep(2000); // Wait 2 seconds for Xero to process the journal
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         return fetchJournalNumberFromJournals(tenantId, journalId, accessToken);
     }
     
@@ -224,7 +228,6 @@ public class XeroApiService {
      */
     private Integer fetchJournalNumberFromManualJournals(String tenantId, String journalId, String accessToken) {
         try {
-            log.debug("Fetching manual journal details from Xero for journal ID: {}", journalId);
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -232,7 +235,6 @@ public class XeroApiService {
             
             HttpEntity<Void> entity = new HttpEntity<>(headers);
             String url = XeroConfig.XERO_API_URL + "/ManualJournals/" + journalId;
-            log.debug("GET ManualJournals request URL: {}", url);
             
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 url,
@@ -241,45 +243,28 @@ public class XeroApiService {
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
-            log.debug("GET ManualJournals response status: {}", response.getStatusCode());
-            log.debug("GET ManualJournals response body: {}", response.getBody());
-            
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> journals = (List<Map<String, Object>>) response.getBody().get("ManualJournals");
                 if (journals != null && !journals.isEmpty()) {
                     Map<String, Object> journal = journals.get(0);
-                    log.info("ManualJournals GET response journal keys: {}", journal.keySet());
-                    log.info("ManualJournals GET response journal full: {}", journal);
-                    
                     Object journalNumberObj = journal.get("JournalNumber");
                     if (journalNumberObj != null) {
                         if (journalNumberObj instanceof Integer) {
-                            log.info("Fetched JournalNumber from ManualJournals GET request (Integer): {}", journalNumberObj);
                             return (Integer) journalNumberObj;
                         } else if (journalNumberObj instanceof String) {
                             try {
-                                Integer num = Integer.parseInt((String) journalNumberObj);
-                                log.info("Fetched JournalNumber from ManualJournals GET request (String parsed): {}", num);
-                                return num;
+                                return Integer.parseInt((String) journalNumberObj);
                             } catch (NumberFormatException e) {
                                 log.warn("Could not parse JournalNumber from ManualJournals GET request: {}", journalNumberObj);
                             }
-                        } else {
-                            log.warn("JournalNumber is unexpected type: {} (value: {})", journalNumberObj.getClass().getName(), journalNumberObj);
                         }
-                    } else {
-                        log.info("JournalNumber field not found in ManualJournals GET response. Available fields: {}", journal.keySet());
                     }
-                } else {
-                    log.warn("No ManualJournals in GET response. Response keys: {}", response.getBody().keySet());
                 }
-            } else {
-                log.warn("ManualJournals GET request failed or returned empty body. Status: {}, Body: {}", response.getStatusCode(), response.getBody());
             }
         } catch (org.springframework.web.client.HttpClientErrorException e) {
-            log.warn("HTTP error fetching from ManualJournals endpoint for journal ID {}. Status: {}, Response: {}", 
-                journalId, e.getStatusCode(), e.getResponseBodyAsString());
+            log.warn("HTTP error fetching from ManualJournals endpoint for journal ID {}. Status: {}", 
+                journalId, e.getStatusCode());
         } catch (Exception e) {
             log.warn("Failed to fetch from ManualJournals endpoint for journal ID {}: {}", journalId, e.getMessage());
         }
@@ -291,17 +276,13 @@ public class XeroApiService {
      */
     private Integer fetchJournalNumberFromJournals(String tenantId, String journalId, String accessToken) {
         try {
-            log.debug("Fetching journal number from Journals endpoint for manual journal ID: {}", journalId);
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("xero-tenant-id", tenantId);
             
             HttpEntity<Void> entity = new HttpEntity<>(headers);
-            // Query recent journals - we'll search through them to find one matching our ManualJournalID
-            // Get the last 100 journals (Xero's default page size)
             String url = XeroConfig.XERO_API_URL + "/Journals";
-            log.debug("GET Journals request URL: {}", url);
             
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 url,
@@ -310,37 +291,37 @@ public class XeroApiService {
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
-            log.debug("GET Journals response status: {}", response.getStatusCode());
-            
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> journals = (List<Map<String, Object>>) response.getBody().get("Journals");
                 if (journals != null && !journals.isEmpty()) {
-                    log.info("Found {} journals in response, searching for ManualJournalID: {}", journals.size(), journalId);
-                    
                     // Search for a journal that references our ManualJournalID
                     for (Map<String, Object> journal : journals) {
-                        // Check if this journal has a reference to our manual journal
-                        // The journal might have a SourceID or similar field pointing to the ManualJournalID
                         Object sourceId = journal.get("SourceID");
                         Object journalIdField = journal.get("JournalID");
                         Object manualJournalId = journal.get("ManualJournalID");
+                        Object sourceType = journal.get("SourceType");
                         
                         // Check various possible fields that might link to our manual journal
+                        boolean matches = false;
                         if (journalId.equals(String.valueOf(sourceId)) || 
                             journalId.equals(String.valueOf(journalIdField)) ||
                             journalId.equals(String.valueOf(manualJournalId))) {
-                            
+                            matches = true;
+                        } else if (("MANUALJOURNAL".equalsIgnoreCase(String.valueOf(sourceType)) || 
+                                   "ManualJournal".equalsIgnoreCase(String.valueOf(sourceType))) &&
+                                   journal.get("JournalNumber") != null) {
+                            matches = true;
+                        }
+                        
+                        if (matches) {
                             Object journalNumberObj = journal.get("JournalNumber");
                             if (journalNumberObj != null) {
                                 if (journalNumberObj instanceof Integer) {
-                                    log.info("Found JournalNumber in Journals endpoint (Integer): {}", journalNumberObj);
                                     return (Integer) journalNumberObj;
                                 } else if (journalNumberObj instanceof String) {
                                     try {
-                                        Integer num = Integer.parseInt((String) journalNumberObj);
-                                        log.info("Found JournalNumber in Journals endpoint (String parsed): {}", num);
-                                        return num;
+                                        return Integer.parseInt((String) journalNumberObj);
                                     } catch (NumberFormatException e) {
                                         log.warn("Could not parse JournalNumber from Journals endpoint: {}", journalNumberObj);
                                     }
@@ -348,20 +329,11 @@ public class XeroApiService {
                             }
                         }
                     }
-                    
-                    log.info("Could not find journal matching ManualJournalID {} in Journals response. Searched {} journals.", journalId, journals.size());
-                    if (!journals.isEmpty()) {
-                        log.debug("Sample journal keys from first journal: {}", journals.get(0).keySet());
-                    }
-                } else {
-                    log.warn("No Journals in GET response. Response keys: {}", response.getBody().keySet());
                 }
-            } else {
-                log.warn("Journals GET request failed or returned empty body. Status: {}, Body: {}", response.getStatusCode(), response.getBody());
             }
         } catch (org.springframework.web.client.HttpClientErrorException e) {
-            log.warn("HTTP error fetching from Journals endpoint for journal ID {}. Status: {}, Response: {}", 
-                journalId, e.getStatusCode(), e.getResponseBodyAsString());
+            log.warn("HTTP error fetching from Journals endpoint for journal ID {}. Status: {}", 
+                journalId, e.getStatusCode());
         } catch (Exception e) {
             log.warn("Failed to fetch from Journals endpoint for journal ID {}: {}", journalId, e.getMessage());
         }
@@ -444,10 +416,6 @@ public class XeroApiService {
                         String journalId = (String) journal.get("ManualJournalID");
                         Integer journalNumber = null;
                         
-                        // Log all available keys in the journal response for debugging
-                        log.info("ManualJournal response keys: {}", journal.keySet());
-                        log.info("ManualJournal full response: {}", journal);
-                        
                         // Extract JournalNumber if available in POST response (Xero API may return it as Integer or String)
                         Object journalNumberObj = journal.get("JournalNumber");
                         if (journalNumberObj != null) {
@@ -460,31 +428,16 @@ public class XeroApiService {
                                     log.warn("Could not parse JournalNumber as integer: {}", journalNumberObj);
                                 }
                             }
-                            log.info("Extracted JournalNumber from POST response: {}", journalNumber);
                         }
                         
                         // Always fetch the journal via GET to ensure we get the JournalNumber
                         // (Xero API may not return JournalNumber in POST response, but it's always available via GET)
-                        if (journalNumber == null) {
-                            log.info("JournalNumber not found in POST response, fetching via GET request for journal ID: {}", journalId);
-                        } else {
-                            log.info("JournalNumber found in POST response, but verifying via GET request for journal ID: {}", journalId);
-                        }
-                        
-                        // Fetch via GET to get the journal number (this should always work since we have the journal ID)
                         Integer fetchedNumber = fetchJournalNumber(tenantId, journalId, accessToken);
                         if (fetchedNumber != null) {
                             journalNumber = fetchedNumber;
-                            log.info("Successfully fetched JournalNumber via GET: {}", journalNumber);
-                        } else {
-                            if (journalNumber == null) {
-                                log.warn("Could not fetch JournalNumber via GET request for journal ID: {}. Response may not include JournalNumber field.", journalId);
-                            } else {
-                                log.info("Using JournalNumber from POST response: {}", journalNumber);
-                            }
                         }
                         
-                        log.info("Successfully created manual journal in Xero with ID: {}, JournalNumber: {}", journalId, journalNumber);
+                        log.info("Created manual journal in Xero. ID: {}, JournalNumber: {}", journalId, journalNumber);
                         return new ManualJournalResult(journalId, journalNumber);
                     } else {
                         log.error("No ManualJournals in response. Response keys: {}", body.keySet());

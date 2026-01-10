@@ -50,7 +50,7 @@ public class JournalService {
         // Create narration
         String narration = String.format(
             "%s Recognition - %s (Period: %s)",
-            schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepaid Expense" : "Unearned Revenue",
+            schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepayment" : "Unearned Revenue",
             schedule.getType() == Schedule.ScheduleType.PREPAID ? "Expense" : "Revenue",
             entry.getPeriodDate().toString()
         );
@@ -70,8 +70,14 @@ public class JournalService {
                 entry.setXeroJournalNumber(result.getJournalNumber());
             }
             entry.setPosted(true);
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            entry.setPostedAt(now);
+            log.info("Setting postedAt to {} for journal entry {}", now, journalEntryId);
             
-            return journalEntryRepository.save(entry);
+            JournalEntry saved = journalEntryRepository.save(entry);
+            log.info("Saved journal entry {} with postedAt: {}, updatedAt: {}", 
+                journalEntryId, saved.getPostedAt(), saved.getUpdatedAt());
+            return saved;
         } catch (Exception e) {
             log.error("Error posting journal entry {} to Xero", journalEntryId, e);
             throw new RuntimeException("Failed to post journal to Xero: " + e.getMessage(), e);
@@ -85,16 +91,16 @@ public class JournalService {
         List<JournalLine> lines = new ArrayList<>();
         
         if (schedule.getType() == Schedule.ScheduleType.PREPAID) {
-            // Prepaid Expense: Debit Expense, Credit Deferral
+            // Prepayment: Debit Expense, Credit Deferral
             JournalLine expenseLine = new JournalLine();
             expenseLine.setAccountCode(schedule.getExpenseAcctCode());
-            expenseLine.setDescription("Prepaid expense recognition");
+            expenseLine.setDescription("Prepayment recognition");
             expenseLine.setLineAmount(entry.getAmount());
             lines.add(expenseLine);
             
             JournalLine deferralLine = new JournalLine();
             deferralLine.setAccountCode(schedule.getDeferralAcctCode());
-            deferralLine.setDescription("Prepaid expense deferral reduction");
+            deferralLine.setDescription("Prepayment deferral reduction");
             deferralLine.setLineAmount(entry.getAmount().negate());
             lines.add(deferralLine);
         } else {

@@ -13,7 +13,7 @@ import java.time.LocalDate;
  * Data Transfer Object for creating a new amortization schedule. Used as the request
  * body for the schedule creation endpoint.
  * 
- * A schedule represents a plan to recognize prepaid expenses or unearned revenue
+ * A schedule represents a plan to recognize prepayment or unearned revenue
  * over a period of time (typically monthly). When a schedule is created, the system
  * automatically generates monthly journal entries that can later be posted to Xero.
  * 
@@ -55,9 +55,9 @@ public class CreateScheduleRequest {
     /**
      * Schedule type
      * 
-     * Determines whether this is a prepaid expense or unearned revenue schedule.
+     * Determines whether this is a prepayment or unearned revenue schedule.
      * 
-     * - PREPAID: For prepaid expenses (e.g., insurance paid upfront, recognized monthly)
+     * - PREPAID: For prepayment (e.g., insurance paid upfront, recognized monthly)
      * - UNEARNED: For unearned revenue (e.g., subscription revenue received upfront, recognized monthly)
      * 
      * Required: Yes
@@ -134,7 +134,7 @@ public class CreateScheduleRequest {
     /**
      * Deferral account code
      * 
-     * The Chart of Accounts code for the deferral account (prepaid expenses asset
+     * The Chart of Accounts code for the deferral account (prepayment asset
      * account or unearned revenue liability account). This account holds the deferred
      * amount until it's recognized.
      * 

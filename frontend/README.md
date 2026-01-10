@@ -6,7 +6,7 @@ Next.js 14 frontend application for connecting to Xero and managing prepaid and 
 
 - ✅ **Xero OAuth2 Connection** - Securely connect to Xero Demo Company
 - ✅ **Chart of Accounts** - Automatically retrieve and display Chart of Accounts
-- ✅ **Create Schedules** - Create prepaid expense or unearned revenue schedules
+- ✅ **Create Schedules** - Create prepayment or unearned revenue schedules
 - ✅ **Auto-generate Journals** - System automatically generates monthly amortization journal entries
 - ✅ **Post Journals** - Post journal entries to Xero with one click
 - ✅ **Dashboard** - View all schedules and journal entry status
@@ -64,7 +64,7 @@ After successful connection, the system will automatically retrieve and display 
 
 1. Click "Create New Schedule" button
 2. Select schedule type:
-   - **Prepaid Expense**: Requires expense account and deferral account selection
+   - **Prepayment**: Requires expense account and deferral account selection
    - **Unearned Revenue**: Requires revenue account and deferral account selection
 3. Fill in date range and total amount
 4. Select appropriate accounts from dropdown lists

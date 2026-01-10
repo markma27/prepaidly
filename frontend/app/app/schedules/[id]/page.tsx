@@ -92,7 +92,7 @@ function ScheduleDetailContent() {
         description: `Schedule ${schedule.id} was created`,
         userName: schedule.createdByName, // Use creator name from backend
         userId: schedule.createdBy,
-        details: `Type: ${schedule.type === 'PREPAID' ? 'Prepaid Expense' : 'Unearned Revenue'}, Amount: ${formatCurrency(schedule.totalAmount)}`
+        details: `Type: ${schedule.type === 'PREPAID' ? 'Prepayment' : 'Unearned Revenue'}, Amount: ${formatCurrency(schedule.totalAmount)}`
       });
     }
 
@@ -101,11 +101,20 @@ function ScheduleDetailContent() {
     // For historical posts, user info won't be available until backend is updated
     journalEntries
       .filter(entry => entry.posted && entry.xeroManualJournalId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .sort((a, b) => {
+        // Sort by postedAt if available, otherwise by createdAt
+        const dateA = a.postedAt ? new Date(a.postedAt).getTime() : new Date(a.createdAt).getTime();
+        const dateB = b.postedAt ? new Date(b.postedAt).getTime() : new Date(b.createdAt).getTime();
+        return dateA - dateB;
+      })
       .forEach(entry => {
+        // Use postedAt if available (explicit posting time)
+        // Otherwise use updatedAt (automatically tracks when entry was last modified/posted)
+        // Fallback to createdAt only if neither is available
+        const postDate = entry.postedAt || entry.updatedAt || entry.createdAt;
         trail.push({
           id: `journal-posted-${entry.id}`,
-          date: entry.createdAt,
+          date: postDate,
           action: 'Journal Posted',
           description: `Journal entry for ${formatDate(entry.periodDate)} posted to Xero`,
           userName: currentUserName || undefined, // Show current user name if available
@@ -247,7 +256,7 @@ function ScheduleDetailContent() {
                       : 'bg-green-50 text-green-600'
                   }`}
                 >
-                  {schedule.type === 'PREPAID' ? 'Prepaid Expense' : 'Unearned Revenue'}
+                  {schedule.type === 'PREPAID' ? 'Prepayment' : 'Unearned Revenue'}
                 </span>
               </div>
               <div>

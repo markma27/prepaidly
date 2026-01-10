@@ -177,7 +177,7 @@ function NewSchedulePageContent() {
                 onChange={(e) => setType(e.target.value as ScheduleType)}
                 className="mr-2"
               />
-              <span>Prepaid Expense</span>
+              <span>Prepayment</span>
             </label>
             <label className="flex items-center">
               <input
