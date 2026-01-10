@@ -49,6 +49,7 @@ function DashboardPageContent() {
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
+  const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1920);
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
@@ -185,6 +186,34 @@ function DashboardPageContent() {
       if (intervalId) clearInterval(intervalId);
     };
   }, []); // Empty dependency array - only run once on mount
+
+  // Track window size for responsive bar width
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+
+    // Set initial width
+    if (typeof window !== 'undefined') {
+      setWindowWidth(window.innerWidth);
+      window.addEventListener('resize', handleResize);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', handleResize);
+      }
+    };
+  }, []);
+
+  // Calculate dynamic bar size based on window width
+  const barSize = useMemo(() => {
+    if (windowWidth >= 1920) return 50; // Large screens
+    if (windowWidth >= 1440) return 45; // Medium-large screens
+    if (windowWidth >= 1024) return 40; // Medium screens
+    if (windowWidth >= 768) return 35;  // Tablets
+    return 30; // Mobile
+  }, [windowWidth]);
 
   const loadSchedules = async (tid: string) => {
     try {
@@ -457,7 +486,7 @@ function DashboardPageContent() {
                     <Bar 
                       dataKey="value" 
                       radius={[4, 4, 0, 0]} 
-                      barSize={32}
+                      barSize={barSize}
                       isAnimationActive={false}
                       onClick={() => {}}
                       style={{ outline: 'none' }}
@@ -504,7 +533,7 @@ function DashboardPageContent() {
                     <Bar 
                       dataKey="value" 
                       radius={[4, 4, 0, 0]} 
-                      barSize={32}
+                      barSize={barSize}
                       isAnimationActive={false}
                       onClick={() => {}}
                       style={{ outline: 'none' }}
