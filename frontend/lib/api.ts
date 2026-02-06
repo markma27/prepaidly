@@ -137,6 +137,7 @@ export const xeroApi = {
   getInvoices: async (tenantId: string) => {
     return fetchApi(`/api/xero/invoices?tenantId=${encodeURIComponent(tenantId)}`);
   },
+
 };
 
 // Schedule API
@@ -157,6 +158,15 @@ export const scheduleApi = {
   getSchedules: async (tenantId: string): Promise<{ schedules: Schedule[]; count: number }> => {
     return fetchApi<{ schedules: Schedule[]; count: number }>(
       `/api/schedules?tenantId=${encodeURIComponent(tenantId)}`
+    );
+  },
+
+  /**
+   * Get distinct contact names for autocomplete
+   */
+  getContactNames: async (tenantId: string): Promise<{ contactNames: string[] }> => {
+    return fetchApi<{ contactNames: string[] }>(
+      `/api/schedules/contacts?tenantId=${encodeURIComponent(tenantId)}`
     );
   },
 

@@ -145,6 +145,33 @@ public class CreateScheduleRequest {
     private String deferralAcctCode;
     
     /**
+     * Contact name
+     * 
+     * The name of the contact/customer/supplier associated with this schedule.
+     * This is a plain text field stored in Prepaidly only (not linked to Xero contacts).
+     * The contact name is included in the journal narration when posting to Xero.
+     * 
+     * Required: No
+     * Example: "ABC Limited"
+     */
+    private String contactName;
+
+    /**
+     * Optional description or notes for this schedule
+     */
+    private String description;
+
+    /**
+     * URL of the uploaded invoice file in Supabase Storage
+     */
+    private String invoiceUrl;
+
+    /**
+     * Original filename of the uploaded invoice
+     */
+    private String invoiceFilename;
+
+    /**
      * User ID who created the schedule
      * 
      * Optional identifier for the user who created this schedule. Used for audit

@@ -648,7 +648,7 @@ function DashboardPageContent() {
                         {schedule.type === 'PREPAID' ? 'Prepayment' : 'Unearned Revenue'}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-sm font-medium text-gray-900">BCD Trust</td> {/* Placeholder as contact info isn't in Schedule type yet */}
+                    <td className="px-5 py-3 text-sm font-medium text-gray-900">{schedule.contactName || '—'}</td>
                     <td className="px-5 py-3">
                       <div className="text-sm text-gray-900">{schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode}</div>
                       {accountsLoaded && (

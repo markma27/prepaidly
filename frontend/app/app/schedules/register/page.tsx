@@ -115,13 +115,17 @@ function ScheduleRegisterContent() {
         : '';
       const amountMatch = amountStr.includes(query) || remainingStr.includes(query);
       
+      // Search by contact name
+      const contactNameStr = schedule.contactName?.toLowerCase() || '';
+      const contactMatch = contactNameStr.includes(query);
+
       // Search by dates
       const startDate = formatDate(schedule.startDate).toLowerCase();
       const endDate = formatDate(schedule.endDate).toLowerCase();
       const createdDate = formatDate(schedule.createdAt).toLowerCase();
       const dateMatch = startDate.includes(query) || endDate.includes(query) || createdDate.includes(query);
       
-      return typeMatch || accountCodeMatch || accountNameMatch || amountMatch || dateMatch;
+      return typeMatch || accountCodeMatch || accountNameMatch || amountMatch || contactMatch || dateMatch;
     });
   }, [schedules, searchQuery, accountMap]);
 
@@ -233,7 +237,7 @@ function ScheduleRegisterContent() {
                             {schedule.type === 'PREPAID' ? 'Prepayment' : 'Unearned Revenue'}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-sm font-medium text-gray-900">BCD Trust</td> {/* Placeholder as contact info isn't in Schedule type yet */}
+                        <td className="px-5 py-3 text-sm font-medium text-gray-900">{schedule.contactName || '—'}</td>
                         <td className="px-5 py-3">
                           <div className="text-sm text-gray-900">{schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode}</div>
                           {accountsLoaded && (

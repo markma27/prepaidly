@@ -2,6 +2,8 @@ package com.prepaidly.repository;
 
 import com.prepaidly.model.Schedule;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -28,5 +30,12 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
      * @return List of matching schedules
      */
     List<Schedule> findByTenantIdAndType(String tenantId, Schedule.ScheduleType type);
+
+    /**
+     * Find distinct non-null contact names for a specific tenant.
+     * Used for autocomplete suggestions when creating new schedules.
+     */
+    @Query("SELECT DISTINCT s.contactName FROM Schedule s WHERE s.tenantId = :tenantId AND s.contactName IS NOT NULL AND s.contactName <> '' ORDER BY s.contactName")
+    List<String> findDistinctContactNamesByTenantId(@Param("tenantId") String tenantId);
 }
 

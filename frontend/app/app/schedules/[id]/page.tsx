@@ -291,7 +291,11 @@ function ScheduleDetailContent() {
               </div>
             </div>
             <div className="mt-5 pt-5 border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Contact</div>
+                  <div className="text-sm text-gray-900">{schedule.contactName || '—'}</div>
+                </div>
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Account Codes</div>
                   <div className="text-sm text-gray-900">
@@ -307,6 +311,37 @@ function ScheduleDetailContent() {
                   <div className="text-sm text-gray-900">{formatDate(schedule.createdAt)}</div>
                 </div>
               </div>
+              {schedule.description && (
+                <div className="mt-5">
+                  <div className="text-xs text-gray-500 mb-1">Description</div>
+                  <div className="text-sm text-gray-900">{schedule.description}</div>
+                </div>
+              )}
+              {schedule.invoiceUrl && (
+                <div className="mt-5">
+                  <div className="text-xs text-gray-500 mb-1">Invoice</div>
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-[#6d69ff]" />
+                    <a
+                      href={schedule.invoiceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-[#6d69ff] hover:text-[#5a56e6] hover:underline transition-colors"
+                    >
+                      {schedule.invoiceFilename || 'View Invoice'}
+                    </a>
+                  </div>
+                  {schedule.invoiceUrl.match(/\.(jpg|jpeg|png)$/i) && (
+                    <div className="mt-2 rounded-lg overflow-hidden border border-gray-200 max-w-xs">
+                      <img
+                        src={schedule.invoiceUrl}
+                        alt="Invoice"
+                        className="w-full h-auto max-h-48 object-contain bg-gray-50"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

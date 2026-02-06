@@ -102,6 +102,125 @@ export function monthsBetween(startDate: string, endDate: string): number {
 }
 
 /**
+ * Generate pro-rata amortisation schedule entries.
+ * 
+ * Each period's amount is proportional to the number of days in that period
+ * relative to the total days. Posting dates are the last day of each period
+ * (month-end or schedule end date).
+ * 
+ * Example: Start 6 Feb, End 5 Aug, Total $6,000 (181 days)
+ *   Period 1: 6 Feb – 28 Feb (23 days) → $762.43, posted 28 Feb
+ *   Period 2: 1 Mar – 31 Mar (31 days) → $1,027.62, posted 31 Mar
+ *   ...
+ *   Last period: remainder, posted on end date
+ */
+export interface ProRataEntry {
+  period: number;
+  periodStart: Date;
+  periodEnd: Date;
+  days: number;
+  amount: number;
+}
+
+export function generateProRataSchedule(
+  startDateStr: string,
+  endDateStr: string,
+  totalAmount: number
+): ProRataEntry[] {
+  const startDate = new Date(startDateStr);
+  const endDate = new Date(endDateStr);
+  
+  // Calculate total days (inclusive)
+  const totalDays = Math.round(
+    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+  ) + 1;
+  
+  if (totalDays <= 0) return [];
+  
+  const entries: ProRataEntry[] = [];
+  let periodStart = new Date(startDate);
+  let remaining = totalAmount;
+  let periodNumber = 0;
+  
+  while (periodStart <= endDate) {
+    periodNumber++;
+    
+    // Last day of current month
+    const lastDayOfMonth = new Date(
+      periodStart.getFullYear(),
+      periodStart.getMonth() + 1,
+      0
+    );
+    
+    // For day counting, cap at schedule end date
+    const dayCountEnd = lastDayOfMonth < endDate ? lastDayOfMonth : new Date(endDate);
+    
+    // Days in this period (inclusive)
+    const daysInPeriod = Math.round(
+      (dayCountEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
+    
+    // Posting date is always the last day of the month
+    const postingDate = new Date(lastDayOfMonth);
+    
+    // Next period start
+    const nextPeriodStart = new Date(dayCountEnd);
+    nextPeriodStart.setDate(nextPeriodStart.getDate() + 1);
+    const isLastPeriod = nextPeriodStart > endDate;
+    
+    // Calculate amount: pro-rata based on days, last entry gets remainder
+    let amount: number;
+    if (isLastPeriod) {
+      amount = Math.round(remaining * 100) / 100;
+    } else {
+      amount = Math.round((totalAmount * daysInPeriod / totalDays) * 100) / 100;
+      remaining -= amount;
+    }
+    
+    entries.push({
+      period: periodNumber,
+      periodStart: new Date(periodStart),
+      periodEnd: postingDate,
+      days: daysInPeriod,
+      amount,
+    });
+    
+    // Move to first day of next month
+    periodStart = nextPeriodStart;
+  }
+  
+  return entries;
+}
+
+/**
+ * Count the number of journal entry periods for a pro-rata schedule
+ */
+export function countProRataPeriods(startDateStr: string, endDateStr: string): number {
+  const startDate = new Date(startDateStr);
+  const endDate = new Date(endDateStr);
+  
+  if (startDate >= endDate) return 0;
+  
+  let count = 0;
+  let periodStart = new Date(startDate);
+  
+  while (periodStart <= endDate) {
+    count++;
+    const lastDayOfMonth = new Date(
+      periodStart.getFullYear(),
+      periodStart.getMonth() + 1,
+      0
+    );
+    const periodEnd = lastDayOfMonth < endDate ? lastDayOfMonth : endDate;
+    const nextPeriodStart = new Date(periodEnd);
+    nextPeriodStart.setDate(nextPeriodStart.getDate() + 1);
+    periodStart = nextPeriodStart;
+  }
+  
+  return count;
+}
+
+/**
  * Debounce function
  */
 export function debounce<T extends (...args: any[]) => any>(

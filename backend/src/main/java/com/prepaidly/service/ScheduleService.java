@@ -52,6 +52,10 @@ public class ScheduleService {
         schedule.setExpenseAcctCode(request.getExpenseAcctCode());
         schedule.setRevenueAcctCode(request.getRevenueAcctCode());
         schedule.setDeferralAcctCode(request.getDeferralAcctCode());
+        schedule.setContactName(request.getContactName());
+        schedule.setDescription(request.getDescription());
+        schedule.setInvoiceUrl(request.getInvoiceUrl());
+        schedule.setInvoiceFilename(request.getInvoiceFilename());
         schedule.setCreatedBy(request.getCreatedBy());
         
         schedule = scheduleRepository.save(schedule);
@@ -63,51 +67,86 @@ public class ScheduleService {
     }
     
     /**
-     * Generate monthly journal entries for a schedule
+     * Generate journal entries for a schedule using daily pro-rata calculation.
+     * 
+     * Each period's amount is proportional to the number of days in that period
+     * relative to the total number of days in the schedule. Posting dates are set
+     * to the last day of each period (month-end or schedule end date).
+     * 
+     * Example: Start 6 Feb, End 5 Aug, Total $6,000 (181 days)
+     *   Period 1: 6 Feb – 28 Feb (23 days) → $6,000 × 23/181 = $762.43, posted 28 Feb
+     *   Period 2: 1 Mar – 31 Mar (31 days) → $6,000 × 31/181 = $1,027.62, posted 31 Mar
+     *   ...
+     *   Last period: 1 Aug – 5 Aug (5 days) → remainder, posted 5 Aug
      */
     private void generateJournalEntries(Schedule schedule) {
         LocalDate startDate = schedule.getStartDate();
         LocalDate endDate = schedule.getEndDate();
         
-        // Calculate number of months
-        long monthsBetween = ChronoUnit.MONTHS.between(
-            startDate.withDayOfMonth(1),
-            endDate.withDayOfMonth(1)
-        ) + 1;
-        
-        if (monthsBetween <= 0) {
-            throw new IllegalArgumentException("Schedule must span at least one month");
+        if (!startDate.isBefore(endDate)) {
+            throw new IllegalArgumentException("Start date must be before end date");
         }
         
-        // Calculate monthly amount
-        BigDecimal monthlyAmount = schedule.getTotalAmount()
-            .divide(BigDecimal.valueOf(monthsBetween), 2, RoundingMode.HALF_UP);
+        // Total days in the schedule (inclusive of both start and end)
+        long totalDays = ChronoUnit.DAYS.between(startDate, endDate) + 1;
         
-        // Generate entries for each month
-        LocalDate currentDate = startDate.withDayOfMonth(1);
-        BigDecimal remainingAmount = schedule.getTotalAmount();
+        if (totalDays <= 0) {
+            throw new IllegalArgumentException("Schedule must span at least one day");
+        }
         
-        for (int i = 0; i < monthsBetween; i++) {
-            JournalEntry entry = new JournalEntry();
-            entry.setSchedule(schedule);
+        BigDecimal totalAmount = schedule.getTotalAmount();
+        BigDecimal bdTotalDays = BigDecimal.valueOf(totalDays);
+        BigDecimal remainingAmount = totalAmount;
+        
+        LocalDate periodStart = startDate;
+        int periodNumber = 0;
+        
+        while (!periodStart.isAfter(endDate)) {
+            periodNumber++;
             
-            // Set period date to first day of the month
-            entry.setPeriodDate(currentDate);
+            // Last day of current month
+            LocalDate lastDayOfMonth = periodStart.withDayOfMonth(
+                periodStart.lengthOfMonth()
+            );
             
-            // Last entry gets the remaining amount to avoid rounding errors
-            if (i == monthsBetween - 1) {
-                entry.setAmount(remainingAmount);
+            // For day counting, cap at schedule end date
+            LocalDate dayCountEnd = lastDayOfMonth.isBefore(endDate) ? lastDayOfMonth : endDate;
+            
+            // Days in this period (inclusive)
+            long daysInPeriod = ChronoUnit.DAYS.between(periodStart, dayCountEnd) + 1;
+            
+            // Posting date is always the last day of the month
+            LocalDate postingDate = lastDayOfMonth;
+            
+            // Calculate amount: last entry gets remainder to avoid rounding errors
+            LocalDate nextPeriodStart = dayCountEnd.plusDays(1);
+            boolean isLastPeriod = nextPeriodStart.isAfter(endDate);
+            
+            BigDecimal amount;
+            if (isLastPeriod) {
+                amount = remainingAmount;
             } else {
-                entry.setAmount(monthlyAmount);
-                remainingAmount = remainingAmount.subtract(monthlyAmount);
+                amount = totalAmount
+                    .multiply(BigDecimal.valueOf(daysInPeriod))
+                    .divide(bdTotalDays, 2, RoundingMode.HALF_UP);
+                remainingAmount = remainingAmount.subtract(amount);
             }
             
+            JournalEntry entry = new JournalEntry();
+            entry.setSchedule(schedule);
+            // Posting date is always the last day of the month
+            entry.setPeriodDate(postingDate);
+            entry.setAmount(amount);
             entry.setPosted(false);
             
             journalEntryRepository.save(entry);
             
-            // Move to next month
-            currentDate = currentDate.plusMonths(1);
+            // Move to first day of next month
+            periodStart = nextPeriodStart;
+        }
+        
+        if (periodNumber == 0) {
+            throw new IllegalArgumentException("Schedule must generate at least one journal entry");
         }
     }
     
@@ -166,6 +205,14 @@ public class ScheduleService {
      * Get schedule by ID
      * Note: Using PROPAGATION_SUPPORTS to avoid transaction issues with connection poolers
      */
+    /**
+     * Get distinct contact names for a tenant (for autocomplete)
+     */
+    @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
+    public List<String> getDistinctContactNames(String tenantId) {
+        return scheduleRepository.findDistinctContactNamesByTenantId(tenantId);
+    }
+
     @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
     public ScheduleResponse getScheduleById(Long scheduleId) {
         Schedule schedule = Objects.requireNonNull(
@@ -191,6 +238,10 @@ public class ScheduleService {
         response.setExpenseAcctCode(schedule.getExpenseAcctCode());
         response.setRevenueAcctCode(schedule.getRevenueAcctCode());
         response.setDeferralAcctCode(schedule.getDeferralAcctCode());
+        response.setContactName(schedule.getContactName());
+        response.setDescription(schedule.getDescription());
+        response.setInvoiceUrl(schedule.getInvoiceUrl());
+        response.setInvoiceFilename(schedule.getInvoiceFilename());
         response.setCreatedBy(schedule.getCreatedBy());
         response.setCreatedAt(schedule.getCreatedAt());
         
@@ -273,6 +324,10 @@ public class ScheduleService {
         response.setExpenseAcctCode(schedule.getExpenseAcctCode());
         response.setRevenueAcctCode(schedule.getRevenueAcctCode());
         response.setDeferralAcctCode(schedule.getDeferralAcctCode());
+        response.setContactName(schedule.getContactName());
+        response.setDescription(schedule.getDescription());
+        response.setInvoiceUrl(schedule.getInvoiceUrl());
+        response.setInvoiceFilename(schedule.getInvoiceFilename());
         response.setCreatedBy(schedule.getCreatedBy());
         response.setCreatedAt(schedule.getCreatedAt());
         response.setJournalEntries(List.of());

@@ -110,6 +110,29 @@ public class ScheduleResponse {
     private String deferralAcctCode;
     
     /**
+     * Contact name
+     * 
+     * The name of the contact associated with this schedule (plain text).
+     * Example: "ABC Limited"
+     */
+    private String contactName;
+
+    /**
+     * Optional description or notes
+     */
+    private String description;
+
+    /**
+     * URL of the uploaded invoice file
+     */
+    private String invoiceUrl;
+
+    /**
+     * Original filename of the uploaded invoice
+     */
+    private String invoiceFilename;
+
+    /**
      * User ID who created the schedule
      * 
      * Identifier for the user who created this schedule.

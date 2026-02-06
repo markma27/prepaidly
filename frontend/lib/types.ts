@@ -51,6 +51,10 @@ export interface Schedule {
   expenseAcctCode?: string;
   revenueAcctCode?: string;
   deferralAcctCode: string;
+  contactName?: string;
+  description?: string;
+  invoiceUrl?: string;
+  invoiceFilename?: string;
   createdBy?: number;
   createdByName?: string;
   createdAt: string;
@@ -70,6 +74,10 @@ export interface CreateScheduleRequest {
   expenseAcctCode?: string;
   revenueAcctCode?: string;
   deferralAcctCode: string;
+  contactName?: string;
+  description?: string;
+  invoiceUrl?: string;
+  invoiceFilename?: string;
   createdBy?: number;
 }
 

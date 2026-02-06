@@ -61,6 +61,22 @@ public class Schedule {
     @Column(name = "deferral_acct_code", nullable = false)
     private String deferralAcctCode;
 
+    /** Contact name associated with this schedule (plain text, not linked to Xero) */
+    @Column(name = "contact_name")
+    private String contactName;
+
+    /** Optional description or notes for this schedule */
+    @Column(name = "description")
+    private String description;
+
+    /** URL of the uploaded invoice file in Supabase Storage */
+    @Column(name = "invoice_url")
+    private String invoiceUrl;
+
+    /** Original filename of the uploaded invoice */
+    @Column(name = "invoice_filename")
+    private String invoiceFilename;
+
     /** User ID who created this schedule */
     @Column(name = "created_by")
     private Long createdBy;

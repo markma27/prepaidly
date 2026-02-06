@@ -265,6 +265,22 @@ public class ScheduleController {
      *        and its journal entries. The response includes posting status for each
      *        journal entry, allowing you to see which periods have been recognized.
      */
+    /**
+     * Get distinct contact names for autocomplete suggestions.
+     */
+    @GetMapping("/contacts")
+    public ResponseEntity<?> getContactNames(@RequestParam String tenantId) {
+        try {
+            List<String> contactNames = scheduleService.getDistinctContactNames(tenantId);
+            return ResponseEntity.ok(Map.of("contactNames", contactNames));
+        } catch (Exception e) {
+            log.error("Error fetching contact names for tenant {}", tenantId, e);
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Failed to fetch contact names: " + e.getMessage()
+            ));
+        }
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<?> getSchedule(@PathVariable Long id) {
         try {
