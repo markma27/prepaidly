@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { scheduleApi, xeroApi } from '@/lib/api';
+import { scheduleApi, xeroApi, settingsApi } from '@/lib/api';
 import { validateDateRange, formatCurrency, generateProRataSchedule, countProRataPeriods } from '@/lib/utils';
 import type { XeroAccount, ScheduleType } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -108,19 +108,14 @@ function NewSchedulePageContent() {
     }
   };
 
-  const loadDefaultAccounts = (tid: string) => {
-    if (typeof window !== 'undefined') {
-      const savedDefaults = localStorage.getItem(`defaultAccounts_${tid}`);
-      if (savedDefaults) {
-        try {
-          const defaults = JSON.parse(savedDefaults);
-          setDefaultPrepaymentAccount(defaults.prepaymentAccount || '');
-          setDefaultUnearnedAccount(defaults.unearnedAccount || '');
-          setHasDefaultAccounts(!!defaults.prepaymentAccount || !!defaults.unearnedAccount);
-        } catch (e) {
-          console.error('Error parsing saved default accounts:', e);
-        }
-      }
+  const loadDefaultAccounts = async (tid: string) => {
+    try {
+      const defaults = await settingsApi.getSettings(tid);
+      setDefaultPrepaymentAccount(defaults.prepaymentAccount || '');
+      setDefaultUnearnedAccount(defaults.unearnedAccount || '');
+      setHasDefaultAccounts(!!defaults.prepaymentAccount || !!defaults.unearnedAccount);
+    } catch (e) {
+      console.error('Error loading default accounts:', e);
     }
   };
 
@@ -456,63 +451,60 @@ function NewSchedulePageContent() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               {/* Left Column - Schedule Details */}
               <div className="lg:col-span-2 space-y-5">
-                {/* Schedule Type Card */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-                    <h3 className="text-base font-bold text-gray-900">Schedule Type</h3>
-                  </div>
-                  <div className="p-5">
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setType('PREPAID');
-                          setShowPreview(false);
-                        }}
-                        className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 ${
-                          type === 'PREPAID'
-                            ? 'border-blue-500 bg-blue-50 text-blue-600'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-center gap-2">
-                          <DollarSign className="w-4 h-4" />
-                          Prepayment
-                        </div>
-                        <p className="text-[10px] font-normal mt-1 opacity-70">
-                          Expense paid upfront, recognised monthly
-                        </p>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setType('UNEARNED');
-                          setShowPreview(false);
-                        }}
-                        className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 ${
-                          type === 'UNEARNED'
-                            ? 'border-green-500 bg-green-50 text-green-600'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-center gap-2">
-                          <FileText className="w-4 h-4" />
-                          Unearned Revenue
-                        </div>
-                        <p className="text-[10px] font-normal mt-1 opacity-70">
-                          Revenue received upfront, recognised monthly
-                        </p>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Contact & Details Card */}
+                {/* Schedule Details Card */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
                     <h3 className="text-base font-bold text-gray-900">Schedule Details</h3>
                   </div>
                   <div className="p-5 space-y-5">
+                    {/* Schedule Type */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Schedule Type
+                      </label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setType('PREPAID');
+                            setShowPreview(false);
+                          }}
+                          className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 ${
+                            type === 'PREPAID'
+                              ? 'border-blue-500 bg-blue-50 text-blue-600'
+                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <DollarSign className="w-4 h-4" />
+                            Prepayment
+                          </div>
+                          <p className="text-[10px] font-normal mt-1 opacity-70">
+                            Expense paid upfront, recognised monthly
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setType('UNEARNED');
+                            setShowPreview(false);
+                          }}
+                          className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 ${
+                            type === 'UNEARNED'
+                              ? 'border-green-500 bg-green-50 text-green-600'
+                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            Unearned Revenue
+                          </div>
+                          <p className="text-[10px] font-normal mt-1 opacity-70">
+                            Revenue received upfront, recognised monthly
+                          </p>
+                        </button>
+                      </div>
+                    </div>
                     {/* Contact */}
                     <div className="relative">
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -744,76 +736,37 @@ function NewSchedulePageContent() {
                   </div>
                 </div>
 
-                {/* Preview Button */}
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={generatePreview}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium shadow-sm"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Preview Amortisation Schedule
-                  </button>
-                </div>
-
-                {/* Amortisation Schedule Preview */}
-                {showPreview && previewEntries.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200">
+                {/* Invoice Preview Card */}
+                {invoiceFile && invoicePreviewUrl && (
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
                       <div>
-                        <h3 className="text-base font-bold text-gray-900">
-                          Amortisation Schedule Preview
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {previewEntries.length}{' '}
-                          {previewEntries.length === 1 ? 'period' : 'periods'} — Total:{' '}
-                          {formatCurrency(parseFloat(totalAmount))}
-                        </p>
+                        <h3 className="text-base font-bold text-gray-900">Invoice Preview</h3>
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">{invoiceFile.name}</p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => window.open(invoicePreviewUrl, '_blank')}
+                        className="text-xs text-[#6d69ff] hover:text-[#5a56e6] hover:underline font-medium flex-shrink-0"
+                      >
+                        Open full size
+                      </button>
                     </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            <th className="px-5 py-3">Period</th>
-                            <th className="px-5 py-3">Posting Date</th>
-                            <th className="px-5 py-3 text-right">Days</th>
-                            <th className="px-5 py-3 text-right">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {previewEntries.map((entry) => (
-                            <tr key={entry.period} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-5 py-2.5 text-sm text-gray-700">
-                                {entry.period}
-                              </td>
-                              <td className="px-5 py-2.5 text-sm text-gray-900">
-                                {entry.date}
-                              </td>
-                              <td className="px-5 py-2.5 text-sm text-gray-500 text-right">
-                                {entry.days}
-                              </td>
-                              <td className="px-5 py-2.5 text-sm font-medium text-gray-900 text-right">
-                                {formatCurrency(entry.amount)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr className="bg-gray-50 font-bold">
-                            <td className="px-5 py-3 text-sm text-gray-900" colSpan={2}>
-                              Total
-                            </td>
-                            <td className="px-5 py-3 text-sm text-gray-500 text-right">
-                              {previewEntries.reduce((sum, e) => sum + e.days, 0)}
-                            </td>
-                            <td className="px-5 py-3 text-sm text-gray-900 text-right">
-                              {formatCurrency(parseFloat(totalAmount))}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                    {invoiceFile.type === 'application/pdf' ? (
+                      <iframe
+                        src={invoicePreviewUrl + '#toolbar=1&navpanes=0'}
+                        title="Invoice PDF preview"
+                        className="w-full h-[800px] border-0"
+                      />
+                    ) : (
+                      <div className="p-5">
+                        <img
+                          src={invoicePreviewUrl}
+                          alt="Invoice preview"
+                          className="w-full h-auto max-h-[800px] object-contain bg-gray-50 rounded-lg"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -821,7 +774,7 @@ function NewSchedulePageContent() {
               {/* Right Column - Summary & Actions */}
               <div className="space-y-5">
                 {/* Summary Card */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden sticky top-5">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
                     <h3 className="text-base font-bold text-gray-900">Summary</h3>
                   </div>
@@ -901,6 +854,14 @@ function NewSchedulePageContent() {
                     {/* Divider */}
                     <div className="border-t border-gray-100 pt-4 space-y-3">
                       <button
+                        type="button"
+                        onClick={generatePreview}
+                        className="w-full flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Preview Amortisation Schedule
+                      </button>
+                      <button
                         type="submit"
                         disabled={submitting || !getDeferralAcctCode()}
                         className="w-full px-5 py-2.5 bg-[#6d69ff] text-white rounded-lg hover:bg-[#5a56e6] transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-sm shadow-sm"
@@ -946,37 +907,64 @@ function NewSchedulePageContent() {
                   </div>
                 </div>
 
-                {/* Invoice Preview Card - separate from Summary */}
-                {invoiceFile && invoicePreviewUrl && (
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                {/* Amortisation Schedule Preview */}
+                {showPreview && previewEntries.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200">
                     <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
                       <div>
-                        <h3 className="text-base font-bold text-gray-900">Invoice Preview</h3>
-                        <p className="text-xs text-gray-500 mt-0.5 truncate">{invoiceFile.name}</p>
+                        <h3 className="text-base font-bold text-gray-900">
+                          Amortisation Schedule Preview
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {previewEntries.length}{' '}
+                          {previewEntries.length === 1 ? 'period' : 'periods'} — Total:{' '}
+                          {formatCurrency(parseFloat(totalAmount))}
+                        </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => window.open(invoicePreviewUrl, '_blank')}
-                        className="text-xs text-[#6d69ff] hover:text-[#5a56e6] hover:underline font-medium flex-shrink-0"
-                      >
-                        Open full size
-                      </button>
                     </div>
-                    {invoiceFile.type === 'application/pdf' ? (
-                      <iframe
-                        src={invoicePreviewUrl + '#toolbar=1&navpanes=0'}
-                        title="Invoice PDF preview"
-                        className="w-full h-[500px] border-0"
-                      />
-                    ) : (
-                      <div className="p-5">
-                        <img
-                          src={invoicePreviewUrl}
-                          alt="Invoice preview"
-                          className="w-full h-auto max-h-[500px] object-contain bg-gray-50 rounded-lg"
-                        />
-                      </div>
-                    )}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <th className="px-5 py-3">Period</th>
+                            <th className="px-5 py-3">Posting Date</th>
+                            <th className="px-5 py-3 text-right">Days</th>
+                            <th className="px-5 py-3 text-right">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {previewEntries.map((entry) => (
+                            <tr key={entry.period} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-5 py-2.5 text-sm text-gray-700">
+                                {entry.period}
+                              </td>
+                              <td className="px-5 py-2.5 text-sm text-gray-900">
+                                {entry.date}
+                              </td>
+                              <td className="px-5 py-2.5 text-sm text-gray-500 text-right">
+                                {entry.days}
+                              </td>
+                              <td className="px-5 py-2.5 text-sm font-medium text-gray-900 text-right">
+                                {formatCurrency(entry.amount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-gray-50 font-bold">
+                            <td className="px-5 py-3 text-sm text-gray-900" colSpan={2}>
+                              Total
+                            </td>
+                            <td className="px-5 py-3 text-sm text-gray-500 text-right">
+                              {previewEntries.reduce((sum, e) => sum + e.days, 0)}
+                            </td>
+                            <td className="px-5 py-3 text-sm text-gray-900 text-right">
+                              {formatCurrency(parseFloat(totalAmount))}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>

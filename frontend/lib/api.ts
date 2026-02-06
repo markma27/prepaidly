@@ -235,5 +235,30 @@ export const authApi = {
   },
 };
 
+// Settings API
+export const settingsApi = {
+  /**
+   * Get tenant settings (default accounts)
+   */
+  getSettings: async (tenantId: string): Promise<{ prepaymentAccount: string; unearnedAccount: string }> => {
+    return fetchApi<{ prepaymentAccount: string; unearnedAccount: string }>(
+      `/api/settings?tenantId=${encodeURIComponent(tenantId)}`
+    );
+  },
+
+  /**
+   * Save tenant settings (default accounts)
+   */
+  saveSettings: async (tenantId: string, settings: { prepaymentAccount: string; unearnedAccount: string }): Promise<{ prepaymentAccount: string; unearnedAccount: string }> => {
+    return fetchApi<{ prepaymentAccount: string; unearnedAccount: string }>(
+      `/api/settings?tenantId=${encodeURIComponent(tenantId)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      }
+    );
+  },
+};
+
 export { ApiError };
 

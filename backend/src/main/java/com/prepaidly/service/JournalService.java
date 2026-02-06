@@ -47,13 +47,23 @@ public class JournalService {
         // Build journal lines based on schedule type
         List<JournalLine> journalLines = buildJournalLines(schedule, entry);
         
-        // Create narration
-        String narration = String.format(
-            "%s Recognition - %s (Period: %s)",
-            schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepayment" : "Unearned Revenue",
-            schedule.getType() == Schedule.ScheduleType.PREPAID ? "Expense" : "Revenue",
-            entry.getPeriodDate().toString()
-        );
+        // Create narration with key schedule information
+        StringBuilder narrationBuilder = new StringBuilder();
+        narrationBuilder.append(schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepayment" : "Unearned Revenue");
+        narrationBuilder.append(" Recognition");
+        if (schedule.getContactName() != null && !schedule.getContactName().isEmpty()) {
+            narrationBuilder.append(" - ").append(schedule.getContactName());
+        }
+        if (schedule.getDescription() != null && !schedule.getDescription().isEmpty()) {
+            narrationBuilder.append(" | ").append(schedule.getDescription());
+        }
+        narrationBuilder.append(String.format(" | Period: %s | Amount: $%.2f | Schedule: %s to %s",
+            entry.getPeriodDate().toString(),
+            entry.getAmount(),
+            schedule.getStartDate().toString(),
+            schedule.getEndDate().toString()
+        ));
+        String narration = narrationBuilder.toString();
         
         try {
             // Create manual journal in Xero
@@ -90,35 +100,52 @@ public class JournalService {
     private List<JournalLine> buildJournalLines(Schedule schedule, JournalEntry entry) {
         List<JournalLine> lines = new ArrayList<>();
         
+        // Build a descriptive suffix with contact and description
+        String detail = buildLineDetail(schedule);
+        
         if (schedule.getType() == Schedule.ScheduleType.PREPAID) {
             // Prepayment: Debit Expense, Credit Deferral
             JournalLine expenseLine = new JournalLine();
             expenseLine.setAccountCode(schedule.getExpenseAcctCode());
-            expenseLine.setDescription("Prepayment recognition");
+            expenseLine.setDescription("Prepayment recognition" + detail);
             expenseLine.setLineAmount(entry.getAmount());
             lines.add(expenseLine);
             
             JournalLine deferralLine = new JournalLine();
             deferralLine.setAccountCode(schedule.getDeferralAcctCode());
-            deferralLine.setDescription("Prepayment deferral reduction");
+            deferralLine.setDescription("Prepayment deferral reduction" + detail);
             deferralLine.setLineAmount(entry.getAmount().negate());
             lines.add(deferralLine);
         } else {
             // Unearned Revenue: Debit Deferral, Credit Revenue
             JournalLine deferralLine = new JournalLine();
             deferralLine.setAccountCode(schedule.getDeferralAcctCode());
-            deferralLine.setDescription("Unearned revenue recognition");
+            deferralLine.setDescription("Unearned revenue deferral reduction" + detail);
             deferralLine.setLineAmount(entry.getAmount().negate());
             lines.add(deferralLine);
             
             JournalLine revenueLine = new JournalLine();
             revenueLine.setAccountCode(schedule.getRevenueAcctCode());
-            revenueLine.setDescription("Unearned revenue recognition");
+            revenueLine.setDescription("Unearned revenue recognition" + detail);
             revenueLine.setLineAmount(entry.getAmount());
             lines.add(revenueLine);
         }
         
         return lines;
+    }
+    
+    /**
+     * Build a detail suffix for journal line descriptions including contact and description
+     */
+    private String buildLineDetail(Schedule schedule) {
+        StringBuilder sb = new StringBuilder();
+        if (schedule.getContactName() != null && !schedule.getContactName().isEmpty()) {
+            sb.append(" - ").append(schedule.getContactName());
+        }
+        if (schedule.getDescription() != null && !schedule.getDescription().isEmpty()) {
+            sb.append(" | ").append(schedule.getDescription());
+        }
+        return sb.toString();
     }
 }
 

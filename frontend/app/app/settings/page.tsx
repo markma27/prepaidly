@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { xeroApi, xeroAuthApi, syncApi } from '@/lib/api';
+import { xeroApi, xeroAuthApi, syncApi, settingsApi } from '@/lib/api';
 import type { XeroAccount, XeroConnectionStatusResponse } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -96,18 +96,13 @@ function SettingsPageContent() {
         );
         setAccounts(filteredAccounts);
         
-        // Load saved default accounts from localStorage
-        if (typeof window !== 'undefined') {
-          const savedDefaults = localStorage.getItem(`defaultAccounts_${tid}`);
-          if (savedDefaults) {
-            try {
-              const defaults = JSON.parse(savedDefaults);
-              setDefaultPrepaymentAccount(defaults.prepaymentAccount || '');
-              setDefaultUnearnedAccount(defaults.unearnedAccount || '');
-            } catch (e) {
-              console.error('Error parsing saved default accounts:', e);
-            }
-          }
+        // Load saved default accounts from database
+        try {
+          const defaults = await settingsApi.getSettings(tid);
+          setDefaultPrepaymentAccount(defaults.prepaymentAccount || '');
+          setDefaultUnearnedAccount(defaults.unearnedAccount || '');
+        } catch (e) {
+          console.error('Error loading default accounts:', e);
         }
       } catch (accountsErr: any) {
         console.error('Error loading accounts:', accountsErr);
@@ -168,19 +163,18 @@ function SettingsPageContent() {
     setSaveSuccess(false);
   };
 
-  // Save default accounts to localStorage
-  const handleSaveDefaults = () => {
-    if (!tenantId || typeof window === 'undefined') return;
+  // Save default accounts to database
+  const handleSaveDefaults = async () => {
+    if (!tenantId) return;
     
     setSaving(true);
     setSaveSuccess(false);
     
     try {
-      const defaults = {
+      await settingsApi.saveSettings(tenantId, {
         prepaymentAccount: defaultPrepaymentAccount,
-        unearnedAccount: defaultUnearnedAccount
-      };
-      localStorage.setItem(`defaultAccounts_${tenantId}`, JSON.stringify(defaults));
+        unearnedAccount: defaultUnearnedAccount,
+      });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (err) {
