@@ -18,6 +18,7 @@ export interface XeroConnection {
   tenantName: string;
   connected: boolean | null; // null means "unknown" - not validated yet
   message: string;
+  disconnectReason?: string | null; // reason for disconnection (null if connected)
 }
 
 export interface XeroConnectionStatusResponse {

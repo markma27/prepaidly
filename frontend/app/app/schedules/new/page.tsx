@@ -8,6 +8,7 @@ import type { XeroAccount, ScheduleType } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
+import Skeleton from '@/components/Skeleton';
 import { User, Eye, DollarSign, FileText, AlertTriangle, Info, Upload, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -407,7 +408,7 @@ function NewSchedulePageContent() {
 
   if (!tenantId) {
     return (
-      <div className="container mx-auto p-8">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <LoadingSpinner message="Loading..." />
       </div>
     );
@@ -416,8 +417,98 @@ function NewSchedulePageContent() {
   return (
     <DashboardLayout tenantId={tenantId}>
       {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <LoadingSpinner message="Loading account list..." />
+        <div className="max-w-[1800px] mx-auto space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+                  <h3 className="text-base font-bold text-gray-900">New Schedule</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Create a new prepayment or unearned revenue schedule</p>
+                </div>
+                <div className="p-5 space-y-5">
+                  {/* Schedule Type - match two-line buttons (py-3) */}
+                  <div>
+                    <Skeleton className="h-5 w-full mb-1.5 max-w-[6rem]" variant="text" />
+                    <div className="flex gap-3">
+                      <Skeleton className="h-[3.75rem] flex-1 rounded-lg" variant="rectangular" />
+                      <Skeleton className="h-[3.75rem] flex-1 rounded-lg" variant="rectangular" />
+                    </div>
+                  </div>
+                  {/* Contact */}
+                  <div>
+                    <Skeleton className="h-5 w-full mb-1.5 max-w-[4rem]" variant="text" />
+                    <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
+                    <Skeleton className="h-3 w-full mt-1 max-w-[18rem]" variant="text" />
+                  </div>
+                  {/* Dates */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Skeleton className="h-5 w-full mb-1.5" variant="text" />
+                      <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
+                    </div>
+                    <div>
+                      <Skeleton className="h-5 w-full mb-1.5" variant="text" />
+                      <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
+                    </div>
+                  </div>
+                  {/* Total Amount & Account */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Skeleton className="h-5 w-full mb-1.5" variant="text" />
+                      <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
+                    </div>
+                    <div>
+                      <Skeleton className="h-5 w-full mb-1.5" variant="text" />
+                      <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
+                    </div>
+                  </div>
+                  {/* Description */}
+                  <div>
+                    <Skeleton className="h-5 w-full mb-1.5 max-w-[5rem]" variant="text" />
+                    <Skeleton className="h-20 w-full rounded-lg" variant="rectangular" />
+                  </div>
+                  {/* Invoice */}
+                  <div>
+                    <Skeleton className="h-5 w-full mb-1.5 max-w-[4rem]" variant="text" />
+                    <Skeleton className="h-14 w-full rounded-lg border-2 border-dashed border-gray-200" variant="rectangular" />
+                    <Skeleton className="h-3 w-full mt-1 max-w-[14rem]" variant="text" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Right - Summary card */}
+            <div className="space-y-5">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+                  <h3 className="text-base font-bold text-gray-900">Summary</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Preview schedule totals and period breakdown</p>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <Skeleton className="h-4 w-12" variant="text" />
+                    <Skeleton className="h-5 w-24 rounded-md" variant="rectangular" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <Skeleton className="h-4 w-16" variant="text" />
+                    <Skeleton className="h-4 w-full max-w-[8rem]" variant="text" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <Skeleton className="h-4 w-16" variant="text" />
+                    <Skeleton className="h-4 w-20" variant="text" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <Skeleton className="h-4 w-24" variant="text" />
+                    <Skeleton className="h-4 w-20" variant="text" />
+                  </div>
+                  <div className="border-t border-gray-100 pt-4 space-y-3">
+                    <Skeleton className="h-9 w-full rounded-lg" variant="rectangular" />
+                    <Skeleton className="h-9 w-full rounded-lg" variant="rectangular" />
+                    <Skeleton className="h-9 w-full rounded-lg" variant="rectangular" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="max-w-[1800px] mx-auto space-y-5">
@@ -451,10 +542,11 @@ function NewSchedulePageContent() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               {/* Left Column - Schedule Details */}
               <div className="lg:col-span-2 space-y-5">
-                {/* Schedule Details Card */}
+                {/* New Schedule card */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-                    <h3 className="text-base font-bold text-gray-900">Schedule Details</h3>
+                    <h3 className="text-base font-bold text-gray-900">New Schedule</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Create a new prepayment or unearned revenue schedule</p>
                   </div>
                   <div className="p-5 space-y-5">
                     {/* Schedule Type */}
@@ -777,6 +869,7 @@ function NewSchedulePageContent() {
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
                     <h3 className="text-base font-bold text-gray-900">Summary</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Preview schedule totals and period breakdown</p>
                   </div>
                   <div className="p-5 space-y-4">
                     {/* Type Badge */}
@@ -983,8 +1076,56 @@ export default function NewSchedulePage() {
         <div className="min-h-screen bg-white">
           <div className="fixed inset-y-0 left-0 w-56 bg-[#F9FAFB] z-10 border-r border-gray-200"></div>
           <div className="pl-56">
-            <div className="p-8">
-              <LoadingSpinner message="Loading..." />
+            <div className="p-8 max-w-[1800px] mx-auto space-y-5">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div className="lg:col-span-2">
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+                      <h3 className="text-base font-bold text-gray-900">New Schedule</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Create a new prepayment or unearned revenue schedule</p>
+                    </div>
+                    <div className="p-5 space-y-5">
+                      <div>
+                        <Skeleton className="h-5 w-24 mb-1.5" variant="text" />
+                        <div className="flex gap-3">
+                          <Skeleton className="h-[3.75rem] flex-1 rounded-lg" variant="rectangular" />
+                          <Skeleton className="h-[3.75rem] flex-1 rounded-lg" variant="rectangular" />
+                        </div>
+                      </div>
+                      <div>
+                        <Skeleton className="h-5 w-16 mb-1.5" variant="text" />
+                        <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Skeleton className="h-5 w-full mb-1.5" variant="text" />
+                          <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
+                        </div>
+                        <div>
+                          <Skeleton className="h-5 w-full mb-1.5" variant="text" />
+                          <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+                      <h3 className="text-base font-bold text-gray-900">Summary</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Preview schedule totals and period breakdown</p>
+                    </div>
+                    <div className="p-5 space-y-4">
+                      <Skeleton className="h-4 w-full" variant="text" />
+                      <Skeleton className="h-4 w-full" variant="text" />
+                      <div className="border-t border-gray-100 pt-4 space-y-3">
+                        <Skeleton className="h-9 w-full rounded-lg" variant="rectangular" />
+                        <Skeleton className="h-9 w-full rounded-lg" variant="rectangular" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

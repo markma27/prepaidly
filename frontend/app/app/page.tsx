@@ -187,10 +187,10 @@ export default function AppPage() {
     );
   }
 
-  // Show all connections, not just connected ones, so we can debug
+  // Categorize connections by status
   const allConnections = connectionStatus?.connections || [];
-  const connectedConnections = allConnections.filter(conn => conn.connected);
-  const disconnectedConnections = allConnections.filter(conn => !conn.connected);
+  const connectedConnections = allConnections.filter(conn => conn.connected === true);
+  const disconnectedConnections = allConnections.filter(conn => conn.connected === false);
 
   return (
     <div className="min-h-screen bg-white">
@@ -226,6 +226,9 @@ export default function AppPage() {
             <strong>Debug:</strong> Total connections: {connectionStatus.totalConnections}, 
             Connected: {connectedConnections.length}, 
             Disconnected: {disconnectedConnections.length}
+            {disconnectedConnections.length > 0 && (
+              <span> (reasons: {disconnectedConnections.map(c => c.disconnectReason || 'unknown').join(', ')})</span>
+            )}
           </div>
         )}
 
@@ -255,9 +258,9 @@ export default function AppPage() {
                       <div 
                         key={index} 
                         className={`border rounded-lg p-4 transition-all duration-200 hover:shadow-sm ${
-                          conn.connected 
+                          conn.connected === true 
                             ? 'border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300' 
-                            : 'border-yellow-200 bg-yellow-50 hover:bg-yellow-100'
+                            : 'border-red-200 bg-red-50/50 hover:bg-red-50'
                         }`}
                       >
                         <div className="flex justify-between items-center">
@@ -266,24 +269,35 @@ export default function AppPage() {
                               <h3 className="font-semibold text-base text-gray-900 truncate">
                                 {conn.tenantName || conn.tenantId}
                               </h3>
-                              {conn.connected ? (
+                              {conn.connected === true ? (
                                 <span className="flex-shrink-0 px-2 py-0.5 bg-green-50 text-green-700 rounded-md text-[10px] font-bold uppercase flex items-center gap-1">
                                   <CheckCircle2 className="w-3 h-3" />
                                   Connected
                                 </span>
                               ) : (
-                                <span className="flex-shrink-0 px-2 py-0.5 bg-yellow-50 text-yellow-700 rounded-md text-[10px] font-bold uppercase">
+                                <span className="flex-shrink-0 px-2 py-0.5 bg-red-50 text-red-700 rounded-md text-[10px] font-bold uppercase">
                                   Disconnected
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-gray-500">{conn.message || 'Status unknown'}</p>
-                            {!conn.connected && (
-                              <p className="text-xs text-yellow-700 mt-1">Tenant ID: {conn.tenantId}</p>
+                            {conn.connected === false && conn.disconnectReason && (
+                              <p className="text-xs text-red-600 mt-0.5">
+                                {conn.disconnectReason === 'invalid_grant' 
+                                  ? 'Token expired or revoked — please reconnect'
+                                  : conn.disconnectReason === 'unauthorized_client'
+                                  ? 'Authorization revoked — please reconnect'
+                                  : `Reason: ${conn.disconnectReason}`}
+                              </p>
+                            )}
+                            {conn.connected === false && !conn.disconnectReason && (
+                              <p className="text-xs text-yellow-700 mt-0.5">{conn.message || 'Token validation failed'}</p>
+                            )}
+                            {conn.connected === false && (
+                              <p className="text-xs text-gray-400 mt-1">Tenant ID: {conn.tenantId}</p>
                             )}
                           </div>
                           <div className="flex items-center gap-2 ml-4">
-                            {conn.connected ? (
+                            {conn.connected === true ? (
                               <>
                                 <button
                                   onClick={() => handleGoToDashboard(conn.tenantId)}

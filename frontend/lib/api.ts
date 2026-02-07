@@ -8,14 +8,18 @@ import {
   PostJournalResponse,
 } from './types';
 
-// API base URL - must be set in Vercel environment variables for production
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-    ? 'http://localhost:8080' 
-    : '');
+// API base URL - must be set in Vercel env for production; localhost always uses :8080
+function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return 'http://localhost:8080'; // local dev: always backend on 8080
+  }
+  return process.env.NEXT_PUBLIC_API_URL || '';
+}
+
+const API_BASE_URL = typeof window !== 'undefined' ? getApiBaseUrl() : (process.env.NEXT_PUBLIC_API_URL || '');
 
 if (!API_BASE_URL && typeof window !== 'undefined') {
-  console.error('NEXT_PUBLIC_API_URL is not set! Please configure it in Vercel environment variables.');
+  console.error('NEXT_PUBLIC_API_URL is not set! Set it in Vercel env for production.');
 }
 
 class ApiError extends Error {
@@ -96,17 +100,17 @@ export const xeroAuthApi = {
   },
 
   /**
-   * Get Xero authorization URL (redirects to Xero login)
+   * Get Xero authorization URL (redirects to Xero login).
+   * Backend uses default user; no query params to avoid 400.
    */
-  getConnectUrl: (userId?: number): string => {
+  getConnectUrl: (_userId?: number): string => {
     if (!API_BASE_URL) {
       throw new ApiError(
         'API base URL is not configured. Please set NEXT_PUBLIC_API_URL environment variable.',
         500
       );
     }
-    const params = userId ? `?userId=${userId}` : '';
-    return `${API_BASE_URL}/api/auth/xero/connect${params}`;
+    return `${API_BASE_URL}/api/auth/xero/connect`;
   },
 
   /**

@@ -127,11 +127,20 @@ public class SyncController {
         try {
             XeroConnection connection = xeroConnectionRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new RuntimeException("Xero connection not found for tenant: " + tenantId));
+
+            // If connection is already marked DISCONNECTED, tell user to re-authorize
+            if (!connection.isConnected()) {
+                return ResponseEntity.status(400).body(Map.of(
+                    "success", false,
+                    "error", "Connection is disconnected (reason: " + connection.getDisconnectReason() + "). Please reconnect to Xero.",
+                    "disconnected", true
+                ));
+            }
             
-            // Refresh tokens if needed
+            // Refresh tokens (may throw InvalidGrantException if refresh token is dead)
             connection = xeroOAuthService.refreshTokens(connection);
             
-            // Verify connection is still valid by getting tenant info
+            // Verify connection is still valid
             String accessToken = xeroOAuthService.getValidAccessToken(connection);
             Map<String, Object> tenantInfo = xeroOAuthService.getTenantInfo(accessToken);
             
@@ -148,8 +157,16 @@ public class SyncController {
                 "tenantName", tenantInfo.get("Name"),
                 "message", "Tokens refreshed and connection verified"
             ));
+        } catch (XeroOAuthService.InvalidGrantException e) {
+            // Refresh token is dead - connection already marked DISCONNECTED
+            log.error("Sync failed for tenant {}: refresh token invalid. Connection marked DISCONNECTED.", tenantId);
+            return ResponseEntity.status(400).body(Map.of(
+                "success", false,
+                "error", "Refresh token expired or revoked. Please reconnect to Xero.",
+                "disconnected", true
+            ));
         } catch (Exception e) {
-            log.error("Error syncing tenant {}", tenantId, e);
+            log.error("Error syncing tenant {}: {}", tenantId, e.getMessage());
             return ResponseEntity.status(500).body(Map.of(
                 "success", false,
                 "error", "Failed to sync: " + e.getMessage()

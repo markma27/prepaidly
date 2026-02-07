@@ -47,6 +47,15 @@ Frontend will run on `http://localhost:3000`.
 
 Make sure the backend Spring Boot application is running on `http://localhost:8080`.
 
+### 5. Local vs production (Vercel + Railway)
+
+- **Production:** Frontend uses `NEXT_PUBLIC_API_URL` (Railway). Reconnect/Connect works.
+- **Local:** Frontend always uses `http://localhost:8080` when you open the app from `localhost:3000` (no env needed). For Reconnect/Connect to work:
+  1. Backend must be running: `cd backend` then `.\gradlew.bat bootRun` (Windows) with **local profile**: `set SPRING_PROFILES_ACTIVE=local` (or `$env:SPRING_PROFILES_ACTIVE='local'` in PowerShell) so it uses your Supabase DB and Xero redirect URI `http://localhost:8080/api/auth/xero/callback`.
+  2. Xero app redirect URI must include `http://localhost:8080/api/auth/xero/callback` in [Xero Developer](https://developer.xero.com/myapps).
+
+If you get **400 Bad Request** on Reconnect locally, restart the backend so it loads the latest code (connect endpoint has no query params).
+
 ## Usage Flow
 
 ### 1. Connect to Xero

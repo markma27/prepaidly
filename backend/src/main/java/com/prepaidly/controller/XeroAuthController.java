@@ -121,10 +121,11 @@ public class XeroAuthController {
      * @see XeroAuthController#callback(String, String, Long) for handling the OAuth callback
      */
     @GetMapping("/connect")
-    public ResponseEntity<?> connect(@RequestParam(required = false) Long userId) {
+    public ResponseEntity<?> connect() {
         try {
-            Long targetUserId = userId != null ? userId : DEFAULT_USER_ID;
-            log.info("Xero connect request received for user: {}", targetUserId);
+            // Always use default user for OAuth; no query params to avoid 400 from invalid userId
+            long targetUserId = DEFAULT_USER_ID;
+            log.info("Xero connect request received, using user: {}", targetUserId);
             String authUrl = xeroOAuthService.getAuthorizationUrl(targetUserId);
             
             log.info("Redirecting to Xero authorization URL");
@@ -135,6 +136,18 @@ public class XeroAuthController {
             log.error("Error generating authorization URL", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Failed to generate authorization URL: " + e.getMessage()));
+        }
+    }
+
+    /** Parse userId from query param; use DEFAULT_USER_ID if null, empty, "undefined", or not a number (e.g. Supabase UUID). */
+    private static Long parseUserId(String userId) {
+        if (userId == null || userId.isBlank() || "undefined".equalsIgnoreCase(userId) || "null".equalsIgnoreCase(userId)) {
+            return DEFAULT_USER_ID;
+        }
+        try {
+            return Long.parseLong(userId.trim());
+        } catch (NumberFormatException e) {
+            return DEFAULT_USER_ID;
         }
     }
 
@@ -210,9 +223,9 @@ public class XeroAuthController {
     public ResponseEntity<?> callback(
             @RequestParam String code,
             @RequestParam(required = false) String state,
-            @RequestParam(required = false) Long userId) {
+            @RequestParam(required = false) String userId) {
         try {
-            Long targetUserId = userId != null ? userId : DEFAULT_USER_ID;
+            Long targetUserId = parseUserId(userId);
             
             // Validate state parameter is present
             if (state == null || state.isEmpty()) {
@@ -423,167 +436,124 @@ public class XeroAuthController {
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false, defaultValue = "false") boolean validateTokens) {
         try {
-            // Validate repositories are available
-            if (userRepository == null) {
-                log.error("UserRepository is null");
-                throw new RuntimeException("UserRepository not initialized");
-            }
-            if (xeroConnectionRepository == null) {
-                log.error("XeroConnectionRepository is null");
-                throw new RuntimeException("XeroConnectionRepository not initialized");
-            }
+            List<XeroConnection> connections = xeroConnectionRepository.findAll();
             
-            List<XeroConnection> connections;
+            log.info("Found {} total connections. validateTokens={}", connections.size(), validateTokens);
             
-            // Return ALL connections so all users can see all Xero entities
-            // This allows multiple users to access the same Xero connections
-            log.info("Returning all Xero connections for user ID: {}, validateTokens: {}", userId, validateTokens);
-            connections = xeroConnectionRepository.findAll();
-            
-            log.info("Found {} total connections in database to process", connections.size());
-            
-            // Process all connections (even if empty) to create response list
-            // FAST PATH: Return stored tenant names immediately, validate tokens only if requested
             List<XeroConnectionResponse> connectionResponses = connections.stream()
                 .map(conn -> {
                     try {
                         XeroConnectionResponse response = new XeroConnectionResponse();
                         response.setTenantId(conn.getTenantId());
                         
-                        // ALWAYS use stored tenant name first (this works even if tokens expire)
-                        // This ensures fast response even when tokens are expired
+                        // Always use stored tenant name (works even when tokens are expired)
                         String storedTenantName = conn.getTenantName();
-                        if (storedTenantName != null && !storedTenantName.trim().isEmpty()) {
-                            response.setTenantName(storedTenantName);
-                        } else {
-                            // Fallback to tenantId if no name stored
-                            response.setTenantName(conn.getTenantId());
+                        response.setTenantName(storedTenantName != null && !storedTenantName.trim().isEmpty() 
+                            ? storedTenantName : conn.getTenantId());
+                        
+                        // Use stored connection_status as primary source of truth
+                        boolean isStoredConnected = conn.isConnected();
+                        
+                        if (!isStoredConnected) {
+                            // Connection is DISCONNECTED - user must re-authorize
+                            response.setConnected(false);
+                            response.setDisconnectReason(conn.getDisconnectReason());
+                            response.setMessage("Disconnected: " + 
+                                (conn.getDisconnectReason() != null ? conn.getDisconnectReason() : "unknown reason"));
+                            log.debug("Tenant {} is DISCONNECTED (reason: {})", 
+                                conn.getTenantId(), conn.getDisconnectReason());
+                            return response;
                         }
                         
-                        // Only validate tokens if explicitly requested (for faster initial load)
-                        // Default to false to prioritize speed over validation
                         if (validateTokens) {
-                            // Try to verify connection with timeout protection
+                            // Validate by attempting to get a valid access token (may trigger refresh)
                             try {
-                                // Use a timeout to prevent hanging on slow token refresh
                                 String accessToken = xeroOAuthService.getValidAccessToken(conn);
                                 response.setConnected(true);
                                 response.setMessage("Connected");
                                 
-                                // Optionally update tenant name from API if we don't have one stored
+                                // Update tenant name if missing
                                 if (storedTenantName == null || storedTenantName.trim().isEmpty()) {
                                     try {
                                         Map<String, Object> tenantInfo = xeroOAuthService.getTenantInfo(accessToken, conn.getTenantId());
                                         if (tenantInfo != null) {
-                                            String apiTenantName = (String) tenantInfo.get("Name");
-                                            if (apiTenantName != null && !apiTenantName.trim().isEmpty()) {
-                                                response.setTenantName(apiTenantName);
-                                                // Update stored name for future use
-                                                conn.setTenantName(apiTenantName);
+                                            String apiName = (String) tenantInfo.get("Name");
+                                            if (apiName != null && !apiName.trim().isEmpty()) {
+                                                response.setTenantName(apiName);
+                                                conn.setTenantName(apiName);
                                                 xeroConnectionRepository.save(conn);
-                                                log.info("Updated stored tenant name: {} for tenantId: {}", apiTenantName, conn.getTenantId());
                                             }
                                         }
-                                    } catch (Exception e) {
-                                        log.debug("Could not fetch tenant name from API for tenantId {}: {}", conn.getTenantId(), e.getMessage());
-                                        // Continue with stored name
-                                    }
+                                    } catch (Exception ignored) {}
                                 }
                             } catch (Exception e) {
-                                log.debug("Token validation failed for tenantId {}: {} (using stored tenant name)", 
+                                log.debug("Token validation failed for tenant {}: {}", 
                                     conn.getTenantId(), e.getMessage());
                                 response.setConnected(false);
                                 response.setMessage("Token validation failed");
-                                // Keep the stored tenant name even if connection check fails
-                            }
-                        } else {
-                            // Fast path: Assume connected if we have a stored name, mark as unknown status
-                            // This allows UI to load immediately
-                            response.setConnected(null); // null means "unknown" - not validated
-                            response.setMessage("Not validated");
-                            
-                            // If tenant name is missing, try to fetch it in background (non-blocking)
-                            // This helps populate tenant names that were lost due to transaction errors
-                            if (storedTenantName == null || storedTenantName.trim().isEmpty() || 
-                                storedTenantName.equals(conn.getTenantId())) {
-                                try {
-                                    // Try to get a valid token (may fail if expired, that's OK)
-                                    String accessToken = xeroOAuthService.getValidAccessToken(conn);
-                                    Map<String, Object> tenantInfo = xeroOAuthService.getTenantInfo(accessToken, conn.getTenantId());
-                                    if (tenantInfo != null) {
-                                        String apiTenantName = (String) tenantInfo.get("Name");
-                                        if (apiTenantName != null && !apiTenantName.trim().isEmpty()) {
-                                            response.setTenantName(apiTenantName);
-                                            // Update stored name for future use
-                                            conn.setTenantName(apiTenantName);
-                                            xeroConnectionRepository.save(conn);
-                                            log.info("Updated stored tenant name (fast path): {} for tenantId: {}", apiTenantName, conn.getTenantId());
-                                        }
-                                    }
-                                } catch (Exception e) {
-                                    // Silently fail - tokens might be expired, that's OK for fast path
-                                    log.debug("Could not fetch tenant name in fast path for tenantId {}: {}", conn.getTenantId(), e.getMessage());
+                                
+                                // Check if the exception indicates a permanent disconnect
+                                String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+                                if (msg.contains("invalid_grant") || msg.contains("disconnected") || 
+                                    msg.contains("re-authorize")) {
+                                    response.setDisconnectReason(conn.getDisconnectReason());
                                 }
                             }
+                        } else {
+                            // Fast path: trust stored status
+                            response.setConnected(true);
+                            response.setMessage("Connected");
                         }
                         return response;
                     } catch (Exception e) {
-                        log.error("Error processing connection for tenantId {}: {}", conn.getTenantId(), e.getMessage(), e);
-                        // Return a response with error status - IMPORTANT: Always return something
-                        XeroConnectionResponse errorResponse = new XeroConnectionResponse();
-                        errorResponse.setTenantId(conn.getTenantId());
-                        errorResponse.setTenantName(conn.getTenantName() != null ? conn.getTenantName() : conn.getTenantId());
-                        errorResponse.setConnected(false);
-                        errorResponse.setMessage("Error processing connection: " + e.getMessage());
-                        return errorResponse;
+                        log.error("Error processing connection for tenant {}: {}", 
+                            conn.getTenantId(), e.getMessage());
+                        XeroConnectionResponse errorResp = new XeroConnectionResponse();
+                        errorResp.setTenantId(conn.getTenantId());
+                        errorResp.setTenantName(conn.getTenantName() != null ? conn.getTenantName() : conn.getTenantId());
+                        errorResp.setConnected(false);
+                        errorResp.setMessage("Error: " + e.getMessage());
+                        errorResp.setDisconnectReason(conn.getDisconnectReason());
+                        return errorResp;
                     }
                 })
                 .collect(Collectors.toList());
-            
-            log.info("Processed {} connections, returning {} responses", connections.size(), connectionResponses.size());
-            if (connectionResponses.isEmpty() && !connections.isEmpty()) {
-                log.error("CRITICAL: Had {} connections in database but processed 0 responses! This should never happen.", connections.size());
-            }
             
             XeroConnectionStatusResponse statusResponse = new XeroConnectionStatusResponse();
             statusResponse.setConnections(connectionResponses);
             statusResponse.setTotalConnections(connectionResponses.size());
             
-            log.info("Returning status response with {} connections (totalConnections: {})", 
-                connectionResponses.size(), statusResponse.getTotalConnections());
+            long connectedCount = connectionResponses.stream().filter(r -> Boolean.TRUE.equals(r.getConnected())).count();
+            long disconnectedCount = connectionResponses.stream().filter(r -> Boolean.FALSE.equals(r.getConnected())).count();
+            log.info("Returning {} connections: {} connected, {} disconnected", 
+                connectionResponses.size(), connectedCount, disconnectedCount);
             
             return ResponseEntity.ok(statusResponse);
         } catch (Exception e) {
             log.error("Error getting connection status", e);
-            // Even on error, try to return at least basic connection info from database
+            // Fallback: return stored data without validation
             try {
                 List<XeroConnection> fallbackConnections = xeroConnectionRepository.findAll();
-                log.warn("Attempting fallback: Found {} connections in database", fallbackConnections.size());
                 List<XeroConnectionResponse> fallbackResponses = new java.util.ArrayList<>();
                 for (XeroConnection conn : fallbackConnections) {
-                    XeroConnectionResponse fallbackResponse = new XeroConnectionResponse();
-                    fallbackResponse.setTenantId(conn.getTenantId());
-                    fallbackResponse.setTenantName(conn.getTenantName() != null ? conn.getTenantName() : conn.getTenantId());
-                    fallbackResponse.setConnected(false);
-                    fallbackResponse.setMessage("Error: " + e.getMessage());
-                    fallbackResponses.add(fallbackResponse);
+                    XeroConnectionResponse fb = new XeroConnectionResponse();
+                    fb.setTenantId(conn.getTenantId());
+                    fb.setTenantName(conn.getTenantName() != null ? conn.getTenantName() : conn.getTenantId());
+                    fb.setConnected(conn.isConnected());
+                    fb.setMessage(conn.isConnected() ? "Connected" : "Disconnected");
+                    fb.setDisconnectReason(conn.getDisconnectReason());
+                    fallbackResponses.add(fb);
                 }
                 XeroConnectionStatusResponse fallbackStatus = new XeroConnectionStatusResponse();
                 fallbackStatus.setConnections(fallbackResponses);
                 fallbackStatus.setTotalConnections(fallbackResponses.size());
-                log.warn("Returning fallback response with {} connections", fallbackResponses.size());
                 return ResponseEntity.ok(fallbackStatus);
             } catch (Exception fallbackError) {
                 log.error("Fallback also failed", fallbackError);
             }
-            // Return error response with details for debugging
             XeroConnectionStatusResponse errorResponse = new XeroConnectionStatusResponse();
             errorResponse.setConnections(List.of());
             errorResponse.setTotalConnections(0);
-            // Log the full stack trace for debugging
-            log.error("Full stack trace:", e);
-            // Return 200 OK with empty response instead of 500 to prevent frontend errors
-            // The frontend can handle empty connections gracefully
             return ResponseEntity.ok(errorResponse);
         }
     }

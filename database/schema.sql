@@ -11,23 +11,27 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX idx_users_email ON users(email);
 
 -- Xero Connections table
+-- Stores OAuth tokens and connection lifecycle state per user+tenant
 CREATE TABLE IF NOT EXISTS xero_connections (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     tenant_id VARCHAR(255) NOT NULL,
-    tenant_name VARCHAR(255), -- Stored for display when tokens expire
-    access_token TEXT NOT NULL, -- Encrypted
-    refresh_token TEXT NOT NULL, -- Encrypted
-    expires_at TIMESTAMP NOT NULL,
+    tenant_name VARCHAR(255),                        -- Stored for display when tokens expire
+    access_token TEXT NOT NULL,                       -- Encrypted (expires after 30 min)
+    refresh_token TEXT NOT NULL,                      -- Encrypted (rotated on each refresh, expires after 60 days inactivity)
+    expires_at TIMESTAMP NOT NULL,                    -- When access_token expires
+    connection_status VARCHAR(20) NOT NULL DEFAULT 'CONNECTED',  -- CONNECTED or DISCONNECTED
+    disconnect_reason VARCHAR(500),                   -- Why disconnected (e.g. invalid_grant, refresh_token_expired)
+    scopes TEXT,                                      -- OAuth scopes granted (space-separated)
+    xero_connection_id VARCHAR(255),                  -- Xero-side connection UUID from /connections
+    last_refreshed_at TIMESTAMP,                      -- When tokens were last successfully refreshed
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP
 );
 
--- Migration: Add tenant_name column if it doesn't exist (for existing databases)
--- ALTER TABLE xero_connections ADD COLUMN IF NOT EXISTS tenant_name VARCHAR(255);
-
 CREATE INDEX idx_xero_connections_user_id ON xero_connections(user_id);
 CREATE INDEX idx_xero_connections_tenant_id ON xero_connections(tenant_id);
+CREATE INDEX idx_xero_connections_status ON xero_connections(connection_status);
 
 -- Schedules table
 CREATE TABLE IF NOT EXISTS schedules (

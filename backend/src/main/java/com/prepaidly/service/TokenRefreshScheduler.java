@@ -18,15 +18,16 @@ import java.util.Map;
  * Xero token lifecycle:
  * - Access Token: expires after 30 minutes
  * - Refresh Token: expires after 60 days of inactivity
+ * - Refresh token rotation: each refresh returns a NEW refresh token
  * 
- * This scheduler runs periodically to:
+ * This scheduler runs every 6 hours to:
  * 1. Refresh access tokens that are about to expire
- * 2. Keep refresh tokens active by using them regularly
- * 3. Update tenant names if missing
+ * 2. Keep refresh tokens active (prevents 60-day inactivity expiration)
+ * 3. Detect and mark DISCONNECTED connections (invalid_grant)
+ * 4. Update tenant names if missing
  * 
- * By running every 12 hours, we ensure:
- * - Refresh tokens never expire (used well before 60-day limit)
- * - Access tokens are always fresh when needed
+ * Only CONNECTED connections are refreshed. DISCONNECTED connections
+ * require user re-authorization.
  */
 @Slf4j
 @Service
@@ -37,83 +38,95 @@ public class TokenRefreshScheduler {
     private final XeroOAuthService xeroOAuthService;
 
     /**
-     * Refresh all Xero tokens every 6 hours
+     * Refresh all CONNECTED Xero tokens every 6 hours.
      * 
-     * Cron expression: 0 0 0/6 * * * (every 6 hours at minute 0)
-     * This ensures refresh tokens are used regularly and never expire.
-     * 
-     * Xero refresh tokens expire after 60 days of inactivity.
-     * By refreshing every 6 hours, we ensure tokens are used at least 240 times
-     * before the 60-day period, keeping them well within the active window.
+     * Skips DISCONNECTED connections (they need user re-authorization).
+     * On invalid_grant, marks the connection as DISCONNECTED.
      */
     @Scheduled(cron = "0 0 0/6 * * *")
     public void refreshAllTokens() {
         log.info("=== Starting scheduled token refresh ===");
         
-        List<XeroConnection> connections = xeroConnectionRepository.findAll();
-        log.info("Found {} Xero connections to refresh", connections.size());
+        // Only refresh CONNECTED connections
+        List<XeroConnection> connections = xeroConnectionRepository
+            .findByConnectionStatus(XeroConnection.STATUS_CONNECTED);
+        
+        int totalCount = (int) xeroConnectionRepository.count();
+        int disconnectedCount = totalCount - connections.size();
+        
+        log.info("Found {} CONNECTED connections to refresh ({} DISCONNECTED, {} total)", 
+            connections.size(), disconnectedCount, totalCount);
         
         int successCount = 0;
         int failureCount = 0;
+        int disconnectedByRefresh = 0;
         
         for (XeroConnection connection : connections) {
             try {
                 refreshConnection(connection);
                 successCount++;
+            } catch (XeroOAuthService.InvalidGrantException e) {
+                disconnectedByRefresh++;
+                log.warn("Connection for tenant {} marked DISCONNECTED during scheduled refresh: {}", 
+                    connection.getTenantId(), e.getErrorDescription());
             } catch (Exception e) {
                 failureCount++;
-                log.error("Failed to refresh connection for tenant {}: {}", 
-                    connection.getTenantId(), e.getMessage());
+                log.error("Failed to refresh tenant {}: {}", connection.getTenantId(), e.getMessage());
             }
         }
         
-        log.info("=== Token refresh completed: {} success, {} failed ===", successCount, failureCount);
+        log.info("=== Token refresh completed: {} success, {} failed, {} newly disconnected ===", 
+            successCount, failureCount, disconnectedByRefresh);
     }
 
     /**
-     * Refresh a single connection's tokens
+     * Refresh a single connection's tokens.
      * 
-     * This method handles token refresh with proper error handling.
-     * If refresh fails, it logs the error but doesn't throw, allowing
-     * other connections to be refreshed.
+     * On success: updates tokens, marks CONNECTED, updates tenant name.
+     * On invalid_grant: marks DISCONNECTED (handled by XeroOAuthService.refreshTokens).
+     * On other errors: logs but does NOT disconnect (may be transient).
      */
     private void refreshConnection(XeroConnection connection) {
         String tenantId = connection.getTenantId();
         String tenantName = connection.getTenantName() != null ? connection.getTenantName() : "Unknown";
+        
+        // Skip if already disconnected
+        if (!connection.isConnected()) {
+            log.debug("Skipping DISCONNECTED tenant: {} ({}). Reason: {}", 
+                tenantName, tenantId, connection.getDisconnectReason());
+            return;
+        }
+        
         log.info("Refreshing tokens for tenant: {} ({})", tenantName, tenantId);
         
         try {
-            // Refresh the tokens - this uses REQUIRES_NEW transaction, so failures won't affect other connections
+            // refreshTokens uses REQUIRES_NEW transaction
+            // On invalid_grant, it marks the connection DISCONNECTED and throws InvalidGrantException
             XeroConnection refreshedConnection = xeroOAuthService.refreshTokens(connection);
-            log.info("✓ Successfully refreshed tokens for tenant {} ({}). New expiry: {}", 
+            log.info("Successfully refreshed tokens for tenant {} ({}). New expiry: {}", 
                 tenantName, tenantId, refreshedConnection.getExpiresAt());
             
-            // Always try to update tenant name during refresh to keep it current
-            // This ensures tenant names are populated even if they were lost due to transaction errors
+            // Update tenant name during refresh
             try {
                 updateTenantName(refreshedConnection);
             } catch (Exception e) {
-                // Don't fail the refresh if tenant name update fails
-                log.warn("Could not update tenant name for {}: {}", tenantId, e.getMessage());
+                log.debug("Could not update tenant name for {}: {}", tenantId, e.getMessage());
             }
-        } catch (org.springframework.web.client.HttpClientErrorException e) {
-            // Handle HTTP errors (401, 403, etc.) - these indicate token is invalid/expired
-            if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
-                log.error("✗ Token refresh failed for tenant {} ({}): Refresh token expired or invalid. User needs to reconnect. Error: {}", 
-                    tenantName, tenantId, e.getResponseBodyAsString());
-            } else {
-                log.error("✗ Token refresh failed for tenant {} ({}): HTTP error {}. Error: {}", 
-                    tenantName, tenantId, e.getStatusCode(), e.getResponseBodyAsString());
-            }
-            // Don't throw - allow other connections to be refreshed
+        } catch (XeroOAuthService.InvalidGrantException e) {
+            // Connection already marked DISCONNECTED by refreshTokens
+            log.error("Token refresh failed for tenant {} ({}): {}. Connection marked DISCONNECTED. User must re-authorize.", 
+                tenantName, tenantId, e.getErrorDescription());
+            throw e; // Re-throw so caller can count disconnections
         } catch (Exception e) {
-            log.error("✗ Error refreshing tokens for tenant {} ({}): {}", tenantName, tenantId, e.getMessage(), e);
+            // Transient errors (network issues, rate limits, etc.) - don't disconnect
+            log.error("Token refresh error for tenant {} ({}): {} (not marking as disconnected - may be transient)", 
+                tenantName, tenantId, e.getMessage());
             // Don't throw - allow other connections to be refreshed
         }
     }
     
     /**
-     * Public method to refresh a specific connection (can be called after reconnection)
+     * Public method to refresh a specific connection by tenant ID.
      */
     public void refreshConnectionById(String tenantId) {
         xeroConnectionRepository.findByTenantId(tenantId).ifPresentOrElse(
@@ -126,7 +139,7 @@ public class TokenRefreshScheduler {
     }
 
     /**
-     * Fetch and update tenant name from Xero API
+     * Fetch and update tenant name from Xero API.
      */
     private void updateTenantName(XeroConnection connection) {
         try {
@@ -136,7 +149,6 @@ public class TokenRefreshScheduler {
             if (tenantInfo != null) {
                 String tenantName = (String) tenantInfo.get("Name");
                 if (tenantName != null && !tenantName.trim().isEmpty()) {
-                    // Only update if different to avoid unnecessary database writes
                     if (!tenantName.equals(connection.getTenantName())) {
                         connection.setTenantName(tenantName);
                         xeroConnectionRepository.save(connection);
@@ -150,7 +162,7 @@ public class TokenRefreshScheduler {
     }
 
     /**
-     * Manual trigger for token refresh (can be called via API)
+     * Manual trigger for token refresh (can be called via API).
      */
     public void refreshTokensNow() {
         log.info("Manual token refresh triggered");

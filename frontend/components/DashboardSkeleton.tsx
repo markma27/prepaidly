@@ -1,14 +1,21 @@
 import Skeleton from './Skeleton';
 
+const SUMMARY_TITLES = [
+  'Prepayment Schedule',
+  'Prepayment Balance',
+  'Unearned Revenue Schedule',
+  'Unearned Revenue Balance',
+];
+
 export default function DashboardSkeleton() {
   return (
     <div className="space-y-7 max-w-[1800px] mx-auto">
-      {/* Summary Cards Skeleton */}
+      {/* Summary Cards Skeleton - real titles */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        {[1, 2, 3, 4].map((i) => (
+        {SUMMARY_TITLES.map((title, i) => (
           <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-              <Skeleton className="h-4 w-32" variant="text" />
+              <h3 className="text-sm font-bold text-gray-900">{title}</h3>
             </div>
             <div className="p-5">
               <Skeleton className="h-8 w-24 mb-2" variant="text" />
@@ -18,26 +25,32 @@ export default function DashboardSkeleton() {
         ))}
       </div>
 
-      {/* Charts Skeleton */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
-        {[1, 2].map((i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-              <Skeleton className="h-5 w-56" variant="text" />
-            </div>
-            <div className="p-5">
-              <Skeleton className="h-[270px] w-full" variant="rectangular" />
-            </div>
+      {/* Charts Skeleton - real titles */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+            <h3 className="text-base font-bold text-gray-900">Prepayment Balance Projection</h3>
           </div>
-        ))}
+          <div className="p-5">
+            <Skeleton className="h-[270px] w-full" variant="rectangular" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+            <h3 className="text-base font-bold text-gray-900">Unearned Revenue Balance Projection</h3>
+          </div>
+          <div className="p-5">
+            <Skeleton className="h-[270px] w-full" variant="rectangular" />
+          </div>
+        </div>
       </div>
 
-      {/* Table Skeleton */}
+      {/* Table Skeleton - real title */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
           <div>
-            <Skeleton className="h-5 w-40 mb-1" variant="text" />
-            <Skeleton className="h-3 w-64" variant="text" />
+            <h3 className="text-base font-bold text-gray-900">Recent Schedules</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Your 10 most recently created prepayment and unearned revenue schedules</p>
           </div>
           <div className="flex gap-2">
             <Skeleton className="h-7 w-20" variant="rectangular" />

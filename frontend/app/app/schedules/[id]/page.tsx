@@ -2,9 +2,9 @@
 
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
-import { scheduleApi, journalApi } from '@/lib/api';
+import { scheduleApi, journalApi, xeroApi } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import type { Schedule, JournalEntry } from '@/lib/types';
+import type { Schedule, JournalEntry, XeroAccount } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -21,6 +21,8 @@ function ScheduleDetailContent() {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
+  const [accounts, setAccounts] = useState<XeroAccount[]>([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
 
   const scheduleId = params?.id ? parseInt(params.id as string) : null;
 
@@ -127,16 +129,58 @@ function ScheduleDetailContent() {
     return trail.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [schedule, currentUserName, currentUserId]);
 
+  // Account code → name lookup for expense/revenue display
+  const accountMap = useMemo(() => {
+    const map = new Map<string, string>();
+    accounts.forEach(account => {
+      if (account.code) map.set(account.code, account.name);
+    });
+    return map;
+  }, [accounts]);
+
+  const getAccountDisplay = (code: string | undefined, typeLabel: string): string => {
+    if (!code) return '—';
+    const name = accountMap.get(code);
+    if (accountsLoaded && name) return `${code} - ${name}`;
+    return `${code} (${typeLabel})`;
+  };
+
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
     if (tenantIdParam && scheduleId) {
       setTenantId(tenantIdParam);
-      loadSchedule(scheduleId, tenantIdParam);
+      setLoading(true);
+      setError(null);
+      (async () => {
+        try {
+          const [scheduleData] = await Promise.all([
+            scheduleApi.getSchedule(scheduleId),
+            loadAccounts(tenantIdParam),
+          ]);
+          setSchedule(scheduleData);
+        } catch (err: any) {
+          console.error('Error loading schedule:', err);
+          setError(err.message || 'Failed to load schedule');
+        } finally {
+          setLoading(false);
+        }
+      })();
     } else {
       setError('Missing Tenant ID or Schedule ID');
       setLoading(false);
     }
   }, [searchParams, scheduleId]);
+
+  const loadAccounts = async (tid: string) => {
+    try {
+      const response = await xeroApi.getAccounts(tid);
+      setAccounts(response.accounts || []);
+      setAccountsLoaded(true);
+    } catch (err: any) {
+      console.error('Error loading accounts:', err);
+      setAccountsLoaded(true);
+    }
+  };
 
   const loadSchedule = async (id: number, tid: string) => {
     try {
@@ -297,26 +341,25 @@ function ScheduleDetailContent() {
                   <div className="text-sm text-gray-900">{schedule.contactName || '—'}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">Account Codes</div>
-                  <div className="text-sm text-gray-900">
-                    {schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode} 
-                    {' '}({schedule.type === 'PREPAID' ? 'Expense' : 'Revenue'})
+                  <div className="text-xs text-gray-500 mb-1">
+                    {schedule.type === 'PREPAID' ? 'Expense Account' : 'Revenue Account'}
                   </div>
-                  <div className="text-sm text-gray-900 mt-1">
-                    {schedule.deferralAcctCode} (Deferral)
+                  <div className="text-sm text-gray-900">
+                    {getAccountDisplay(
+                      schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode,
+                      schedule.type === 'PREPAID' ? 'Expense' : 'Revenue'
+                    )}
                   </div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Created</div>
                   <div className="text-sm text-gray-900">{formatDate(schedule.createdAt)}</div>
                 </div>
-              </div>
-              {schedule.description && (
-                <div className="mt-5">
+                <div className="md:col-span-3">
                   <div className="text-xs text-gray-500 mb-1">Description</div>
-                  <div className="text-sm text-gray-900">{schedule.description}</div>
+                  <div className="text-sm text-gray-900">{schedule.description || '—'}</div>
                 </div>
-              )}
+              </div>
               {schedule.invoiceUrl && (
                 <div className="mt-5">
                   <div className="text-xs text-gray-500 mb-1">Invoice</div>

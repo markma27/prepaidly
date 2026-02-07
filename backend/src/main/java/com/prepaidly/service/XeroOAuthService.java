@@ -10,15 +10,33 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.Objects;
 
+/**
+ * Xero OAuth2 Service
+ * 
+ * Handles the complete Xero OAuth2 lifecycle:
+ * - Authorization URL generation (with offline_access scope for refresh tokens)
+ * - Code-to-token exchange
+ * - Token refresh with rotation (new refresh token replaces old on each refresh)
+ * - Proactive token refresh (before expiry)
+ * - invalid_grant detection (marks connection as DISCONNECTED)
+ * - Connection status management
+ * 
+ * Xero token lifecycle notes:
+ * - Access tokens expire after 30 minutes
+ * - Refresh tokens expire after 60 days of inactivity
+ * - Each refresh returns a NEW refresh token (rotation) that must replace the old one
+ * - If a refresh token is used twice, the second use will fail (replay protection)
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -30,18 +48,33 @@ public class XeroOAuthService {
     private final XeroConnectionRepository xeroConnectionRepository;
     private final RestTemplate restTemplate;
     private final OAuthStateCache oAuthStateCache;
+
+    /** Refresh buffer: refresh tokens if they expire within this many minutes */
+    private static final int REFRESH_BUFFER_MINUTES = 5;
     
     /**
-     * Generate the authorization URL for Xero OAuth2 flow
+     * Custom exception thrown when a refresh token is invalid/expired/revoked.
+     * Callers should mark the connection as DISCONNECTED and prompt re-authorization.
+     */
+    public static class InvalidGrantException extends RuntimeException {
+        private final String tenantId;
+        private final String errorDescription;
+
+        public InvalidGrantException(String tenantId, String errorDescription) {
+            super("Refresh token invalid for tenant " + tenantId + ": " + errorDescription);
+            this.tenantId = tenantId;
+            this.errorDescription = errorDescription;
+        }
+
+        public String getTenantId() { return tenantId; }
+        public String getErrorDescription() { return errorDescription; }
+    }
+    
+    /**
+     * Generate the authorization URL for Xero OAuth2 flow.
      * 
-     * Generates a secure authorization URL with state parameter for CSRF protection.
-     * The state is stored in cache and associated with the user ID. It will be validated
-     * in the OAuth callback to ensure the request is legitimate.
-     * 
-     * Security Features:
-     * - State parameter is generated and stored with user ID
-     * - State expires after 10 minutes
-     * - State is validated in callback to prevent CSRF attacks
+     * Includes offline_access scope to receive a refresh token.
+     * Scopes are defined in XeroConfig.REQUIRED_SCOPES.
      */
     public String getAuthorizationUrl(Long userId) {
         // Validate configuration
@@ -55,11 +88,10 @@ public class XeroOAuthService {
             throw new IllegalStateException("Xero Redirect URI is not configured. Please check application-local.properties");
         }
         
+        // offline_access is included in REQUIRED_SCOPES to ensure we get a refresh token
         String scopes = String.join(" ", XeroConfig.REQUIRED_SCOPES);
-        // Generate and store state for CSRF protection
         String state = oAuthStateCache.storeState(userId);
         
-        // URL encode the redirect URI and scopes
         String redirectUri = java.net.URLEncoder.encode(xeroConfig.getRedirectUri(), java.nio.charset.StandardCharsets.UTF_8);
         String encodedScopes = java.net.URLEncoder.encode(scopes, java.nio.charset.StandardCharsets.UTF_8);
         
@@ -72,22 +104,19 @@ public class XeroOAuthService {
             state
         );
         
-        log.info("Generated Xero authorization URL for user {}: {}", userId, authUrl);
-        log.info("Xero Config - Client ID: {}, Redirect URI: {}", xeroConfig.getClientId(), xeroConfig.getRedirectUri());
+        log.info("Generated Xero authorization URL for user {} (scopes: {})", userId, scopes);
         
         return authUrl;
     }
     
     /**
-     * Exchange authorization code for access token
+     * Exchange authorization code for access and refresh tokens.
      * 
-     * Validates the state parameter for CSRF protection before exchanging the code.
-     * 
-     * @param code The authorization code from Xero
-     * @param state The state parameter from OAuth callback (must match stored state)
-     * @param userId The user ID associated with this OAuth flow
-     * @return XeroConnection with encrypted tokens
-     * @throws RuntimeException if state validation fails or token exchange fails
+     * On success:
+     * - Stores encrypted access_token + refresh_token per tenant
+     * - Sets connection_status = CONNECTED
+     * - Stores scopes and xero_connection_id
+     * - Sets expires_at and last_refreshed_at
      */
     @Transactional
     public XeroConnection exchangeCodeForTokens(String code, String state, Long userId) {
@@ -99,7 +128,6 @@ public class XeroOAuthService {
         
         log.info("State validated successfully for user {}", userId);
         try {
-            // Prepare token request
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
             headers.setBasicAuth(
@@ -114,39 +142,37 @@ public class XeroOAuthService {
             
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
             
-            // Call Xero token endpoint
             log.info("Exchanging authorization code for tokens. Code length: {}, User ID: {}", 
                 code != null ? code.length() : 0, userId);
-            log.info("Using redirect URI: {}", xeroConfig.getRedirectUri());
             
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_TOKEN_URL,
-                Objects.requireNonNull(HttpMethod.POST),
+                HttpMethod.POST,
                 request,
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
-            log.info("Token exchange response status: {}", response.getStatusCode());
-            
             Map<String, Object> tokenResponse = response.getBody();
             if (response.getStatusCode() == HttpStatus.OK && tokenResponse != null) {
-                log.info("Token response keys: {}", tokenResponse.keySet());
-                
                 String accessToken = (String) tokenResponse.get("access_token");
                 String refreshToken = (String) tokenResponse.get("refresh_token");
+                String scopeStr = (String) tokenResponse.get("scope");
                 Object expiresInObj = tokenResponse.get("expires_in");
                 Integer expiresIn = expiresInObj instanceof Integer ? (Integer) expiresInObj : 
                     expiresInObj instanceof Long ? ((Long) expiresInObj).intValue() : null;
                 
                 if (accessToken == null) {
-                    log.error("Access token is null in response. Full response: {}", tokenResponse);
+                    log.error("Access token is null in response");
                     throw new RuntimeException("Access token not found in token response");
                 }
+                if (refreshToken == null) {
+                    log.warn("No refresh token in response - offline_access scope may be missing. Scopes granted: {}", scopeStr);
+                }
                 
-                log.info("Successfully obtained access token. Now fetching tenant connections...");
+                log.info("Successfully obtained tokens (refresh_token present: {}, scopes: {}). Fetching tenant connections...",
+                    refreshToken != null, scopeStr);
                 
                 // Get tenant information from Xero Connections API
-                // Note: Token response doesn't include tenant info, need to call /connections endpoint
                 List<Map<String, Object>> connections = getXeroConnections(accessToken);
                 
                 if (connections == null || connections.isEmpty()) {
@@ -155,20 +181,13 @@ public class XeroOAuthService {
                 }
                 
                 log.info("Found {} Xero organization(s) to connect", connections.size());
-                for (int i = 0; i < connections.size(); i++) {
-                    Map<String, Object> conn = connections.get(i);
-                    log.info("  Connection {}: tenantId={}, tenantName={}", 
-                        i + 1, conn.get("tenantId"), conn.get("tenantName"));
-                }
                 
                 // Get or create user
-                // For development: if userId is 1, try to find default user by email first
                 User user;
                 Long userIdNonNull = Objects.requireNonNull(userId, "User ID cannot be null");
                 if (userIdNonNull == 1L) {
                     user = userRepository.findByEmail("demo@prepaidly.io")
                         .orElseGet(() -> {
-                            // Create default user if not exists
                             User newUser = new User();
                             newUser.setEmail("demo@prepaidly.io");
                             return userRepository.save(newUser);
@@ -179,21 +198,20 @@ public class XeroOAuthService {
                         .orElseThrow(() -> new RuntimeException("User not found: " + userIdNonNull));
                 }
                 
-                // Process ALL connections (not just the first one)
-                // When user selects multiple organizations in Xero, we need to save all of them
                 XeroConnection firstConnection = null;
                 int expiresInSeconds = Objects.requireNonNull(expiresIn, "Expires in cannot be null");
                 List<String> savedTenantIds = new java.util.ArrayList<>();
+                LocalDateTime now = LocalDateTime.now();
                 
                 for (int i = 0; i < connections.size(); i++) {
                     Map<String, Object> xeroConnectionData = connections.get(i);
                     String tenantId = (String) xeroConnectionData.get("tenantId");
                     String tenantName = (String) xeroConnectionData.get("tenantName");
+                    String xeroConnId = (String) xeroConnectionData.get("id"); // Xero-side connection UUID
                     
-                    log.info("[{}/{}] Processing connection - Tenant ID: {}, Tenant Name: {}", 
-                        i + 1, connections.size(), tenantId, tenantName);
+                    log.info("[{}/{}] Processing connection - Tenant: {} ({}), xeroConnectionId: {}", 
+                        i + 1, connections.size(), tenantName, tenantId, xeroConnId);
                     
-                    // Check if connection already exists (use actual user ID, not the default userId parameter)
                     Optional<XeroConnection> existingConnection = 
                         xeroConnectionRepository.findByUserIdAndTenantId(user.getId(), tenantId);
                     
@@ -215,35 +233,34 @@ public class XeroOAuthService {
                     // Store tenant name for display even when tokens expire
                     if (tenantName != null && !tenantName.trim().isEmpty()) {
                         connection.setTenantName(tenantName);
-                        log.info("[{}/{}] Storing tenant name: {} for tenantId: {}", 
-                            i + 1, connections.size(), tenantName, tenantId);
                     }
                     
                     // Encrypt and store tokens (same tokens for all connections from same OAuth flow)
                     connection.setAccessToken(encryptionService.encrypt(accessToken));
-                    connection.setRefreshToken(encryptionService.encrypt(refreshToken));
-                    connection.setExpiresAt(LocalDateTime.now().plusSeconds(expiresInSeconds));
+                    if (refreshToken != null) {
+                        connection.setRefreshToken(encryptionService.encrypt(refreshToken));
+                    }
+                    connection.setExpiresAt(now.plusSeconds(expiresInSeconds));
+                    
+                    // Store new lifecycle fields
+                    connection.markConnected(); // Set status=CONNECTED, clear disconnect_reason
+                    connection.setScopes(scopeStr);
+                    connection.setXeroConnectionId(xeroConnId);
+                    connection.setLastRefreshedAt(now);
                     
                     try {
-                        // Use saveAndFlush to ensure immediate commit (important for multiple connections)
                         XeroConnection savedConnection = xeroConnectionRepository.saveAndFlush(connection);
                         savedTenantIds.add(tenantId);
-                        log.info("[{}/{}] Successfully {} connection for tenantId: {}, tenantName: {}, connectionId: {}", 
+                        log.info("[{}/{}] Successfully {} connection for tenant {} ({}), status=CONNECTED", 
                             i + 1, connections.size(), isNew ? "created" : "updated", 
-                            tenantId, tenantName, savedConnection.getId());
+                            tenantName, tenantId);
                         
-                        // Keep track of first connection for return value (backward compatibility)
                         if (firstConnection == null) {
                             firstConnection = savedConnection;
                         }
                     } catch (Exception e) {
-                        log.error("[{}/{}] Failed to save connection for tenantId: {}, tenantName: {}", 
-                            i + 1, connections.size(), tenantId, tenantName, e);
-                        // Don't throw immediately - try to save remaining connections
-                        // But log the error so we know which ones failed
-                        log.error("Error details for tenantId {}: {}", tenantId, e.getMessage(), e);
-                        // Continue with next connection instead of failing all
-                        // We'll check at the end if we saved at least one
+                        log.error("[{}/{}] Failed to save connection for tenant {} ({}): {}", 
+                            i + 1, connections.size(), tenantName, tenantId, e.getMessage());
                     }
                 }
                 
@@ -251,32 +268,44 @@ public class XeroOAuthService {
                     throw new RuntimeException("Failed to save any connections");
                 }
                 
-                log.info("Successfully processed {} connection(s). Saved tenantIds: {}. Returning first connection: {}", 
-                    connections.size(), savedTenantIds, firstConnection.getTenantId());
+                log.info("Successfully processed {} connection(s). Saved tenantIds: {}", 
+                    connections.size(), savedTenantIds);
                 
                 return firstConnection;
             } else {
                 Map<String, Object> responseBody = response.getBody();
                 String errorBody = responseBody != null ? responseBody.toString() : "No response body";
                 log.error("Failed to exchange code for tokens. Status: {}, Body: {}", response.getStatusCode(), errorBody);
-                throw new RuntimeException("Failed to exchange code for tokens: " + response.getStatusCode() + ". Response: " + errorBody);
+                throw new RuntimeException("Failed to exchange code for tokens: " + response.getStatusCode());
             }
-        } catch (org.springframework.web.client.HttpClientErrorException e) {
-            log.error("HTTP error exchanging code for tokens. Status: {}, Response body: {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
-            throw new RuntimeException("Failed to exchange authorization code for tokens: " + e.getStatusCode() + ". " + e.getResponseBodyAsString(), e);
+        } catch (HttpClientErrorException e) {
+            log.error("HTTP error exchanging code for tokens. Status: {}, Response: {}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new RuntimeException("Failed to exchange authorization code: " + e.getStatusCode() + ". " + e.getResponseBodyAsString(), e);
         } catch (Exception e) {
+            if (e instanceof RuntimeException) throw (RuntimeException) e;
             log.error("Error exchanging code for tokens", e);
-            throw new RuntimeException("Failed to exchange authorization code for tokens: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to exchange authorization code: " + e.getMessage(), e);
         }
     }
     
     /**
-     * Refresh access token using refresh token
-     * Uses REQUIRES_NEW to ensure it runs in its own transaction,
-     * preventing transaction abort issues when refresh fails
+     * Refresh access token using refresh token (with rotation).
+     * 
+     * Xero uses refresh token rotation: each successful refresh returns a NEW refresh token.
+     * The old refresh token is invalidated. Both tokens must be stored.
+     * 
+     * If the refresh fails with invalid_grant (expired/revoked/stale refresh token),
+     * this method marks the connection as DISCONNECTED and throws InvalidGrantException.
+     * 
+     * Uses REQUIRES_NEW transaction to prevent rollback issues.
      */
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public XeroConnection refreshTokens(XeroConnection connection) {
+        String tenantId = connection.getTenantId();
+        String tenantName = connection.getTenantName() != null ? connection.getTenantName() : tenantId;
+        
+        log.info("Refreshing tokens for tenant: {} ({})", tenantName, tenantId);
+        
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -293,66 +322,165 @@ public class XeroOAuthService {
             
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_TOKEN_URL,
-                Objects.requireNonNull(HttpMethod.POST),
+                HttpMethod.POST,
                 request,
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
             Map<String, Object> tokenResponse = response.getBody();
             if (response.getStatusCode() == HttpStatus.OK && tokenResponse != null) {
-                String accessToken = (String) tokenResponse.get("access_token");
-                String refreshToken = (String) tokenResponse.get("refresh_token");
+                String newAccessToken = (String) tokenResponse.get("access_token");
+                String newRefreshToken = (String) tokenResponse.get("refresh_token");
                 Object expiresInObj = tokenResponse.get("expires_in");
                 Integer expiresIn = expiresInObj instanceof Integer ? (Integer) expiresInObj : 
                     expiresInObj instanceof Long ? ((Long) expiresInObj).intValue() : null;
                 
-                connection.setAccessToken(encryptionService.encrypt(accessToken));
-                connection.setRefreshToken(encryptionService.encrypt(refreshToken));
-                int expiresInSeconds = Objects.requireNonNull(expiresIn, "Expires in cannot be null");
-                connection.setExpiresAt(LocalDateTime.now().plusSeconds(expiresInSeconds));
+                // CRITICAL: Store BOTH new access token AND new refresh token (rotation)
+                connection.setAccessToken(encryptionService.encrypt(newAccessToken));
+                if (newRefreshToken != null) {
+                    connection.setRefreshToken(encryptionService.encrypt(newRefreshToken));
+                    log.debug("Refresh token rotated for tenant: {}", tenantId);
+                } else {
+                    log.warn("No new refresh token returned for tenant: {} - keeping existing refresh token", tenantId);
+                }
                 
-                return xeroConnectionRepository.save(connection);
+                int expiresInSeconds = Objects.requireNonNull(expiresIn, "Expires in cannot be null");
+                LocalDateTime now = LocalDateTime.now();
+                connection.setExpiresAt(now.plusSeconds(expiresInSeconds));
+                connection.setLastRefreshedAt(now);
+                
+                // Ensure connection is marked as connected after successful refresh
+                connection.markConnected();
+                
+                XeroConnection saved = xeroConnectionRepository.save(connection);
+                log.info("Token refresh successful for tenant: {} ({}). New expiry: {}, status: CONNECTED", 
+                    tenantName, tenantId, saved.getExpiresAt());
+                
+                return saved;
             } else {
-                throw new RuntimeException("Failed to refresh tokens: " + response.getStatusCode());
+                throw new RuntimeException("Failed to refresh tokens: HTTP " + response.getStatusCode());
             }
+        } catch (HttpClientErrorException e) {
+            String responseBody = e.getResponseBodyAsString();
+            int statusCode = e.getStatusCode().value();
+            
+            // Check for invalid_grant - means refresh token is expired/revoked/stale
+            boolean isInvalidGrant = responseBody != null && responseBody.contains("invalid_grant");
+            // Also treat 400 with "unauthorized_client" as invalid grant
+            boolean isUnauthorizedClient = responseBody != null && responseBody.contains("unauthorized_client");
+            
+            if (isInvalidGrant || isUnauthorizedClient || statusCode == 400 || statusCode == 401) {
+                String reason = isInvalidGrant ? "invalid_grant" :
+                                isUnauthorizedClient ? "unauthorized_client" :
+                                "token_refresh_failed_" + statusCode;
+                
+                log.error("Token refresh failed for tenant {} ({}): {} - marking as DISCONNECTED. " +
+                          "User must re-authorize. HTTP {}, response: [redacted]",
+                    tenantName, tenantId, reason, statusCode);
+                
+                // Mark connection as DISCONNECTED in a way that persists even if outer transaction rolls back
+                markConnectionDisconnected(connection.getId(), reason);
+                
+                throw new InvalidGrantException(tenantId, reason);
+            }
+            
+            // Other HTTP errors (rate limit, server error, etc.) - don't disconnect, just fail
+            log.error("Token refresh HTTP error for tenant {} ({}): HTTP {}. Response: [redacted]",
+                tenantName, tenantId, statusCode);
+            throw new RuntimeException("Failed to refresh tokens: HTTP " + statusCode, e);
+        } catch (InvalidGrantException e) {
+            throw e; // Re-throw our custom exception
         } catch (Exception e) {
-            log.error("Error refreshing tokens", e);
-            throw new RuntimeException("Failed to refresh tokens", e);
+            log.error("Token refresh error for tenant {}: {}", tenantId, e.getMessage());
+            throw new RuntimeException("Failed to refresh tokens: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Mark a connection as DISCONNECTED in a separate transaction.
+     * This ensures the disconnect status is persisted even if the calling transaction rolls back.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markConnectionDisconnected(Long connectionId, String reason) {
+        try {
+            xeroConnectionRepository.findById(connectionId).ifPresent(conn -> {
+                conn.markDisconnected(reason);
+                xeroConnectionRepository.save(conn);
+                log.info("Marked connection {} (tenant: {}) as DISCONNECTED. Reason: {}", 
+                    connectionId, conn.getTenantId(), reason);
+            });
+        } catch (Exception e) {
+            log.error("Failed to mark connection {} as disconnected: {}", connectionId, e.getMessage());
         }
     }
     
     /**
-     * Get valid access token (refresh if needed)
+     * Get valid access token, refreshing proactively if needed.
      * 
-     * This method handles token refresh. If refresh fails, it throws an exception immediately.
-     * The refreshTokens method uses REQUIRES_NEW propagation to ensure it runs in its own
-     * transaction, preventing transaction abort issues.
-     * 
-     * Refreshes tokens if:
-     * - Token is already expired (expiresAt is before now)
-     * - Token expires within 5 minutes (expiresAt is before now + 5 minutes)
+     * Refresh strategy:
+     * - If token expires within REFRESH_BUFFER_MINUTES (5 min), refresh first
+     * - If connection is DISCONNECTED, throw immediately (user must re-authorize)
+     * - On refresh failure with invalid_grant, mark DISCONNECTED and throw
      */
     public String getValidAccessToken(XeroConnection connection) {
+        // If connection is already marked as DISCONNECTED, don't even try
+        if (!connection.isConnected()) {
+            log.warn("Cannot get access token for DISCONNECTED tenant: {} (reason: {})", 
+                connection.getTenantId(), connection.getDisconnectReason());
+            throw new RuntimeException("Connection is disconnected for tenant " + connection.getTenantId() + 
+                ". Reason: " + connection.getDisconnectReason() + ". Please re-authorize.");
+        }
+        
         try {
             LocalDateTime now = LocalDateTime.now();
             LocalDateTime expiresAt = connection.getExpiresAt();
             
-            // Refresh if token is expired or expires within 5 minutes
-            if (expiresAt == null || expiresAt.isBefore(now.plusMinutes(5))) {
-                log.info("Token for tenant {} is expired or expires soon (expiresAt: {}), refreshing...", 
-                    connection.getTenantId(), expiresAt);
-                // refreshTokens uses REQUIRES_NEW so it runs in its own transaction
+            // Refresh if token is expired or expires within buffer period
+            if (expiresAt == null || expiresAt.isBefore(now.plusMinutes(REFRESH_BUFFER_MINUTES))) {
+                log.info("Token for tenant {} expires at {} (within {} min buffer), refreshing...", 
+                    connection.getTenantId(), expiresAt, REFRESH_BUFFER_MINUTES);
                 connection = refreshTokens(connection);
                 log.info("Token refreshed for tenant {}, new expiresAt: {}", 
                     connection.getTenantId(), connection.getExpiresAt());
             }
             return encryptionService.decrypt(connection.getAccessToken());
+        } catch (InvalidGrantException e) {
+            // Already marked as disconnected by refreshTokens
+            throw new RuntimeException("Refresh token expired/revoked for tenant " + connection.getTenantId() + 
+                ". Please re-authorize.", e);
         } catch (Exception e) {
-            log.error("Failed to get valid access token for tenant {}", connection.getTenantId(), e);
+            log.error("Failed to get valid access token for tenant {}: {}", 
+                connection.getTenantId(), e.getMessage());
             throw new RuntimeException("Failed to get valid access token: " + e.getMessage(), e);
         }
     }
-    
+
+    /**
+     * Attempt to verify a connection is still valid by calling Xero /connections endpoint.
+     * Returns true if the connection is alive, false otherwise.
+     * Does NOT throw - safe for status checking.
+     */
+    public boolean verifyConnection(XeroConnection connection) {
+        if (!connection.isConnected()) {
+            return false;
+        }
+        try {
+            String accessToken = getValidAccessToken(connection);
+            List<Map<String, Object>> xeroConnections = getXeroConnections(accessToken);
+            // Check that our tenantId is still in the list
+            boolean found = xeroConnections.stream()
+                .anyMatch(c -> connection.getTenantId().equals(c.get("tenantId")));
+            if (!found) {
+                log.warn("Tenant {} not found in Xero /connections response - may have been removed", 
+                    connection.getTenantId());
+            }
+            return found;
+        } catch (Exception e) {
+            log.debug("Connection verification failed for tenant {}: {}", 
+                connection.getTenantId(), e.getMessage());
+            return false;
+        }
+    }
     
     /**
      * Get Xero connections (tenants) for the authenticated user
@@ -361,12 +489,12 @@ public class XeroOAuthService {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(Objects.requireNonNull(accessToken, "Access token cannot be null"));
-            headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
             
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
                 "https://api.xero.com/connections",
-                Objects.requireNonNull(HttpMethod.GET),
+                HttpMethod.GET,
                 entity,
                 new ParameterizedTypeReference<List<Map<String, Object>>>() {}
             );
@@ -377,29 +505,20 @@ public class XeroOAuthService {
             }
             return Collections.emptyList();
         } catch (Exception e) {
-            log.error("Error fetching Xero connections", e);
+            log.error("Error fetching Xero connections: {}", e.getMessage());
             throw new RuntimeException("Failed to fetch Xero connections: " + e.getMessage(), e);
         }
     }
     
     /**
-     * Disconnect from Xero by revoking the connection on Xero's side
-     * 
-     * This method calls Xero's API to remove the connection, which will revoke
-     * access tokens and remove the app from the organization's connected apps list.
-     * 
-     * @param connection The XeroConnection to disconnect
-     * @return true if disconnection was successful, false otherwise
+     * Disconnect from Xero by revoking the connection on Xero's side.
      */
     public boolean disconnectFromXero(XeroConnection connection) {
         try {
-            // Get a valid access token (will refresh if needed)
             String accessToken = getValidAccessToken(connection);
             
-            // Get all connections to find the connectionId for this tenant
             List<Map<String, Object>> allConnections = getXeroConnections(accessToken);
             
-            // Find the connection that matches our tenantId
             String connectionId = null;
             for (Map<String, Object> conn : allConnections) {
                 String tenantId = (String) conn.get("tenantId");
@@ -410,21 +529,19 @@ public class XeroOAuthService {
             }
             
             if (connectionId == null) {
-                log.warn("Connection ID not found for tenantId: {}. Connection may already be disconnected in Xero.", 
+                log.warn("Connection ID not found for tenantId: {}. May already be disconnected.", 
                     connection.getTenantId());
-                // Connection might already be removed from Xero, but we'll still delete from our DB
                 return false;
             }
             
-            // Delete the connection from Xero
             HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(Objects.requireNonNull(accessToken, "Access token cannot be null"));
-            headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
+            headers.setBearerAuth(accessToken);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
             
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<Void> response = restTemplate.exchange(
                 "https://api.xero.com/connections/" + connectionId,
-                Objects.requireNonNull(HttpMethod.DELETE),
+                HttpMethod.DELETE,
                 entity,
                 Void.class
             );
@@ -434,13 +551,13 @@ public class XeroOAuthService {
                     connection.getTenantId(), connectionId);
                 return true;
             } else {
-                log.warn("Unexpected status code when disconnecting from Xero: {} for tenantId: {}", 
+                log.warn("Unexpected status disconnecting from Xero: {} for tenantId: {}", 
                     response.getStatusCode(), connection.getTenantId());
                 return false;
             }
         } catch (Exception e) {
-            log.error("Error disconnecting from Xero for tenantId: {}", connection.getTenantId(), e);
-            // Don't throw - we'll still delete from our database even if Xero disconnect fails
+            log.error("Error disconnecting from Xero for tenantId: {}: {}", 
+                connection.getTenantId(), e.getMessage());
             return false;
         }
     }
@@ -456,42 +573,30 @@ public class XeroOAuthService {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(Objects.requireNonNull(accessToken, "Access token cannot be null"));
-            headers.setAccept(Objects.requireNonNull(Collections.singletonList(MediaType.APPLICATION_JSON)));
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
             if (tenantId != null) {
                 headers.set("xero-tenant-id", tenantId);
-                log.debug("Fetching tenant info for tenantId: {}", tenantId);
             }
             
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 XeroConfig.XERO_API_URL + "/Organisation",
-                Objects.requireNonNull(HttpMethod.GET),
+                HttpMethod.GET,
                 entity,
                 new ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
             Map<String, Object> responseBody = response.getBody();
-            log.debug("Xero API response status: {}, body: {}", response.getStatusCode(), responseBody);
-            
             if (response.getStatusCode() == HttpStatus.OK && responseBody != null) {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> organisations = (List<Map<String, Object>>) responseBody.get("Organisations");
                 if (organisations != null && !organisations.isEmpty()) {
-                    Map<String, Object> org = organisations.get(0);
-                    log.debug("Found organisation: {}", org);
-                    String orgName = (String) org.get("Name");
-                    log.info("Tenant name for tenantId {}: {}", tenantId, orgName);
-                    return org;
-                } else {
-                    log.warn("No organisations found in response for tenantId: {}", tenantId);
+                    return organisations.get(0);
                 }
-            } else {
-                log.warn("Invalid response status or body for tenantId: {}, status: {}, body: {}", 
-                    tenantId, response.getStatusCode(), responseBody);
             }
             return null;
         } catch (Exception e) {
-            log.error("Error fetching tenant info for tenantId: {}", tenantId, e);
+            log.error("Error fetching tenant info for tenantId: {}: {}", tenantId, e.getMessage());
             return null;
         }
     }

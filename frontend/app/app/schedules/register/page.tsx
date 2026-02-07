@@ -131,8 +131,16 @@ function ScheduleRegisterContent() {
 
   if (loading && !tenantId) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner message="Loading..." />
+      <div className="min-h-screen bg-white flex items-center justify-center p-8">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden w-full max-w-[500px]">
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+            <h3 className="text-base font-bold text-gray-900">Schedules</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Search and view all prepayment and unearned revenue schedules</p>
+          </div>
+          <div className="flex justify-center items-center py-12">
+            <LoadingSpinner message="Loading..." />
+          </div>
+        </div>
       </div>
     );
   }
@@ -161,6 +169,10 @@ function ScheduleRegisterContent() {
           <ErrorMessage message={error} />
         ) : loading ? (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+              <h3 className="text-base font-bold text-gray-900">Schedules</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Search and view all prepayment and unearned revenue schedules</p>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
@@ -201,6 +213,10 @@ function ScheduleRegisterContent() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+              <h3 className="text-base font-bold text-gray-900">Schedules</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Search and view all prepayment and unearned revenue schedules</p>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
@@ -324,8 +340,16 @@ export default function ScheduleRegisterPage() {
         <div className="min-h-screen bg-white">
           <div className="fixed inset-y-0 left-0 w-56 bg-[#F9FAFB] z-10 border-r border-gray-200"></div>
           <div className="pl-56">
-            <div className="p-8">
-              <LoadingSpinner message="Loading..." />
+            <div className="p-8 max-w-[1800px] mx-auto">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+                  <h3 className="text-base font-bold text-gray-900">Schedules</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Search and view all prepayment and unearned revenue schedules</p>
+                </div>
+                <div className="flex justify-center items-center py-12">
+                  <LoadingSpinner message="Loading..." />
+                </div>
+              </div>
             </div>
           </div>
         </div>

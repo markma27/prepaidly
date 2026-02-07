@@ -9,6 +9,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import DashboardSkeleton from '@/components/DashboardSkeleton';
+import Skeleton from '@/components/Skeleton';
 import { 
   BarChart, 
   Bar, 
@@ -447,11 +448,10 @@ function DashboardPageContent() {
 
   return (
     <DashboardLayout tenantId={tenantId}>
-      {loading ? (
-        <DashboardSkeleton />
-      ) : (
       <div className="space-y-7 max-w-[1800px] mx-auto">
-        {/* Summary Cards */}
+        {error && <ErrorMessage message={error} />}
+
+        {/* Summary Cards - titles always visible, content skeleton when loading */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {/* Prepayment Schedule */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300 cursor-pointer">
@@ -459,8 +459,17 @@ function DashboardPageContent() {
               <h3 className="text-sm font-bold text-gray-900">Prepayment Schedule</h3>
             </div>
             <div className="p-5">
-              <div className="text-2xl font-bold text-gray-900 mb-2">{stats.prepaidScheduleCount}</div>
-              <div className="text-xs text-gray-500">In progress schedules</div>
+              {loading ? (
+                <>
+                  <Skeleton className="h-8 w-24 mb-2" variant="text" />
+                  <Skeleton className="h-3 w-40" variant="text" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-gray-900 mb-2">{stats.prepaidScheduleCount}</div>
+                  <div className="text-xs text-gray-500">In progress schedules</div>
+                </>
+              )}
             </div>
           </div>
 
@@ -470,10 +479,19 @@ function DashboardPageContent() {
               <h3 className="text-sm font-bold text-gray-900">Prepayment Balance</h3>
             </div>
             <div className="p-5">
-              <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingPrepayment)}</div>
-              <div className="text-xs text-gray-500">
-                Balance as of {stats.lastDayFormatted}
-              </div>
+              {loading ? (
+                <>
+                  <Skeleton className="h-8 w-24 mb-2" variant="text" />
+                  <Skeleton className="h-3 w-40" variant="text" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingPrepayment)}</div>
+                  <div className="text-xs text-gray-500">
+                    Balance as of {stats.lastDayFormatted}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -483,8 +501,17 @@ function DashboardPageContent() {
               <h3 className="text-sm font-bold text-gray-900">Unearned Revenue Schedule</h3>
             </div>
             <div className="p-5">
-              <div className="text-2xl font-bold text-gray-900 mb-2">{stats.unearnedScheduleCount}</div>
-              <div className="text-xs text-gray-500">In progress schedules</div>
+              {loading ? (
+                <>
+                  <Skeleton className="h-8 w-24 mb-2" variant="text" />
+                  <Skeleton className="h-3 w-40" variant="text" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-gray-900 mb-2">{stats.unearnedScheduleCount}</div>
+                  <div className="text-xs text-gray-500">In progress schedules</div>
+                </>
+              )}
             </div>
           </div>
 
@@ -494,15 +521,24 @@ function DashboardPageContent() {
               <h3 className="text-sm font-bold text-gray-900">Unearned Revenue Balance</h3>
             </div>
             <div className="p-5">
-              <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingUnearned)}</div>
-              <div className="text-xs text-gray-500">
-                Balance as of {stats.lastDayFormatted}
-              </div>
+              {loading ? (
+                <>
+                  <Skeleton className="h-8 w-24 mb-2" variant="text" />
+                  <Skeleton className="h-3 w-40" variant="text" />
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingUnearned)}</div>
+                  <div className="text-xs text-gray-500">
+                    Balance as of {stats.lastDayFormatted}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Charts Row */}
+        {/* Charts Row - titles always visible, content skeleton when loading */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
             <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
@@ -510,43 +546,47 @@ function DashboardPageContent() {
             </div>
             <div className="p-5">
               <div className="h-[270px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                    data={chartData.prepaid}
-                    style={{ outline: 'none' }}
-                    tabIndex={-1}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                    <XAxis 
-                      dataKey="name" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                      dy={10}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                      tickFormatter={(value) => `$${value/1000}K`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar 
-                      dataKey="value" 
-                      radius={[4, 4, 0, 0]} 
-                      barSize={barSize}
-                      isAnimationActive={false}
-                      onClick={() => {}}
+                {loading ? (
+                  <Skeleton className="h-full w-full" variant="rectangular" />
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart 
+                      data={chartData.prepaid}
                       style={{ outline: 'none' }}
-                      stroke="#3b82f6"
-                      strokeWidth={1}
+                      tabIndex={-1}
                     >
-                      {chartData.prepaid.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={`rgba(59, 130, 246, 0.1)`} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                        dy={10}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                        tickFormatter={(value) => `$${value/1000}K`}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar 
+                        dataKey="value" 
+                        radius={[4, 4, 0, 0]} 
+                        barSize={barSize}
+                        isAnimationActive={false}
+                        onClick={() => {}}
+                        style={{ outline: 'none' }}
+                        stroke="#3b82f6"
+                        strokeWidth={1}
+                      >
+                        {chartData.prepaid.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={`rgba(59, 130, 246, 0.1)`} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
@@ -557,49 +597,53 @@ function DashboardPageContent() {
             </div>
             <div className="p-5">
               <div className="h-[270px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                    data={chartData.unearned}
-                    style={{ outline: 'none' }}
-                    tabIndex={-1}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                    <XAxis 
-                      dataKey="name" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                      dy={10}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                      tickFormatter={(value) => `$${value/1000}K`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar 
-                      dataKey="value" 
-                      radius={[4, 4, 0, 0]} 
-                      barSize={barSize}
-                      isAnimationActive={false}
-                      onClick={() => {}}
+                {loading ? (
+                  <Skeleton className="h-full w-full" variant="rectangular" />
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart 
+                      data={chartData.unearned}
                       style={{ outline: 'none' }}
-                      stroke="#22c55e"
-                      strokeWidth={1}
+                      tabIndex={-1}
                     >
-                      {chartData.unearned.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={`rgba(74, 222, 128, 0.1)`} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                        dy={10}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                        tickFormatter={(value) => `$${value/1000}K`}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar 
+                        dataKey="value" 
+                        radius={[4, 4, 0, 0]} 
+                        barSize={barSize}
+                        isAnimationActive={false}
+                        onClick={() => {}}
+                        style={{ outline: 'none' }}
+                        stroke="#22c55e"
+                        strokeWidth={1}
+                      >
+                        {chartData.unearned.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={`rgba(74, 222, 128, 0.1)`} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Recent Schedules Table */}
+        {/* Recent Schedules Table - title always visible, skeleton rows when loading */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
           <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
             <div>
@@ -637,6 +681,29 @@ function DashboardPageContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
+                {loading ? (
+                  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+                    <tr key={i}>
+                      <td className="px-5 py-3"><Skeleton className="h-5 w-20" variant="rectangular" /></td>
+                      <td className="px-5 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
+                      <td className="px-5 py-3">
+                        <Skeleton className="h-4 w-20 mb-1" variant="text" />
+                        <Skeleton className="h-3 w-32" variant="text" />
+                      </td>
+                      <td className="px-5 py-3">
+                        <Skeleton className="h-4 w-24 mb-1" variant="text" />
+                        <Skeleton className="h-3 w-32" variant="text" />
+                      </td>
+                      <td className="px-5 py-3">
+                        <Skeleton className="h-4 w-32 mb-1" variant="text" />
+                        <Skeleton className="h-3 w-24" variant="text" />
+                      </td>
+                      <td className="px-5 py-3"><Skeleton className="h-5 w-16" variant="rectangular" /></td>
+                      <td className="px-5 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
+                    </tr>
+                  ))
+                ) : (
+                <>
                 {schedules.slice(0, 10).map((schedule) => (
                   <tr key={schedule.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push(`/app/schedules/${schedule.id}?tenantId=${tenantId}`)}>
                     <td className="px-5 py-3">
@@ -716,12 +783,13 @@ function DashboardPageContent() {
                     </td>
                   </tr>
                 )}
+                </>
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
-      )}
     </DashboardLayout>
   );
 }

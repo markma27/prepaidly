@@ -218,18 +218,8 @@ function SettingsPageContent() {
                 {!currentConnection.connected && (
                   <button
                     onClick={() => {
-                      const userStr = typeof window !== 'undefined' ? sessionStorage.getItem('user') : null;
-                      let userId: number | undefined;
-                      if (userStr) {
-                        try {
-                          const user = JSON.parse(userStr);
-                          userId = user.id;
-                        } catch (e) {
-                          console.error('Error parsing user:', e);
-                        }
-                      }
-                      // Use the API helper to get the correct backend URL
-                      window.location.href = xeroAuthApi.getConnectUrl(userId);
+                      // Backend uses default user for OAuth; do not pass Supabase UUID (would cause 400)
+                      window.location.href = xeroAuthApi.getConnectUrl(undefined);
                     }}
                     className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors text-sm font-medium"
                   >
@@ -259,16 +249,16 @@ function SettingsPageContent() {
 
         {/* Default Accounts */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
-          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-            <div className="flex justify-between items-center">
-              <div>
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-4">
+            <div className="flex justify-between items-start gap-4">
+              <div className="min-w-0">
                 <h3 className="text-base font-bold text-gray-900">Default Accounts</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Set default accounts for new schedules</p>
+                <p className="text-xs text-gray-500 mt-1">Set default accounts for new schedules</p>
               </div>
               <button
                 onClick={handleSaveDefaults}
                 disabled={saving}
-                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                   saving
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : saveSuccess
@@ -281,7 +271,7 @@ function SettingsPageContent() {
             </div>
           </div>
           <div className="p-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Default Prepayment Asset Account */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -290,7 +280,7 @@ function SettingsPageContent() {
                 <select
                   value={defaultPrepaymentAccount}
                   onChange={(e) => handlePrepaymentAccountChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
                 >
                   <option value="">Select account...</option>
                   {prepaymentAccounts.map((account) => (
@@ -299,7 +289,7 @@ function SettingsPageContent() {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Used as Dr account for prepayment schedule</p>
+                <p className="text-xs text-gray-500 mt-1.5">Used as Dr account for prepayment schedule</p>
               </div>
 
               {/* Default Unearned Revenue Liability Account */}
@@ -310,7 +300,7 @@ function SettingsPageContent() {
                 <select
                   value={defaultUnearnedAccount}
                   onChange={(e) => handleUnearnedAccountChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
                 >
                   <option value="">Select account...</option>
                   {unearnedAccounts.map((account) => (
@@ -319,17 +309,17 @@ function SettingsPageContent() {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Used as Cr account for unearned revenue schedules</p>
+                <p className="text-xs text-gray-500 mt-1.5">Used as Cr account for unearned revenue schedules</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Chart of Accounts */}
-        <div className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-100">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10">
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-dark-900">Chart of Accounts</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Chart of Accounts</h2>
               <span className="text-sm text-gray-600">
                 {accounts.length} account{accounts.length !== 1 ? 's' : ''}
               </span>
@@ -341,7 +331,7 @@ function SettingsPageContent() {
               <p>No account data available</p>
               <button
                 onClick={() => tenantId && loadData(tenantId)}
-                className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
               >
                 Reload
               </button>
@@ -351,16 +341,16 @@ function SettingsPageContent() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Account Code
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Account Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Type
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                   </tr>
@@ -368,18 +358,18 @@ function SettingsPageContent() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {accounts.map((account) => (
                     <tr key={account.accountID} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-3.5 whitespace-nowrap text-left text-sm font-medium text-gray-900">
                         {account.code}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">
+                      <td className="px-6 py-3.5 text-left text-sm text-gray-700">
                         {account.name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-3.5 whitespace-nowrap text-left text-sm text-gray-500">
                         {account.type}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-3.5 whitespace-nowrap text-left">
                         <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          className={`inline-flex items-center justify-center min-w-[4.5rem] px-2.5 py-0.5 text-xs font-semibold rounded-full ${
                             account.status === 'ACTIVE'
                               ? 'bg-green-100 text-green-800'
                               : 'bg-gray-100 text-gray-800'
