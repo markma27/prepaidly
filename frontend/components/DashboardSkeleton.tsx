@@ -1,4 +1,5 @@
 import Skeleton from './Skeleton';
+import ChartSkeleton from './ChartSkeleton';
 
 const SUMMARY_TITLES = [
   'Prepayment Schedule',
@@ -32,7 +33,9 @@ export default function DashboardSkeleton() {
             <h3 className="text-base font-bold text-gray-900">Prepayment Balance Projection</h3>
           </div>
           <div className="p-5">
-            <Skeleton className="h-[270px] w-full" variant="rectangular" />
+            <div className="h-[270px] w-full">
+              <ChartSkeleton />
+            </div>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -40,7 +43,9 @@ export default function DashboardSkeleton() {
             <h3 className="text-base font-bold text-gray-900">Unearned Revenue Balance Projection</h3>
           </div>
           <div className="p-5">
-            <Skeleton className="h-[270px] w-full" variant="rectangular" />
+            <div className="h-[270px] w-full">
+              <ChartSkeleton />
+            </div>
           </div>
         </div>
       </div>

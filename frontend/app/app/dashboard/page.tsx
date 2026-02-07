@@ -10,6 +10,7 @@ import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import DashboardSkeleton from '@/components/DashboardSkeleton';
 import Skeleton from '@/components/Skeleton';
+import ChartSkeleton from '@/components/ChartSkeleton';
 import { 
   BarChart, 
   Bar, 
@@ -26,7 +27,7 @@ import {
   DollarSign, 
   Plus,
   ArrowRight,
-  MoreHorizontal
+  MoreHorizontal,
 } from 'lucide-react';
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -51,6 +52,11 @@ function DashboardPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1920);
+
+  /** Recent Schedules table sort: default created date, newest first */
+  type RecentSortKey = 'type' | 'contact' | 'account' | 'amount' | 'period' | 'status' | 'createdAt';
+  const [recentSortKey, setRecentSortKey] = useState<RecentSortKey>('createdAt');
+  const [recentSortDir, setRecentSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
@@ -418,6 +424,60 @@ function DashboardPageContent() {
     return accountMap.get(code) || '';
   };
 
+  // Recent Schedules: sort then take top 10 (default: created date, newest first)
+  const sortedRecentSchedules = useMemo(() => {
+    const key = recentSortKey;
+    const dir = recentSortDir === 'asc' ? 1 : -1;
+    const sorted = [...schedules].sort((a, b) => {
+      let aVal: string | number | undefined;
+      let bVal: string | number | undefined;
+      switch (key) {
+        case 'type':
+          aVal = a.type;
+          bVal = b.type;
+          break;
+        case 'contact':
+          aVal = (a.contactName || '').toLowerCase();
+          bVal = (b.contactName || '').toLowerCase();
+          break;
+        case 'account':
+          aVal = (a.type === 'PREPAID' ? a.expenseAcctCode : a.revenueAcctCode) || '';
+          bVal = (b.type === 'PREPAID' ? b.expenseAcctCode : b.revenueAcctCode) || '';
+          break;
+        case 'amount':
+          aVal = a.totalAmount;
+          bVal = b.totalAmount;
+          break;
+        case 'period':
+          aVal = a.startDate;
+          bVal = b.startDate;
+          break;
+        case 'status':
+          aVal = (a.postedPeriods ?? 0) / Math.max(1, a.totalPeriods ?? 1);
+          bVal = (b.postedPeriods ?? 0) / Math.max(1, b.totalPeriods ?? 1);
+          break;
+        case 'createdAt':
+        default:
+          aVal = a.createdAt;
+          bVal = b.createdAt;
+          break;
+      }
+      if (aVal === bVal) return 0;
+      const gt = aVal > bVal ? 1 : -1;
+      return dir * gt;
+    });
+    return sorted.slice(0, 10);
+  }, [schedules, recentSortKey, recentSortDir]);
+
+  const handleRecentSort = (column: RecentSortKey) => {
+    if (recentSortKey === column) {
+      setRecentSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setRecentSortKey(column);
+      setRecentSortDir(column === 'contact' || column === 'account' || column === 'type' ? 'asc' : 'desc');
+    }
+  };
+
   // Helper function to get schedule status
   const getScheduleStatus = (schedule: Schedule): 'Future' | 'In Progress' | 'Completed' => {
     const today = new Date();
@@ -547,7 +607,7 @@ function DashboardPageContent() {
             <div className="p-5">
               <div className="h-[270px] w-full">
                 {loading ? (
-                  <Skeleton className="h-full w-full" variant="rectangular" />
+                  <ChartSkeleton />
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart 
@@ -598,7 +658,7 @@ function DashboardPageContent() {
             <div className="p-5">
               <div className="h-[270px] w-full">
                 {loading ? (
-                  <Skeleton className="h-full w-full" variant="rectangular" />
+                  <ChartSkeleton />
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart 
@@ -671,13 +731,27 @@ function DashboardPageContent() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  <th className="px-5 py-3">Type</th>
-                  <th className="px-5 py-3">Contact</th>
-                  <th className="px-5 py-3">Account Code & Name</th>
-                  <th className="px-5 py-3">Amount</th>
-                  <th className="px-5 py-3">Period</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Created Date</th>
+                  <th className="px-5 py-3">
+                    <button type="button" onClick={() => handleRecentSort('type')} className="hover:text-gray-700 transition-colors" title="Sort by type">Type</button>
+                  </th>
+                  <th className="px-5 py-3">
+                    <button type="button" onClick={() => handleRecentSort('contact')} className="hover:text-gray-700 transition-colors" title="Sort by contact">Contact</button>
+                  </th>
+                  <th className="px-5 py-3">
+                    <button type="button" onClick={() => handleRecentSort('account')} className="hover:text-gray-700 transition-colors" title="Sort by account">Account Code & Name</button>
+                  </th>
+                  <th className="px-5 py-3">
+                    <button type="button" onClick={() => handleRecentSort('amount')} className="hover:text-gray-700 transition-colors" title="Sort by amount">Amount</button>
+                  </th>
+                  <th className="px-5 py-3">
+                    <button type="button" onClick={() => handleRecentSort('period')} className="hover:text-gray-700 transition-colors" title="Sort by period">Period</button>
+                  </th>
+                  <th className="px-5 py-3">
+                    <button type="button" onClick={() => handleRecentSort('status')} className="hover:text-gray-700 transition-colors" title="Sort by status">Status</button>
+                  </th>
+                  <th className="px-5 py-3">
+                    <button type="button" onClick={() => handleRecentSort('createdAt')} className="hover:text-gray-700 transition-colors" title="Sort by created date">Created Date</button>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -704,7 +778,7 @@ function DashboardPageContent() {
                   ))
                 ) : (
                 <>
-                {schedules.slice(0, 10).map((schedule) => (
+                {sortedRecentSchedules.map((schedule) => (
                   <tr key={schedule.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push(`/app/schedules/${schedule.id}?tenantId=${tenantId}`)}>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
@@ -776,7 +850,7 @@ function DashboardPageContent() {
                     <td className="px-5 py-3 text-sm text-gray-500">{formatDate(schedule.createdAt)}</td>
                   </tr>
                 ))}
-                {schedules.length === 0 && (
+                {sortedRecentSchedules.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                       No schedules found. Create your first one to see it here.

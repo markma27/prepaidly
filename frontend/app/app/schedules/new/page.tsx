@@ -952,7 +952,7 @@ function NewSchedulePageContent() {
                         className="w-full flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                       >
                         <Eye className="w-4 h-4" />
-                        Preview Amortisation Schedule
+                        Preview Schedule
                       </button>
                       <button
                         type="submit"
