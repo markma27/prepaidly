@@ -1000,13 +1000,13 @@ function NewSchedulePageContent() {
                   </div>
                 </div>
 
-                {/* Amortisation Schedule Preview */}
+                {/* Schedule Preview */}
                 {showPreview && previewEntries.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200">
                     <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
                       <div>
                         <h3 className="text-base font-bold text-gray-900">
-                          Amortisation Schedule Preview
+                          Schedule Preview
                         </h3>
                         <p className="text-xs text-gray-500 mt-0.5">
                           {previewEntries.length}{' '}

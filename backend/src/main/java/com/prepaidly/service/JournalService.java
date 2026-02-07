@@ -44,22 +44,28 @@ public class JournalService {
             throw new RuntimeException("Journal entry already posted");
         }
         
-        // Build journal lines based on schedule type
-        List<JournalLine> journalLines = buildJournalLines(schedule, entry);
-        
-        // Create narration with key schedule information
+        // Entry index (1-based) and total count for "1 of 4" in line description
+        List<JournalEntry> scheduleEntries = journalEntryRepository.findByScheduleId(schedule.getId());
+        scheduleEntries.sort((a, b) -> a.getPeriodDate().compareTo(b.getPeriodDate()));
+        int entryIndex = 1;
+        for (int i = 0; i < scheduleEntries.size(); i++) {
+            if (scheduleEntries.get(i).getId().equals(entry.getId())) {
+                entryIndex = i + 1;
+                break;
+            }
+        }
+        int totalJournals = scheduleEntries.size();
+
+        // Build journal lines (description includes Total Amount and "1 of 4")
+        List<JournalLine> journalLines = buildJournalLines(schedule, entry, entryIndex, totalJournals);
+
+        // Narration: "Prepayment - Contact | Schedule: start to end" (no Total Amount)
         StringBuilder narrationBuilder = new StringBuilder();
         narrationBuilder.append(schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepayment" : "Unearned Revenue");
-        narrationBuilder.append(" Recognition");
         if (schedule.getContactName() != null && !schedule.getContactName().isEmpty()) {
             narrationBuilder.append(" - ").append(schedule.getContactName());
         }
-        if (schedule.getDescription() != null && !schedule.getDescription().isEmpty()) {
-            narrationBuilder.append(" | ").append(schedule.getDescription());
-        }
-        narrationBuilder.append(String.format(" | Period: %s | Amount: $%.2f | Schedule: %s to %s",
-            entry.getPeriodDate().toString(),
-            entry.getAmount(),
+        narrationBuilder.append(String.format(" | Schedule: %s to %s",
             schedule.getStartDate().toString(),
             schedule.getEndDate().toString()
         ));
@@ -95,57 +101,45 @@ public class JournalService {
     }
     
     /**
-     * Build journal lines based on schedule type
+     * Build journal lines based on schedule type. Line description = description | Total Amount | "1 of 4".
      */
-    private List<JournalLine> buildJournalLines(Schedule schedule, JournalEntry entry) {
+    private List<JournalLine> buildJournalLines(Schedule schedule, JournalEntry entry, int entryIndex, int totalJournals) {
         List<JournalLine> lines = new ArrayList<>();
-        
-        // Build a descriptive suffix with contact and description
-        String detail = buildLineDetail(schedule);
+        String descPart = (schedule.getDescription() != null && !schedule.getDescription().isEmpty())
+            ? schedule.getDescription()
+            : (schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepayment" : "Unearned revenue");
+        String lineDescription = String.format("%s | Total Amount: $%,.2f | %d of %d",
+            descPart, schedule.getTotalAmount(), entryIndex, totalJournals);
         
         if (schedule.getType() == Schedule.ScheduleType.PREPAID) {
             // Prepayment: Debit Expense, Credit Deferral
             JournalLine expenseLine = new JournalLine();
             expenseLine.setAccountCode(schedule.getExpenseAcctCode());
-            expenseLine.setDescription("Prepayment recognition" + detail);
+            expenseLine.setDescription(lineDescription);
             expenseLine.setLineAmount(entry.getAmount());
             lines.add(expenseLine);
             
             JournalLine deferralLine = new JournalLine();
             deferralLine.setAccountCode(schedule.getDeferralAcctCode());
-            deferralLine.setDescription("Prepayment deferral reduction" + detail);
+            deferralLine.setDescription(lineDescription);
             deferralLine.setLineAmount(entry.getAmount().negate());
             lines.add(deferralLine);
         } else {
             // Unearned Revenue: Debit Deferral, Credit Revenue
             JournalLine deferralLine = new JournalLine();
             deferralLine.setAccountCode(schedule.getDeferralAcctCode());
-            deferralLine.setDescription("Unearned revenue deferral reduction" + detail);
+            deferralLine.setDescription(lineDescription);
             deferralLine.setLineAmount(entry.getAmount().negate());
             lines.add(deferralLine);
             
             JournalLine revenueLine = new JournalLine();
             revenueLine.setAccountCode(schedule.getRevenueAcctCode());
-            revenueLine.setDescription("Unearned revenue recognition" + detail);
+            revenueLine.setDescription(lineDescription);
             revenueLine.setLineAmount(entry.getAmount());
             lines.add(revenueLine);
         }
         
         return lines;
-    }
-    
-    /**
-     * Build a detail suffix for journal line descriptions including contact and description
-     */
-    private String buildLineDetail(Schedule schedule) {
-        StringBuilder sb = new StringBuilder();
-        if (schedule.getContactName() != null && !schedule.getContactName().isEmpty()) {
-            sb.append(" - ").append(schedule.getContactName());
-        }
-        if (schedule.getDescription() != null && !schedule.getDescription().isEmpty()) {
-            sb.append(" | ").append(schedule.getDescription());
-        }
-        return sb.toString();
     }
 }
 
