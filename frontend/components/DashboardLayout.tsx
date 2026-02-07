@@ -274,7 +274,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
     { name: 'Dashboard', href: `/app/dashboard?tenantId=${tenantId || ''}`, icon: LayoutDashboard, path: '/app/dashboard' },
     { name: 'New Schedule', href: `/app/schedules/new?tenantId=${tenantId || ''}`, icon: PlusCircle, path: '/app/schedules/new' },
     { name: 'Schedule Register', href: `/app/schedules/register?tenantId=${tenantId || ''}`, icon: ListOrdered, path: '/app/schedules/register' },
-    { name: 'Analytics', href: `/app/dashboard?tenantId=${tenantId || ''}`, icon: BarChart3, path: '/app/dashboard' },
+    { name: 'Analytics', href: `/app/analytics?tenantId=${tenantId || ''}`, icon: BarChart3, path: '/app/analytics' },
   ];
 
   const footerNavigation = [
@@ -286,6 +286,10 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
     // Only Dashboard should be active when on dashboard page
     if (pathname === '/app/dashboard') {
       return itemName === 'Dashboard';
+    }
+    // Analytics: exact path match
+    if (pathname === '/app/analytics') {
+      return itemName === 'Analytics';
     }
     // For Schedule Register, match register page and detail pages (but not new schedule page)
     if (itemPath === '/app/schedules/register') {
