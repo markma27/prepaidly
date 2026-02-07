@@ -123,6 +123,11 @@ public class ScheduleResponse {
     private String description;
 
     /**
+     * Optional invoice date (date on the related invoice)
+     */
+    private LocalDate invoiceDate;
+
+    /**
      * URL of the uploaded invoice file
      */
     private String invoiceUrl;

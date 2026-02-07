@@ -69,6 +69,10 @@ public class Schedule {
     @Column(name = "description")
     private String description;
 
+    /** Invoice date (date on the related invoice). Maps to schedules.invoice_date in Supabase. */
+    @Column(name = "invoice_date")
+    private LocalDate invoiceDate;
+
     /** URL of the uploaded invoice file in Supabase Storage */
     @Column(name = "invoice_url")
     private String invoiceUrl;

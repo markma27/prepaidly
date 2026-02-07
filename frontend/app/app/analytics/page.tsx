@@ -4,11 +4,12 @@ import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, syncApi, xeroApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import type { Schedule, XeroAccount } from '@/lib/types';
+import type { Schedule, JournalEntry, XeroAccount } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import Skeleton from '@/components/Skeleton';
+import { ChevronLeft, ChevronRight, Calendar, DollarSign, FileText, RefreshCw } from 'lucide-react';
 
 type TabType = 'prepayment' | 'unearned';
 
@@ -21,6 +22,12 @@ function AnalyticsPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<TabType>('prepayment');
+  // 12-month window: start year-month "YYYY-MM". Default = current month.
+  const getCurrentStartYearMonth = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  };
+  const [startYearMonth, setStartYearMonth] = useState<string>(() => getCurrentStartYearMonth());
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
@@ -82,23 +89,50 @@ function AnalyticsPageContent() {
     return accountMap.get(code) || '';
   };
 
-  // 12 months starting from current month
+  // Show '-' for zero or rounding-to-zero (avoids $0.00 from floating point)
+  const formatAmountOrDash = (value: number | null | undefined): string => {
+    if (value == null) return '-';
+    if (Math.round(value * 100) === 0) return '-';
+    return formatCurrency(value);
+  };
+
+  // 12 months starting from selected start month
   const monthColumns = useMemo(() => {
     const cols: { key: string; label: string; yearMonth: string }[] = [];
-    const now = new Date();
+    const [y, m] = startYearMonth.split('-').map(Number);
     for (let i = 0; i < 12; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const d = new Date(y, m - 1 + i, 1);
       const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
       const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
       cols.push({ key: yearMonth, label, yearMonth });
     }
     return cols;
-  }, []);
+  }, [startYearMonth]);
+
+  const rangeLabel = useMemo(() => {
+    if (monthColumns.length === 0) return '';
+    const first = monthColumns[0].label;
+    const last = monthColumns[11].label;
+    return `${first} – ${last}`;
+  }, [monthColumns]);
+
+  const shiftStartMonth = (delta: number) => {
+    const [y, m] = startYearMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    setStartYearMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
 
   const filteredSchedules = useMemo(() => {
     const type = activeTab === 'prepayment' ? 'PREPAID' : 'UNEARNED';
     return schedules.filter((s) => s.type === type);
   }, [schedules, activeTab]);
+
+  // Journal entry for a given month (by periodDate); used for posted status colour
+  const getJournalEntryForMonth = (schedule: Schedule, yearMonth: string): JournalEntry | undefined => {
+    const monthPrefix = yearMonth.slice(0, 7);
+    const entries = schedule.journalEntries ?? [];
+    return entries.find((je) => je.periodDate && je.periodDate.slice(0, 7) === monthPrefix);
+  };
 
   // Build amount-by-month map for a schedule from journal entries
   const getAmountByMonth = (schedule: Schedule): Map<string, number> => {
@@ -120,11 +154,11 @@ function AnalyticsPageContent() {
     if (schedule.type === 'PREPAID') {
       const code = schedule.expenseAcctCode || '';
       const name = getAccountName(schedule.expenseAcctCode);
-return name ? `[${code}] ${name}` : code || '-';
-  }
-  const code = schedule.revenueAcctCode || '';
-  const name = getAccountName(schedule.revenueAcctCode);
-  return name ? `[${code}] ${name}` : code || '-';
+      return name ? `${code} - ${name}` : code || '-';
+    }
+    const code = schedule.revenueAcctCode || '';
+    const name = getAccountName(schedule.revenueAcctCode);
+    return name ? `${code} - ${name}` : code || '-';
   };
 
   // Totals per month for the current tab's schedules
@@ -140,17 +174,36 @@ return name ? `[${code}] ${name}` : code || '-';
     return totals;
   }, [filteredSchedules, monthColumns]);
 
-  // Remaining unamortised balance at the start of each month (totalAmount minus amounts for periods before that month)
+  // Remaining unamortised balance based on invoice date: show from invoice-date month, full total until amortisation starts, then end-of-month balance
   const getRemainingBalanceByMonth = (schedule: Schedule): Map<string, number> => {
     const map = new Map<string, number>();
     const total = schedule.totalAmount ?? 0;
     const entries = schedule.journalEntries ?? [];
+    // First month to show balance = month of invoice date, or start date if no invoice date
+    const fromDate = schedule.invoiceDate || schedule.startDate;
+    const firstMonthKey = fromDate ? `${fromDate.slice(0, 7)}-01` : '';
+    const startDate = schedule.startDate; // amortisation starts on this date
+
     monthColumns.forEach((col) => {
-      const cutoff = col.yearMonth; // e.g. "2025-02-01"
-      const recognisedBefore = entries
-        .filter((je) => je.periodDate < cutoff)
+      // Before invoice (or start) month: no balance to show
+      if (firstMonthKey && col.yearMonth < firstMonthKey) {
+        map.set(col.yearMonth, 0);
+        return;
+      }
+      // End of this column's month
+      const [y, m] = col.yearMonth.split('-').map(Number);
+      const lastDay = new Date(y, m, 0);
+      const cutoffEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+      // If end of month is before amortisation start: full total (not yet amortising)
+      if (cutoffEnd < startDate) {
+        map.set(col.yearMonth, total);
+        return;
+      }
+      // Otherwise: remaining at end of month = total - recognised through end of month
+      const recognisedThroughEndOfMonth = entries
+        .filter((je) => je.periodDate <= cutoffEnd)
         .reduce((sum, je) => sum + (je.amount ?? 0), 0);
-      const remaining = Math.max(0, total - recognisedBefore);
+      const remaining = Math.max(0, total - recognisedThroughEndOfMonth);
       map.set(col.yearMonth, remaining);
     });
     return map;
@@ -179,73 +232,235 @@ return name ? `[${code}] ${name}` : code || '-';
 
   return (
     <DashboardLayout tenantId={tenantId}>
-      {loading ? (
-        <div className="max-w-[1800px] mx-auto p-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-4">
-              <Skeleton className="h-5 w-48" variant="text" />
-            </div>
-            <div className="p-6">
-              <Skeleton className="h-10 w-full mb-4" variant="rect" />
-              <Skeleton className="h-64 w-full" variant="rect" />
+      <div className="max-w-[1800px] mx-auto p-6">
+        {error && (
+          <ErrorMessage message={error} onDismiss={() => setError(null)} />
+        )}
+
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Title always visible - consistent with other pages */}
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-4">
+            <div className="flex justify-between items-start gap-4">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-gray-900">
+                  Analytics
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Monthly amounts to be posted by contact and account
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      ) : (
-        <div className="max-w-[1800px] mx-auto p-6">
-          {error && (
-            <ErrorMessage message={error} onDismiss={() => setError(null)} />
-          )}
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-4">
-              <div className="flex justify-between items-start gap-4">
-                <div className="min-w-0">
-                  <h3 className="text-base font-bold text-gray-900">
-                    Analytics
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Monthly amounts to be posted by contact and account
-                  </p>
+          <div className="p-5">
+            {/* Tabs and date filter on same row */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('prepayment')}
+                  disabled={loading}
+                  className={`flex-1 min-w-[220px] whitespace-nowrap px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 text-left ${
+                    activeTab === 'prepayment'
+                      ? 'border-blue-500 bg-blue-50 text-blue-600'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                  } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 flex-shrink-0" />
+                    Prepayment
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('unearned')}
+                  disabled={loading}
+                  className={`flex-1 min-w-[220px] whitespace-nowrap px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 text-left ${
+                    activeTab === 'unearned'
+                      ? 'border-green-500 bg-green-50 text-green-600'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                  } ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 flex-shrink-0" />
+                    Unearned Revenue
+                  </div>
+                </button>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-sm text-gray-600 flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-gray-400" />
+                    Showing:
+                  </span>
+                  <span className="text-sm font-medium text-gray-900 min-w-[140px]">
+                    {rangeLabel}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => shiftStartMonth(-1)}
+                      disabled={loading}
+                      className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      title="Previous 12 months"
+                      aria-label="Previous 12 months"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => shiftStartMonth(1)}
+                      disabled={loading}
+                      className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      title="Next 12 months"
+                      aria-label="Next 12 months"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStartYearMonth(getCurrentStartYearMonth())}
+                      disabled={loading}
+                      className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      title="Current period"
+                      aria-label="Current period"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="p-5">
-              {/* Tabs */}
-              <div className="flex gap-1 mb-6 border-b border-gray-200">
-                <button
-                  onClick={() => setActiveTab('prepayment')}
-                  className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
-                    activeTab === 'prepayment'
-                      ? 'bg-[#6d69ff] text-white'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  Prepayment
-                </button>
-                <button
-                  onClick={() => setActiveTab('unearned')}
-                  className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
-                    activeTab === 'unearned'
-                      ? 'bg-[#6d69ff] text-white'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  Unearned Revenue
-                </button>
-              </div>
-
+            {loading ? (
+              /* Skeleton tables matching actual table layout */
+              <>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                  Monthly Amounts to Post
+                </h4>
+                <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                  <table className="w-full min-w-[800px] text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
+                          Contact Name
+                        </th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
+                          Account Code and Name
+                        </th>
+                        {monthColumns.map((col) => (
+                          <th
+                            key={col.key}
+                            className="text-right py-3 px-3 font-semibold text-gray-700 whitespace-nowrap"
+                          >
+                            {col.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <tr key={i} className="border-b border-gray-100">
+                          <td className="py-2.5 px-4">
+                            <Skeleton className="h-4 w-28" variant="text" />
+                          </td>
+                          <td className="py-2.5 px-4">
+                            <Skeleton className="h-4 w-36" variant="text" />
+                          </td>
+                          {monthColumns.map((col) => (
+                            <td key={col.key} className="py-2.5 px-3 text-right">
+                              <Skeleton className="h-4 w-14 ml-auto" variant="text" />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-gray-100 border-t-2 border-gray-200">
+                        <td className="py-3 px-4" colSpan={2}>
+                          <Skeleton className="h-4 w-12" variant="text" />
+                        </td>
+                        {monthColumns.map((col) => (
+                          <td key={col.key} className="py-3 px-3 text-right">
+                            <Skeleton className="h-4 w-14 ml-auto" variant="text" />
+                          </td>
+                        ))}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <div className="mt-8">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                    Remaining Balance at Month End
+                  </h4>
+                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table className="w-full min-w-[800px] text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
+                            Contact Name
+                          </th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
+                            Account Code and Name
+                          </th>
+                          {monthColumns.map((col) => (
+                            <th
+                              key={col.key}
+                              className="text-right py-3 px-3 font-semibold text-gray-700 whitespace-nowrap"
+                            >
+                              {col.label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <tr key={i} className="border-b border-gray-100">
+                            <td className="py-2.5 px-4">
+                              <Skeleton className="h-4 w-28" variant="text" />
+                            </td>
+                            <td className="py-2.5 px-4">
+                              <Skeleton className="h-4 w-36" variant="text" />
+                            </td>
+                            {monthColumns.map((col) => (
+                              <td key={col.key} className="py-2.5 px-3 text-right">
+                                <Skeleton className="h-4 w-14 ml-auto" variant="text" />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-gray-100 border-t-2 border-gray-200">
+                          <td className="py-3 px-4" colSpan={2}>
+                            <Skeleton className="h-4 w-12" variant="text" />
+                          </td>
+                          {monthColumns.map((col) => (
+                            <td key={col.key} className="py-3 px-3 text-right">
+                              <Skeleton className="h-4 w-14 ml-auto" variant="text" />
+                            </td>
+                          ))}
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
               {/* Data table */}
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                Monthly Amounts to Post
+              </h4>
               <div className="overflow-x-auto border border-gray-200 rounded-lg">
                 <table className="w-full min-w-[800px] text-xs">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
-                        Contact name
+                        Contact Name
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
-                        Account code and name
+                        Account Code and Name
                       </th>
                       {monthColumns.map((col) => (
                         <th
@@ -293,14 +508,20 @@ return name ? `[${code}] ${name}` : code || '-';
                             </td>
                             {monthColumns.map((col) => {
                               const amount = amountByMonth.get(col.yearMonth);
+                              const entry = getJournalEntryForMonth(schedule, col.yearMonth);
+                              const hasAmount = amount != null && Math.round(amount * 100) !== 0;
+                              const statusClass =
+                                hasAmount && entry
+                                  ? entry.posted
+                                    ? 'text-green-600'
+                                    : 'text-amber-600'
+                                  : 'text-gray-700';
                               return (
                                 <td
                                   key={col.key}
-                                  className="py-2.5 px-3 text-right text-gray-700 whitespace-nowrap tabular-nums"
+                                  className={`py-2.5 px-3 text-right whitespace-nowrap tabular-nums ${statusClass}`}
                                 >
-                                  {amount != null && amount !== 0
-                                    ? formatCurrency(amount)
-                                    : '-'}
+                                  {formatAmountOrDash(amount)}
                                 </td>
                               );
                             })}
@@ -322,7 +543,7 @@ return name ? `[${code}] ${name}` : code || '-';
                               key={col.key}
                               className="py-3 px-3 text-right text-gray-900 whitespace-nowrap tabular-nums"
                             >
-                              {total !== 0 ? formatCurrency(total) : '-'}
+                              {formatAmountOrDash(monthTotals.get(col.yearMonth) ?? 0)}
                             </td>
                           );
                         })}
@@ -335,17 +556,17 @@ return name ? `[${code}] ${name}` : code || '-';
               {/* Remaining balance table */}
               <div className="mt-8">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                  Remaining Balance
+                  Remaining Balance at Month End
                 </h4>
                 <div className="overflow-x-auto border border-gray-200 rounded-lg">
                   <table className="w-full min-w-[800px] text-xs">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
-                          Contact name
+                          Contact Name
                         </th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
-                          Account code and name
+                          Account Code and Name
                         </th>
                         {monthColumns.map((col) => (
                           <th
@@ -393,14 +614,18 @@ return name ? `[${code}] ${name}` : code || '-';
                               </td>
                               {monthColumns.map((col) => {
                                 const balance = balanceByMonth.get(col.yearMonth);
+                                const entry = getJournalEntryForMonth(schedule, col.yearMonth);
+                                const statusClass = entry
+                                  ? entry.posted
+                                    ? 'text-green-600'
+                                    : 'text-amber-600'
+                                  : 'text-gray-700';
                                 return (
                                   <td
                                     key={col.key}
-                                    className="py-2.5 px-3 text-right text-gray-700 whitespace-nowrap tabular-nums"
+                                    className={`py-2.5 px-3 text-right whitespace-nowrap tabular-nums ${statusClass}`}
                                   >
-                                    {balance != null && balance > 0
-                                      ? formatCurrency(balance)
-                                      : '-'}
+                                    {formatAmountOrDash(balance)}
                                   </td>
                                 );
                               })}
@@ -422,7 +647,7 @@ return name ? `[${code}] ${name}` : code || '-';
                                 key={col.key}
                                 className="py-3 px-3 text-right text-gray-900 whitespace-nowrap tabular-nums"
                               >
-                                {total !== 0 ? formatCurrency(total) : '-'}
+                                {formatAmountOrDash(total)}
                               </td>
                             );
                           })}
@@ -432,10 +657,11 @@ return name ? `[${code}] ${name}` : code || '-';
                   </table>
                 </div>
               </div>
-            </div>
+            </>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </DashboardLayout>
   );
 }

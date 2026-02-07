@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, xeroApi, settingsApi } from '@/lib/api';
-import { validateDateRange, formatCurrency, generateProRataSchedule, countProRataPeriods } from '@/lib/utils';
+import { validateDateRange, formatCurrency, formatDate, generateProRataSchedule, countProRataPeriods } from '@/lib/utils';
 import type { XeroAccount, ScheduleType } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -38,6 +38,7 @@ function NewSchedulePageContent() {
 
   // Contact state (plain text, not linked to Xero)
   const [contactName, setContactName] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState('');
   const [existingContacts, setExistingContacts] = useState<string[]>([]);
   const [showContactDropdown, setShowContactDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -365,6 +366,15 @@ function NewSchedulePageContent() {
       return;
     }
 
+    if (!contactName.trim()) {
+      setError('Contact is required');
+      return;
+    }
+    if (!invoiceDate.trim()) {
+      setError('Invoice date is required');
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
@@ -378,8 +388,9 @@ function NewSchedulePageContent() {
         expenseAcctCode: type === 'PREPAID' ? expenseAcctCode : undefined,
         revenueAcctCode: type === 'UNEARNED' ? revenueAcctCode : undefined,
         deferralAcctCode,
-        contactName: contactName.trim() || undefined,
+        contactName: contactName.trim(),
         description: description.trim() || undefined,
+        invoiceDate: invoiceDate.trim(),
         invoiceUrl: invoiceStorageUrl || undefined,
         invoiceFilename: invoiceFile?.name || undefined,
       };
@@ -434,11 +445,17 @@ function NewSchedulePageContent() {
                       <Skeleton className="h-[3.75rem] flex-1 rounded-lg" variant="rectangular" />
                     </div>
                   </div>
-                  {/* Contact */}
-                  <div>
-                    <Skeleton className="h-5 w-full mb-1.5 max-w-[4rem]" variant="text" />
-                    <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
-                    <Skeleton className="h-3 w-full mt-1 max-w-[18rem]" variant="text" />
+                  {/* Contact and Invoice Date */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Skeleton className="h-5 w-full mb-1.5 max-w-[4rem]" variant="text" />
+                      <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
+                      <Skeleton className="h-3 w-full mt-1 max-w-[18rem]" variant="text" />
+                    </div>
+                    <div>
+                      <Skeleton className="h-5 w-full mb-1.5 max-w-[5rem]" variant="text" />
+                      <Skeleton className="h-[2.75rem] w-full rounded-lg" variant="rectangular" />
+                    </div>
                   </div>
                   {/* Dates */}
                   <div className="grid grid-cols-2 gap-4">
@@ -597,83 +614,99 @@ function NewSchedulePageContent() {
                         </button>
                       </div>
                     </div>
-                    {/* Contact */}
-                    <div className="relative">
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Contact
-                      </label>
+                    {/* Contact and Invoice Date - same row */}
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="relative">
-                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          ref={contactInputRef}
-                          type="text"
-                          value={contactName}
-                          onChange={(e) => {
-                            setContactName(e.target.value);
-                            setShowContactDropdown(true);
-                            setHighlightedIndex(-1);
-                          }}
-                          onFocus={() => {
-                            if (filteredContacts.length > 0) {
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Contact <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            ref={contactInputRef}
+                            type="text"
+                            value={contactName}
+                            onChange={(e) => {
+                              setContactName(e.target.value);
                               setShowContactDropdown(true);
-                            }
-                          }}
-                          onKeyDown={handleContactKeyDown}
-                          placeholder="Enter contact / customer / supplier name"
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
-                          autoComplete="off"
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Included in the journal narration when posting to Xero
-                      </p>
-
-                      {/* Contact suggestions dropdown */}
-                      {showContactDropdown && filteredContacts.length > 0 && (
-                        <div
-                          ref={contactDropdownRef}
-                          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                        >
-                          {filteredContacts.map((name, index) => {
-                            // Highlight matching text
-                            const query = contactName.toLowerCase().trim();
-                            const matchIndex = name.toLowerCase().indexOf(query);
-                            
-                            return (
-                              <button
-                                key={name}
-                                type="button"
-                                onClick={() => {
-                                  setContactName(name);
-                                  setShowContactDropdown(false);
-                                  setHighlightedIndex(-1);
-                                }}
-                                onMouseEnter={() => setHighlightedIndex(index)}
-                                className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center gap-3 ${
-                                  index === highlightedIndex
-                                    ? 'bg-[#6d69ff]/5 text-gray-900'
-                                    : 'hover:bg-gray-50 text-gray-700'
-                                }`}
-                              >
-                                <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                <span>
-                                  {query && matchIndex >= 0 ? (
-                                    <>
-                                      {name.slice(0, matchIndex)}
-                                      <span className="font-semibold text-[#6d69ff]">
-                                        {name.slice(matchIndex, matchIndex + query.length)}
-                                      </span>
-                                      {name.slice(matchIndex + query.length)}
-                                    </>
-                                  ) : (
-                                    name
-                                  )}
-                                </span>
-                              </button>
-                            );
-                          })}
+                              setHighlightedIndex(-1);
+                            }}
+                            onFocus={() => {
+                              if (filteredContacts.length > 0) {
+                                setShowContactDropdown(true);
+                              }
+                            }}
+                            onKeyDown={handleContactKeyDown}
+                            placeholder="Enter contact / customer / supplier name"
+                            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                            autoComplete="off"
+                          />
                         </div>
-                      )}
+                        <p className="text-xs text-gray-500 mt-1">
+                          Included in the journal narration when posting to Xero
+                        </p>
+
+                        {/* Contact suggestions dropdown */}
+                        {showContactDropdown && filteredContacts.length > 0 && (
+                          <div
+                            ref={contactDropdownRef}
+                            className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                          >
+                            {filteredContacts.map((name, index) => {
+                              // Highlight matching text
+                              const query = contactName.toLowerCase().trim();
+                              const matchIndex = name.toLowerCase().indexOf(query);
+                              
+                              return (
+                                <button
+                                  key={name}
+                                  type="button"
+                                  onClick={() => {
+                                    setContactName(name);
+                                    setShowContactDropdown(false);
+                                    setHighlightedIndex(-1);
+                                  }}
+                                  onMouseEnter={() => setHighlightedIndex(index)}
+                                  className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center gap-3 ${
+                                    index === highlightedIndex
+                                      ? 'bg-[#6d69ff]/5 text-gray-900'
+                                      : 'hover:bg-gray-50 text-gray-700'
+                                  }`}
+                                >
+                                  <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                  <span>
+                                    {query && matchIndex >= 0 ? (
+                                      <>
+                                        {name.slice(0, matchIndex)}
+                                        <span className="font-semibold text-[#6d69ff]">
+                                          {name.slice(matchIndex, matchIndex + query.length)}
+                                        </span>
+                                        {name.slice(matchIndex + query.length)}
+                                      </>
+                                    ) : (
+                                      name
+                                    )}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Invoice date <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={invoiceDate}
+                          onChange={(e) => setInvoiceDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Date on the related invoice
+                        </p>
+                      </div>
                     </div>
 
                     {/* Dates */}
@@ -892,6 +925,15 @@ function NewSchedulePageContent() {
                         <span className="text-sm text-gray-500">Contact</span>
                         <span className="text-sm font-medium text-gray-900 truncate ml-2 max-w-[150px]">
                           {contactName}
+                        </span>
+                      </div>
+                    )}
+                    {/* Invoice date */}
+                    {invoiceDate && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">Invoice date</span>
+                        <span className="text-sm font-medium text-gray-900 truncate ml-2 max-w-[150px]">
+                          {formatDate(invoiceDate)}
                         </span>
                       </div>
                     )}

@@ -248,159 +248,70 @@ function DashboardPageContent() {
     }
   };
 
+  // True if schedule has a monthly amount to post in the given month (current month column in Analytics "Monthly Amounts to Post")
+  const hasAmountToPostInMonth = (schedule: Schedule, yearMonth: string): boolean => {
+    const entries = schedule.journalEntries ?? [];
+    const monthPrefix = yearMonth.slice(0, 7); // "YYYY-MM"
+    const entry = entries.find((je) => je.periodDate && je.periodDate.slice(0, 7) === monthPrefix);
+    if (!entry || entry.amount == null) return false;
+    return Math.round(entry.amount * 100) > 0;
+  };
+
+  // Remaining balance at end of month: same logic as Analytics remaining balance table (invoice-date based)
+  const getRemainingBalanceForMonth = (schedule: Schedule, yearMonth: string): number => {
+    const total = schedule.totalAmount ?? 0;
+    const entries = schedule.journalEntries ?? [];
+    const fromDate = schedule.invoiceDate || schedule.startDate;
+    const firstMonthKey = fromDate ? `${fromDate.slice(0, 7)}-01` : '';
+    const startDate = schedule.startDate;
+    if (firstMonthKey && yearMonth < firstMonthKey) return 0;
+    const [y, m] = yearMonth.split('-').map(Number);
+    const lastDay = new Date(y, m, 0);
+    const cutoffEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+    if (cutoffEnd < startDate) return total;
+    const recognised = entries
+      .filter((je) => je.periodDate <= cutoffEnd)
+      .reduce((sum, je) => sum + (je.amount ?? 0), 0);
+    return Math.max(0, total - recognised);
+  };
+
   const stats = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    // Current month (first day) - same as chart calculation
-    const currentMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
-    
-    // Last day of current month for display (e.g., January 31)
+    const currentYearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
     const lastDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
-    // Format last day for display (e.g., "31 January 2026")
     const lastDayFormatted = `${lastDayOfCurrentMonth.getDate()} ${lastDayOfCurrentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
-    
     const prepaidSchedules = schedules.filter(s => s.type === 'PREPAID');
     const unearnedSchedules = schedules.filter(s => s.type === 'UNEARNED');
-    
-    // Active schedules: startDate <= today <= endDate
-    const activePrepaidSchedules = prepaidSchedules.filter(s => {
-      const start = new Date(s.startDate);
-      const end = new Date(s.endDate);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      return start <= today && today <= end;
-    });
-
-    const activeUnearnedSchedules = unearnedSchedules.filter(s => {
-      const start = new Date(s.startDate);
-      const end = new Date(s.endDate);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      return start <= today && today <= end;
-    });
-
-    // Remaining amounts for current month - same calculation as chart
-    // Only include schedules where current month falls within schedule period
-    // Sum journal entries with period dates AFTER current month (matching chart logic)
-    const remainingPrepaid = prepaidSchedules.reduce((acc, s) => {
-      const scheduleStartDate = new Date(s.startDate);
-      scheduleStartDate.setHours(0, 0, 0, 0);
-      const scheduleStartMonth = new Date(scheduleStartDate.getFullYear(), scheduleStartDate.getMonth(), 1);
-      const scheduleEndDate = new Date(s.endDate);
-      scheduleEndDate.setHours(23, 59, 59, 999);
-      const scheduleEndMonth = new Date(scheduleEndDate.getFullYear(), scheduleEndDate.getMonth(), 1);
-      
-      // Only include if current month falls within schedule period (same as chart)
-      if (currentMonthDate >= scheduleStartMonth && currentMonthDate <= scheduleEndMonth) {
-        if (s.journalEntries && Array.isArray(s.journalEntries) && s.journalEntries.length > 0) {
-          const remainingAtDate = s.journalEntries
-            .filter(je => {
-              const jeDate = new Date(je.periodDate);
-              const jeMonth = new Date(jeDate.getFullYear(), jeDate.getMonth(), 1);
-              // Include entries for months after the current month (not including current month)
-              return jeMonth > currentMonthDate;
-            })
-            .reduce((sum, je) => sum + (je.amount || 0), 0);
-          return acc + remainingAtDate;
-        } else {
-          // For schedules without journal entries, use totalAmount (same as chart)
-          return acc + (s.totalAmount || 0);
-        }
-      }
-      return acc;
-    }, 0);
-    
-    const remainingUnearned = unearnedSchedules.reduce((acc, s) => {
-      const scheduleStartDate = new Date(s.startDate);
-      scheduleStartDate.setHours(0, 0, 0, 0);
-      const scheduleStartMonth = new Date(scheduleStartDate.getFullYear(), scheduleStartDate.getMonth(), 1);
-      const scheduleEndDate = new Date(s.endDate);
-      scheduleEndDate.setHours(23, 59, 59, 999);
-      const scheduleEndMonth = new Date(scheduleEndDate.getFullYear(), scheduleEndDate.getMonth(), 1);
-      
-      // Only include if current month falls within schedule period (same as chart)
-      if (currentMonthDate >= scheduleStartMonth && currentMonthDate <= scheduleEndMonth) {
-        if (s.journalEntries && Array.isArray(s.journalEntries) && s.journalEntries.length > 0) {
-          const remainingAtDate = s.journalEntries
-            .filter(je => {
-              const jeDate = new Date(je.periodDate);
-              const jeMonth = new Date(jeDate.getFullYear(), jeDate.getMonth(), 1);
-              // Include entries for months after the current month (not including current month)
-              return jeMonth > currentMonthDate;
-            })
-            .reduce((sum, je) => sum + (je.amount || 0), 0);
-          return acc + remainingAtDate;
-        } else {
-          // For schedules without journal entries, use totalAmount (same as chart)
-          return acc + (s.totalAmount || 0);
-        }
-      }
-      return acc;
-    }, 0);
-
+    // In progress = schedules with a monthly amount to post in the current month (matches Analytics "Monthly Amounts to Post" column)
+    const prepaidScheduleCount = prepaidSchedules.filter(s => hasAmountToPostInMonth(s, currentYearMonth)).length;
+    const unearnedScheduleCount = unearnedSchedules.filter(s => hasAmountToPostInMonth(s, currentYearMonth)).length;
+    const remainingPrepaid = prepaidSchedules.reduce((acc, s) => acc + getRemainingBalanceForMonth(s, currentYearMonth), 0);
+    const remainingUnearned = unearnedSchedules.reduce((acc, s) => acc + getRemainingBalanceForMonth(s, currentYearMonth), 0);
     return {
-      prepaidScheduleCount: activePrepaidSchedules.length,
+      prepaidScheduleCount,
       remainingPrepayment: remainingPrepaid,
-      unearnedScheduleCount: activeUnearnedSchedules.length,
+      unearnedScheduleCount,
       remainingUnearned: remainingUnearned,
       lastDayFormatted: lastDayFormatted
     };
   }, [schedules]);
 
   const chartData = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const getProjectedData = (type: 'PREPAID' | 'UNEARNED') => {
       const data = [];
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
+      const filtered = schedules.filter(s => s.type === type);
       for (let i = 0; i < 12; i++) {
         const date = new Date(today.getFullYear(), today.getMonth() + i, 1);
+        const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
         const monthStr = date.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-        
-        let totalRemaining = 0;
-        schedules.filter(s => s.type === type).forEach(s => {
-          const scheduleStartDate = new Date(s.startDate);
-          scheduleStartDate.setHours(0, 0, 0, 0);
-          const scheduleStartMonth = new Date(scheduleStartDate.getFullYear(), scheduleStartDate.getMonth(), 1);
-          const scheduleEndDate = new Date(s.endDate);
-          scheduleEndDate.setHours(23, 59, 59, 999);
-          const scheduleEndMonth = new Date(scheduleEndDate.getFullYear(), scheduleEndDate.getMonth(), 1);
-          
-          // Check if this month falls within the schedule's period
-          // Include schedule if: month >= schedule start month AND month <= schedule end month
-          if (date >= scheduleStartMonth && date <= scheduleEndMonth) {
-            // If schedule has journal entries, calculate remaining based on period dates only
-            // The chart shows theoretical remaining balance, not affected by posting status
-            if (s.journalEntries && Array.isArray(s.journalEntries) && s.journalEntries.length > 0) {
-              // For remaining balance at this month, sum all journal entries with period dates AFTER this month
-              // This represents what would still be remaining after this month's recognition
-              const remainingAtDate = s.journalEntries
-                .filter(je => {
-                  const jeDate = new Date(je.periodDate);
-                  const jeMonth = new Date(jeDate.getFullYear(), jeDate.getMonth(), 1);
-                  // Include entries for months after the current chart month (not including current month)
-                  return jeMonth > date;
-                })
-                .reduce((acc, je) => acc + je.amount, 0);
-              totalRemaining += remainingAtDate;
-            } else {
-              // For schedules without journal entries (future schedules or schedules not yet processed)
-              // Use totalAmount as remaining balance
-              totalRemaining += s.totalAmount;
-            }
-          }
-        });
-        
-        data.push({
-          name: monthStr,
-          value: totalRemaining
-        });
+        const totalRemaining = filtered.reduce((sum, s) => sum + getRemainingBalanceForMonth(s, yearMonth), 0);
+        data.push({ name: monthStr, value: totalRemaining });
       }
       return data;
     };
-
     return {
       prepaid: getProjectedData('PREPAID'),
       unearned: getProjectedData('UNEARNED')

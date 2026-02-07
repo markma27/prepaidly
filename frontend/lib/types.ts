@@ -54,6 +54,7 @@ export interface Schedule {
   deferralAcctCode: string;
   contactName?: string;
   description?: string;
+  invoiceDate?: string;
   invoiceUrl?: string;
   invoiceFilename?: string;
   createdBy?: number;
@@ -77,6 +78,7 @@ export interface CreateScheduleRequest {
   deferralAcctCode: string;
   contactName?: string;
   description?: string;
+  invoiceDate?: string;
   invoiceUrl?: string;
   invoiceFilename?: string;
   createdBy?: number;

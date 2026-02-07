@@ -151,15 +151,23 @@ public class CreateScheduleRequest {
      * This is a plain text field stored in Prepaidly only (not linked to Xero contacts).
      * The contact name is included in the journal narration when posting to Xero.
      * 
-     * Required: No
+     * Required: Yes
      * Example: "ABC Limited"
      */
+    @NotBlank(message = "Contact name is required")
     private String contactName;
 
     /**
      * Optional description or notes for this schedule
      */
     private String description;
+
+    /**
+     * Invoice date (date on the related invoice). Required.
+     * Example: "2025-01-15"
+     */
+    @NotNull(message = "Invoice date is required")
+    private LocalDate invoiceDate;
 
     /**
      * URL of the uploaded invoice file in Supabase Storage

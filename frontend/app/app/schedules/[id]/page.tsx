@@ -335,7 +335,7 @@ function ScheduleDetailContent() {
               </div>
             </div>
             <div className="mt-5 pt-5 border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Contact</div>
                   <div className="text-sm text-gray-900">{schedule.contactName || '—'}</div>
@@ -352,10 +352,16 @@ function ScheduleDetailContent() {
                   </div>
                 </div>
                 <div>
+                  <div className="text-xs text-gray-500 mb-1">Invoice date</div>
+                  <div className="text-sm text-gray-900">
+                    {schedule.invoiceDate ? formatDate(schedule.invoiceDate) : '—'}
+                  </div>
+                </div>
+                <div>
                   <div className="text-xs text-gray-500 mb-1">Created</div>
                   <div className="text-sm text-gray-900">{formatDate(schedule.createdAt)}</div>
                 </div>
-                <div className="md:col-span-3">
+                <div className="md:col-span-4">
                   <div className="text-xs text-gray-500 mb-1">Description</div>
                   <div className="text-sm text-gray-900">{schedule.description || '—'}</div>
                 </div>

@@ -54,6 +54,7 @@ public class ScheduleService {
         schedule.setDeferralAcctCode(request.getDeferralAcctCode());
         schedule.setContactName(request.getContactName());
         schedule.setDescription(request.getDescription());
+        schedule.setInvoiceDate(request.getInvoiceDate());
         schedule.setInvoiceUrl(request.getInvoiceUrl());
         schedule.setInvoiceFilename(request.getInvoiceFilename());
         schedule.setCreatedBy(request.getCreatedBy());
@@ -240,6 +241,7 @@ public class ScheduleService {
         response.setDeferralAcctCode(schedule.getDeferralAcctCode());
         response.setContactName(schedule.getContactName());
         response.setDescription(schedule.getDescription());
+        response.setInvoiceDate(schedule.getInvoiceDate());
         response.setInvoiceUrl(schedule.getInvoiceUrl());
         response.setInvoiceFilename(schedule.getInvoiceFilename());
         response.setCreatedBy(schedule.getCreatedBy());
@@ -326,6 +328,7 @@ public class ScheduleService {
         response.setDeferralAcctCode(schedule.getDeferralAcctCode());
         response.setContactName(schedule.getContactName());
         response.setDescription(schedule.getDescription());
+        response.setInvoiceDate(schedule.getInvoiceDate());
         response.setInvoiceUrl(schedule.getInvoiceUrl());
         response.setInvoiceFilename(schedule.getInvoiceFilename());
         response.setCreatedBy(schedule.getCreatedBy());
