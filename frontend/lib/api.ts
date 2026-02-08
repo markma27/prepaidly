@@ -22,6 +22,52 @@ if (!API_BASE_URL && typeof window !== 'undefined') {
   console.error('NEXT_PUBLIC_API_URL is not set! Set it in Vercel env for production.');
 }
 
+const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
+
+type CachedItem<T> = {
+  timestamp: number;
+  data: T;
+};
+
+const getCacheKey = (key: string, tenantId?: string) =>
+  tenantId ? `cache:${key}:${tenantId}` : `cache:${key}`;
+
+const getCachedData = <T>(key: string, ttlMs: number): T | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedItem<T>;
+    if (!parsed || typeof parsed.timestamp !== 'number') return null;
+    if (Date.now() - parsed.timestamp > ttlMs) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+};
+
+const setCachedData = <T>(key: string, data: T) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const item: CachedItem<T> = { timestamp: Date.now(), data };
+    sessionStorage.setItem(key, JSON.stringify(item));
+  } catch {
+    // Ignore cache write errors (e.g., quota)
+  }
+};
+
+const clearCachedData = (key: string) => {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(key);
+};
+
+const clearTenantCaches = (tenantId: string) => {
+  clearCachedData(getCacheKey('accounts', tenantId));
+  clearCachedData(getCacheKey('schedules', tenantId));
+  clearCachedData(getCacheKey('scheduleContacts', tenantId));
+  clearCachedData(getCacheKey('settings', tenantId));
+};
+
 class ApiError extends Error {
   constructor(
     message: string,
@@ -117,12 +163,14 @@ export const xeroAuthApi = {
    * Disconnect from Xero (delete connection)
    */
   disconnect: async (tenantId: string): Promise<{ success: boolean; message: string }> => {
-    return fetchApi<{ success: boolean; message: string }>(
+    const result = await fetchApi<{ success: boolean; message: string }>(
       `/api/auth/xero/disconnect?tenantId=${encodeURIComponent(tenantId)}`,
       {
         method: 'DELETE',
       }
     );
+    clearTenantCaches(tenantId);
+    return result;
   },
 };
 
@@ -132,7 +180,12 @@ export const xeroApi = {
    * Get accounts (Chart of Accounts) for a tenant
    */
   getAccounts: async (tenantId: string): Promise<XeroAccountResponse> => {
-    return fetchApi<XeroAccountResponse>(`/api/xero/accounts?tenantId=${encodeURIComponent(tenantId)}`);
+    const cacheKey = getCacheKey('accounts', tenantId);
+    const cached = getCachedData<XeroAccountResponse>(cacheKey, DEFAULT_CACHE_TTL_MS);
+    if (cached) return cached;
+    const data = await fetchApi<XeroAccountResponse>(`/api/xero/accounts?tenantId=${encodeURIComponent(tenantId)}`);
+    setCachedData(cacheKey, data);
+    return data;
   },
 
   /**
@@ -150,28 +203,43 @@ export const scheduleApi = {
    * Create a new schedule
    */
   createSchedule: async (request: CreateScheduleRequest): Promise<Schedule> => {
-    return fetchApi<Schedule>('/api/schedules', {
+    const result = await fetchApi<Schedule>('/api/schedules', {
       method: 'POST',
       body: JSON.stringify(request),
     });
+    if (request.tenantId) {
+      clearCachedData(getCacheKey('schedules', request.tenantId));
+      clearCachedData(getCacheKey('scheduleContacts', request.tenantId));
+    }
+    return result;
   },
 
   /**
    * Get all schedules for a tenant
    */
   getSchedules: async (tenantId: string): Promise<{ schedules: Schedule[]; count: number }> => {
-    return fetchApi<{ schedules: Schedule[]; count: number }>(
+    const cacheKey = getCacheKey('schedules', tenantId);
+    const cached = getCachedData<{ schedules: Schedule[]; count: number }>(cacheKey, DEFAULT_CACHE_TTL_MS);
+    if (cached) return cached;
+    const data = await fetchApi<{ schedules: Schedule[]; count: number }>(
       `/api/schedules?tenantId=${encodeURIComponent(tenantId)}`
     );
+    setCachedData(cacheKey, data);
+    return data;
   },
 
   /**
    * Get distinct contact names for autocomplete
    */
   getContactNames: async (tenantId: string): Promise<{ contactNames: string[] }> => {
-    return fetchApi<{ contactNames: string[] }>(
+    const cacheKey = getCacheKey('scheduleContacts', tenantId);
+    const cached = getCachedData<{ contactNames: string[] }>(cacheKey, DEFAULT_CACHE_TTL_MS);
+    if (cached) return cached;
+    const data = await fetchApi<{ contactNames: string[] }>(
       `/api/schedules/contacts?tenantId=${encodeURIComponent(tenantId)}`
     );
+    setCachedData(cacheKey, data);
+    return data;
   },
 
   /**
@@ -188,10 +256,14 @@ export const journalApi = {
    * Post a journal entry to Xero
    */
   postJournal: async (request: PostJournalRequest): Promise<PostJournalResponse> => {
-    return fetchApi<PostJournalResponse>('/api/journals', {
+    const result = await fetchApi<PostJournalResponse>('/api/journals', {
       method: 'POST',
       body: JSON.stringify(request),
     });
+    if (request.tenantId) {
+      clearCachedData(getCacheKey('schedules', request.tenantId));
+    }
+    return result;
   },
 };
 
@@ -245,22 +317,29 @@ export const settingsApi = {
    * Get tenant settings (default accounts)
    */
   getSettings: async (tenantId: string): Promise<{ prepaymentAccount: string; unearnedAccount: string }> => {
-    return fetchApi<{ prepaymentAccount: string; unearnedAccount: string }>(
+    const cacheKey = getCacheKey('settings', tenantId);
+    const cached = getCachedData<{ prepaymentAccount: string; unearnedAccount: string }>(cacheKey, DEFAULT_CACHE_TTL_MS);
+    if (cached) return cached;
+    const data = await fetchApi<{ prepaymentAccount: string; unearnedAccount: string }>(
       `/api/settings?tenantId=${encodeURIComponent(tenantId)}`
     );
+    setCachedData(cacheKey, data);
+    return data;
   },
 
   /**
    * Save tenant settings (default accounts)
    */
   saveSettings: async (tenantId: string, settings: { prepaymentAccount: string; unearnedAccount: string }): Promise<{ prepaymentAccount: string; unearnedAccount: string }> => {
-    return fetchApi<{ prepaymentAccount: string; unearnedAccount: string }>(
+    const result = await fetchApi<{ prepaymentAccount: string; unearnedAccount: string }>(
       `/api/settings?tenantId=${encodeURIComponent(tenantId)}`,
       {
         method: 'PUT',
         body: JSON.stringify(settings),
       }
     );
+    clearCachedData(getCacheKey('settings', tenantId));
+    return result;
   },
 };
 
