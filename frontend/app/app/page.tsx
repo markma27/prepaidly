@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { xeroAuthApi, syncApi } from '@/lib/api';
+import { xeroAuthApi } from '@/lib/api';
+import useTokenAutoRefresh from '@/lib/useTokenAutoRefresh';
 import type { XeroConnectionStatusResponse } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -22,6 +23,9 @@ export default function AppPage() {
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<XeroConnectionStatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
+
+  useTokenAutoRefresh({ enabled: autoRefreshEnabled });
 
   useEffect(() => {
     // Check if user is logged in using Supabase Auth
@@ -38,6 +42,8 @@ export default function AppPage() {
         router.push('/auth/login');
         return;
       }
+
+      setAutoRefreshEnabled(true);
 
       // Store user info in sessionStorage for backward compatibility
       if (typeof window !== 'undefined' && session.user) {
@@ -74,18 +80,6 @@ export default function AppPage() {
         } catch (e) {
           console.error('Error parsing user from sessionStorage:', e);
         }
-      }
-
-      // Auto-refresh all tokens when user logs into app page
-      // This ensures tokens are fresh even if they expired (30 min expiry)
-      // Wait for refresh to complete before checking status to ensure tokens are valid
-      try {
-        console.log('Refreshing all tokens before checking status...');
-        await syncApi.refreshAll();
-        console.log('Token refresh completed');
-      } catch (err) {
-        // Log error but continue - status check will attempt to refresh tokens if needed
-        console.warn('Token refresh failed, will attempt refresh during status check:', err);
       }
 
       // Fetch status with token validation enabled

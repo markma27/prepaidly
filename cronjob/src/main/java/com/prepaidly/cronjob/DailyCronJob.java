@@ -197,7 +197,7 @@ public class DailyCronJob {
                             continue;
                         }
                         
-                        String xeroJournalId = journalPostingService.postJournal(entry, schedule);
+                        journalPostingService.postJournal(entry, schedule);
                         successCount++;
                         
                     } catch (Exception e) {

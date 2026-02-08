@@ -68,9 +68,14 @@ function NewSchedulePageContent() {
     const tenantIdParam = searchParams.get('tenantId');
     if (tenantIdParam) {
       setTenantId(tenantIdParam);
-      loadAccounts(tenantIdParam);
-      loadDefaultAccounts(tenantIdParam);
-      loadExistingContacts(tenantIdParam);
+      const loadNewScheduleData = async () => {
+        await Promise.all([
+          loadAccounts(tenantIdParam),
+          loadDefaultAccounts(tenantIdParam),
+          loadExistingContacts(tenantIdParam),
+        ]);
+      };
+      loadNewScheduleData();
     } else {
       setError('Missing Tenant ID');
     }

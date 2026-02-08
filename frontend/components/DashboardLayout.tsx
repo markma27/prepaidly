@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { xeroAuthApi } from '@/lib/api';
+import useTokenAutoRefresh from '@/lib/useTokenAutoRefresh';
 import { XeroConnection } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
 import { 
@@ -60,6 +61,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
       console.error('Error saving connections cache:', e);
     }
   };
+
   
   // Initialize from cache immediately
   const getInitialConnections = (): XeroConnection[] => {
@@ -138,6 +140,8 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
     
     fetchUserInfo();
   }, []);
+
+  useTokenAutoRefresh({ enabled: !!tenantId });
 
   useEffect(() => {
     const fetchConnectionsFromApi = async (validateTokens: boolean = false, showLoading: boolean = true) => {

@@ -86,8 +86,9 @@ public class DatabaseConfig {
                     jdbcUrl = String.format("jdbc:postgresql://%s:%d/%s", host, port, path);
                     
                     // Add query parameters if present
-                    if (uri.getQuery() != null && !uri.getQuery().isEmpty()) {
-                        jdbcUrl += "?" + uri.getQuery();
+                    String queryParams = uri.getQuery();
+                    if (queryParams != null && !queryParams.isEmpty()) {
+                        jdbcUrl += "?" + queryParams;
                     }
                     
                     log.info("Parsed DATABASE_URL: host={}, port={}, database={}", host, port, path);
@@ -105,6 +106,17 @@ public class DatabaseConfig {
                 jdbcUrl = "jdbc:" + dbUrl;
             } else {
                 log.info("DATABASE_URL already in JDBC format");
+            }
+            
+            // Add prepareThreshold=0 to disable server-side prepared statements
+            // This prevents "prepared statement already exists" errors with connection pooling
+            if (!jdbcUrl.contains("prepareThreshold")) {
+                if (jdbcUrl.contains("?")) {
+                    jdbcUrl += "&prepareThreshold=0";
+                } else {
+                    jdbcUrl += "?prepareThreshold=0";
+                }
+                log.info("Added prepareThreshold=0 to JDBC URL to prevent prepared statement conflicts");
             }
             
             // Default username if not provided

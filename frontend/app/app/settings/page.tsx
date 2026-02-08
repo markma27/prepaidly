@@ -35,17 +35,6 @@ function SettingsPageContent() {
 
   const loadConnectionStatus = async () => {
     try {
-      // Auto-refresh all tokens before checking status
-      // This ensures tokens are fresh even if they expired (30 min expiry)
-      try {
-        console.log('Refreshing all tokens before checking status...');
-        await syncApi.refreshAll();
-        console.log('Token refresh completed');
-      } catch (err) {
-        // Log error but continue - status check will attempt to refresh tokens if needed
-        console.warn('Token refresh failed, will attempt refresh during status check:', err);
-      }
-
       // Fetch status with token validation enabled
       // This ensures tokens are validated and refreshed if needed
       const status = await xeroAuthApi.getStatus(undefined, true); // validateTokens=true
@@ -70,17 +59,6 @@ function SettingsPageContent() {
     try {
       setLoading(true);
       setError(null);
-
-      // Auto-refresh all tokens before checking status
-      // This ensures tokens are fresh even if they expired (30 min expiry)
-      try {
-        console.log('Refreshing all tokens before loading data...');
-        await syncApi.refreshAll();
-        console.log('Token refresh completed');
-      } catch (err) {
-        // Log error but continue - status check will attempt to refresh tokens if needed
-        console.warn('Token refresh failed, will attempt refresh during status check:', err);
-      }
 
       // Load connection status with token validation enabled
       // This ensures tokens are validated and refreshed if needed

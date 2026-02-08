@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { scheduleApi, syncApi, xeroApi } from '@/lib/api';
+import { scheduleApi, xeroApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import type { Schedule, JournalEntry, XeroAccount } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -33,18 +33,13 @@ function AnalyticsPageContent() {
     const tenantIdParam = searchParams.get('tenantId');
     if (tenantIdParam) {
       setTenantId(tenantIdParam);
-      const refreshAndLoad = async () => {
-        try {
-          await syncApi.refreshAll();
-        } catch (err) {
-          console.warn('Token refresh failed (non-critical):', err);
-        }
+      const loadAnalyticsData = async () => {
         await Promise.all([
           loadSchedules(tenantIdParam),
           loadAccounts(tenantIdParam),
         ]);
       };
-      refreshAndLoad();
+      loadAnalyticsData();
     } else {
       setError('Missing Tenant ID');
       setLoading(false);
