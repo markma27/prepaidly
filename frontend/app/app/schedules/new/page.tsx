@@ -53,6 +53,7 @@ function NewSchedulePageContent() {
   const [defaultPrepaymentAccount, setDefaultPrepaymentAccount] = useState<string>('');
   const [defaultUnearnedAccount, setDefaultUnearnedAccount] = useState<string>('');
   const [hasDefaultAccounts, setHasDefaultAccounts] = useState(false);
+  const [defaultAccountsLoaded, setDefaultAccountsLoaded] = useState(false);
 
   // Description state
   const [description, setDescription] = useState('');
@@ -127,6 +128,8 @@ function NewSchedulePageContent() {
       setHasDefaultAccounts(!!defaults.prepaymentAccount || !!defaults.unearnedAccount);
     } catch (e) {
       console.error('Error loading default accounts:', e);
+    } finally {
+      setDefaultAccountsLoaded(true);
     }
   };
 
@@ -543,8 +546,8 @@ function NewSchedulePageContent() {
             <ErrorMessage message={error} onDismiss={() => setError(null)} />
           )}
 
-          {/* No default accounts warning */}
-          {!getDeferralAcctCode() && (
+          {/* No default accounts warning - only show after settings are loaded */}
+          {defaultAccountsLoaded && !getDeferralAcctCode() && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
               <div>
