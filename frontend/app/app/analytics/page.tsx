@@ -10,7 +10,8 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import Skeleton from '@/components/Skeleton';
-import { ChevronLeft, ChevronRight, Calendar, DollarSign, FileText, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, DollarSign, FileText, RefreshCw, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 type TabType = 'prepayment' | 'unearned';
 
@@ -147,6 +148,98 @@ function AnalyticsPageContent() {
 
   const handleRowClick = (scheduleId: number) => {
     router.push(`/app/schedules/${scheduleId}?tenantId=${tenantId}`);
+  };
+
+  const handleExportToExcel = () => {
+    const tabLabel = activeTab === 'prepayment' ? 'Prepayment' : 'Unearned Revenue';
+    
+    // Build Monthly Amounts to Post data
+    const amountsData: (string | number)[][] = [];
+    amountsData.push(['Monthly Amounts to Post']);
+    amountsData.push([
+      'Contact Name',
+      'Account Code and Name',
+      ...monthColumns.map((col) => col.label),
+    ]);
+
+    filteredSchedules.forEach((schedule) => {
+      const amountByMonth = getAmountByMonth(schedule);
+      const row: (string | number)[] = [
+        schedule.contactName || '-',
+        getAccountCodeAndName(schedule),
+        ...monthColumns.map((col) => {
+          const amount = amountByMonth.get(col.yearMonth);
+          if (amount == null || Math.round(amount * 100) === 0) return '';
+          return amount;
+        }),
+      ];
+      amountsData.push(row);
+    });
+
+    // Add totals row for amounts
+    amountsData.push([
+      'Total',
+      '',
+      ...monthColumns.map((col) => {
+        const total = monthTotals.get(col.yearMonth) ?? 0;
+        if (Math.round(total * 100) === 0) return '';
+        return total;
+      }),
+    ]);
+
+    // Add empty row as separator
+    amountsData.push([]);
+    amountsData.push([]);
+
+    // Build Remaining Balance at Month End data
+    amountsData.push(['Remaining Balance at Month End']);
+    amountsData.push([
+      'Contact Name',
+      'Account Code and Name',
+      ...monthColumns.map((col) => col.label),
+    ]);
+
+    filteredSchedules.forEach((schedule) => {
+      const balanceByMonth = getRemainingBalanceByMonth(schedule);
+      const row: (string | number)[] = [
+        schedule.contactName || '-',
+        getAccountCodeAndName(schedule),
+        ...monthColumns.map((col) => {
+          const balance = balanceByMonth.get(col.yearMonth);
+          if (balance == null || Math.round(balance * 100) === 0) return '';
+          return balance;
+        }),
+      ];
+      amountsData.push(row);
+    });
+
+    // Add totals row for balance
+    amountsData.push([
+      'Total',
+      '',
+      ...monthColumns.map((col) => {
+        const total = balanceTotalsByMonth.get(col.yearMonth) ?? 0;
+        if (Math.round(total * 100) === 0) return '';
+        return total;
+      }),
+    ]);
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(amountsData);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 20 }, // Contact Name
+      { wch: 30 }, // Account Code and Name
+      ...monthColumns.map(() => ({ wch: 12 })), // Month columns
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, tabLabel);
+
+    // Generate filename with date range
+    const filename = `Analytics_${tabLabel}_${rangeLabel.replace(' – ', '_to_')}.xlsx`;
+    XLSX.writeFile(wb, filename);
   };
 
   const getAccountCodeAndName = (schedule: Schedule): string => {
@@ -325,6 +418,16 @@ function AnalyticsPageContent() {
                       aria-label="Current period"
                     >
                       <RefreshCw className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportToExcel}
+                      disabled={loading || filteredSchedules.length === 0}
+                      className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      title={`Export ${activeTab === 'prepayment' ? 'Prepayment' : 'Unearned Revenue'} to Excel`}
+                      aria-label={`Export ${activeTab === 'prepayment' ? 'Prepayment' : 'Unearned Revenue'} to Excel`}
+                    >
+                      <Download className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
