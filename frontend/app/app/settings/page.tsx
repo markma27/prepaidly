@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import SettingsSkeleton from '@/components/SettingsSkeleton';
+import { formatXeroTimezone, formatCountryCode, formatCurrencyCode } from '@/lib/utils';
 
 function SettingsPageContent() {
   const searchParams = useSearchParams();
@@ -179,7 +180,7 @@ function SettingsPageContent() {
           {/* Connection Status */}
           {currentConnection && (
           <div className="bg-white shadow-sm rounded-lg p-6 mb-6 border border-gray-100">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="flex items-center mb-2">
                   <div className={`w-3 h-3 rounded-full mr-3 ${currentConnection.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -207,12 +208,18 @@ function SettingsPageContent() {
                 <button
                   onClick={async () => {
                     if (tenantId) {
-                      // Refresh tokens first, then reload data
+                      // Refresh tokens and organization info, then reload data
                       try {
                         await syncApi.refreshAll();
+                        // Clear the connections cache to force re-fetch with updated org info
+                        if (typeof window !== 'undefined') {
+                          sessionStorage.removeItem('xero_connections_cache');
+                        }
                       } catch (err) {
                         console.warn('Token refresh failed:', err);
                       }
+                      // Reload connection status (with token validation to get fresh data)
+                      await loadConnectionStatus();
                       await loadData(tenantId);
                     }
                   }}
@@ -220,6 +227,31 @@ function SettingsPageContent() {
                 >
                   Refresh
                 </button>
+              </div>
+            </div>
+            
+            {/* Organization Details */}
+            <div className="border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Organization Details</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Region</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {formatCountryCode(currentConnection.countryCode)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Timezone</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {formatXeroTimezone(currentConnection.timezone)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Currency</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {formatCurrencyCode(currentConnection.baseCurrency)}
+                  </p>
+                </div>
               </div>
             </div>
           </div>

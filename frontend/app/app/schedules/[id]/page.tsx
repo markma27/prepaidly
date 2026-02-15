@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import { scheduleApi, journalApi, xeroApi } from '@/lib/api';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDateOnly, formatDateInTimezone, formatTimestampInTimezone, formatCurrency } from '@/lib/utils';
+import { getOrgTimezone, getOrgCurrency } from '@/lib/OrgContext';
 import type { Schedule, JournalEntry, XeroAccount } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -25,6 +26,9 @@ function ScheduleDetailContent() {
   const [accountsLoaded, setAccountsLoaded] = useState(false);
 
   const scheduleId = params?.id ? parseInt(params.id as string) : null;
+  
+  // Get org currency for formatting
+  const orgCurrency = getOrgCurrency(tenantId) || 'USD';
 
   // Get current user name from Supabase
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
@@ -94,7 +98,7 @@ function ScheduleDetailContent() {
         description: `Schedule ${schedule.id} was created`,
         userName: schedule.createdByName, // Use creator name from backend
         userId: schedule.createdBy,
-        details: `Type: ${schedule.type === 'PREPAID' ? 'Prepayment' : 'Unearned Revenue'}, Amount: ${formatCurrency(schedule.totalAmount)}`
+        details: `Type: ${schedule.type === 'PREPAID' ? 'Prepayment' : 'Unearned Revenue'}, Amount: ${formatCurrency(schedule.totalAmount, orgCurrency)}`
       });
     }
 
@@ -118,10 +122,10 @@ function ScheduleDetailContent() {
           id: `journal-posted-${entry.id}`,
           date: postDate,
           action: 'Journal Posted',
-          description: `Journal entry for ${formatDate(entry.periodDate)} posted to Xero`,
+          description: `Journal entry for ${formatDateOnly(entry.periodDate)} posted to Xero`,
           userName: currentUserName || undefined, // Show current user name if available
           userId: currentUserId || undefined,
-          details: `Amount: ${formatCurrency(entry.amount)}, Xero Journal ID: ${entry.xeroManualJournalId}`
+          details: `Amount: ${formatCurrency(entry.amount, orgCurrency)}, Xero Journal ID: ${entry.xeroManualJournalId}`
         });
       });
 
@@ -305,17 +309,17 @@ function ScheduleDetailContent() {
               </div>
               <div>
                 <div className="text-xs text-gray-500 mb-1">Total Amount</div>
-                <div className="text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount)}</div>
+                <div className="text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount, orgCurrency)}</div>
                 {schedule.remainingBalance !== undefined && (
                   <div className="text-xs text-gray-500 mt-0.5">
-                    Remaining: {formatCurrency(schedule.remainingBalance)}
+                    Remaining: {formatCurrency(schedule.remainingBalance, orgCurrency)}
                   </div>
                 )}
               </div>
               <div>
                 <div className="text-xs text-gray-500 mb-1">Period</div>
                 <div className="text-sm text-gray-900">
-                  {formatDate(schedule.startDate)} - {formatDate(schedule.endDate)}
+                  {formatDateOnly(schedule.startDate)} - {formatDateOnly(schedule.endDate)}
                 </div>
                 <div className="text-xs text-gray-500 mt-0.5">
                   {schedule.totalPeriods || 0} {schedule.totalPeriods === 1 ? 'period' : 'periods'}
@@ -354,12 +358,12 @@ function ScheduleDetailContent() {
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Invoice date</div>
                   <div className="text-sm text-gray-900">
-                    {schedule.invoiceDate ? formatDate(schedule.invoiceDate) : '—'}
+                    {schedule.invoiceDate ? formatDateOnly(schedule.invoiceDate) : '—'}
                   </div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Created</div>
-                  <div className="text-sm text-gray-900">{formatDate(schedule.createdAt)}</div>
+                  <div className="text-sm text-gray-900">{formatDateInTimezone(schedule.createdAt, getOrgTimezone(tenantId))}</div>
                 </div>
                 <div className="md:col-span-4">
                   <div className="text-xs text-gray-500 mb-1">Description</div>
@@ -418,10 +422,10 @@ function ScheduleDetailContent() {
                 {sortedEntries.map((entry) => (
                   <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3">
-                      <div className="text-sm font-medium text-gray-900">{formatDate(entry.periodDate)}</div>
+                      <div className="text-sm font-medium text-gray-900">{formatDateOnly(entry.periodDate)}</div>
                     </td>
                     <td className="px-5 py-3">
-                      <div className="text-sm font-bold text-gray-900">{formatCurrency(entry.amount)}</div>
+                      <div className="text-sm font-bold text-gray-900">{formatCurrency(entry.amount, orgCurrency)}</div>
                     </td>
                     <td className="px-5 py-3">
                       {entry.posted ? (
@@ -512,15 +516,10 @@ function ScheduleDetailContent() {
                     <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-2">
                         <span className="text-xs text-gray-600">
-                          {new Date(entry.date).toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}, {new Date(entry.date).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit'
+                          {formatTimestampInTimezone(entry.date, getOrgTimezone(tenantId), {
+                            includeTime: true,
+                            includeSeconds: true,
+                            includeWeekday: true
                           })}
                         </span>
                       </td>

@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, xeroApi } from '@/lib/api';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDateOnly, formatDateInTimezone, formatCurrency } from '@/lib/utils';
+import { getOrgTimezone, getOrgCurrency } from '@/lib/OrgContext';
 import type { Schedule, XeroAccount } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -21,6 +22,9 @@ function ScheduleRegisterContent() {
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  // Get org currency for formatting
+  const orgCurrency = getOrgCurrency(tenantId) || 'USD';
 
   /** Table sort: default created date, most recent first */
   type RegisterSortKey = 'type' | 'contact' | 'account' | 'amount' | 'period' | 'status' | 'createdAt';
@@ -114,9 +118,9 @@ function ScheduleRegisterContent() {
       const accountNameMatch = expenseName.includes(query) || revenueName.includes(query);
       
       // Search by amount
-      const amountStr = formatCurrency(schedule.totalAmount).toLowerCase();
+      const amountStr = formatCurrency(schedule.totalAmount, orgCurrency).toLowerCase();
       const remainingStr = schedule.remainingBalance !== undefined 
-        ? formatCurrency(schedule.remainingBalance).toLowerCase() 
+        ? formatCurrency(schedule.remainingBalance, orgCurrency).toLowerCase() 
         : '';
       const amountMatch = amountStr.includes(query) || remainingStr.includes(query);
       
@@ -125,9 +129,9 @@ function ScheduleRegisterContent() {
       const contactMatch = contactNameStr.includes(query);
 
       // Search by dates
-      const startDate = formatDate(schedule.startDate).toLowerCase();
-      const endDate = formatDate(schedule.endDate).toLowerCase();
-      const createdDate = formatDate(schedule.createdAt).toLowerCase();
+      const startDate = formatDateOnly(schedule.startDate).toLowerCase();
+      const endDate = formatDateOnly(schedule.endDate).toLowerCase();
+      const createdDate = formatDateInTimezone(schedule.createdAt, getOrgTimezone(tenantId)).toLowerCase();
       const dateMatch = startDate.includes(query) || endDate.includes(query) || createdDate.includes(query);
       
       return typeMatch || accountCodeMatch || accountNameMatch || amountMatch || contactMatch || dateMatch;
@@ -345,16 +349,16 @@ function ScheduleRegisterContent() {
                           )}
                         </td>
                         <td className="px-5 py-3">
-                          <div className="text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount)}</div>
+                          <div className="text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount, orgCurrency)}</div>
                           {schedule.remainingBalance !== undefined && (
                             <div className="text-xs text-gray-500">
-                              Remaining: {formatCurrency(schedule.remainingBalance)}
+                              Remaining: {formatCurrency(schedule.remainingBalance, orgCurrency)}
                             </div>
                           )}
                         </td>
                         <td className="px-5 py-3">
                           <div className="text-sm text-gray-900">
-                            {formatDate(schedule.startDate)} - {formatDate(schedule.endDate)}
+                            {formatDateOnly(schedule.startDate)} - {formatDateOnly(schedule.endDate)}
                           </div>
                           {schedule.totalPeriods !== undefined && (
                             <div className="text-xs text-gray-500 mt-0.5">
@@ -387,7 +391,7 @@ function ScheduleRegisterContent() {
                             }
                           })()}
                         </td>
-                        <td className="px-5 py-3 text-sm text-gray-500">{formatDate(schedule.createdAt)}</td>
+                        <td className="px-5 py-3 text-sm text-gray-500">{formatDateInTimezone(schedule.createdAt, getOrgTimezone(tenantId))}</td>
                       </tr>
                     );
                   })}

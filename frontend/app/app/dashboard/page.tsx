@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, xeroApi } from '@/lib/api';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDateOnly, formatDateInTimezone, formatCurrency, formatCurrencyCompact } from '@/lib/utils';
+import { getOrgTimezone, getOrgCurrency } from '@/lib/OrgContext';
 import type { Schedule, XeroAccount } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -30,16 +31,18 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white p-3 border border-gray-200 shadow-lg rounded-lg">
-        <p className="text-sm font-semibold text-gray-600 mb-1">{label}</p>
-        <p className="text-sm font-bold text-gray-900">{formatCurrency(payload[0].value)}</p>
-      </div>
-    );
-  }
-  return null;
+const createCustomTooltip = (currency: string | null) => {
+  return ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-3 border border-gray-200 shadow-lg rounded-lg">
+          <p className="text-sm font-semibold text-gray-600 mb-1">{label}</p>
+          <p className="text-sm font-bold text-gray-900">{formatCurrency(payload[0].value, currency || 'USD')}</p>
+        </div>
+      );
+    }
+    return null;
+  };
 };
 
 function DashboardPageContent() {
@@ -52,6 +55,12 @@ function DashboardPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1920);
+
+  // Get org currency for formatting
+  const orgCurrency = getOrgCurrency(tenantId) || 'USD';
+  
+  // Create tooltip component with currency
+  const CustomTooltip = useMemo(() => createCustomTooltip(orgCurrency), [orgCurrency]);
 
   /** Recent Schedules table sort: default created date, newest first */
   type RecentSortKey = 'type' | 'contact' | 'account' | 'amount' | 'period' | 'status' | 'createdAt';
@@ -446,7 +455,7 @@ function DashboardPageContent() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingPrepayment)}</div>
+                  <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingPrepayment, orgCurrency)}</div>
                   <div className="text-xs text-gray-500">
                     Balance as of {stats.lastDayFormatted}
                   </div>
@@ -488,7 +497,7 @@ function DashboardPageContent() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingUnearned)}</div>
+                  <div className="text-2xl font-bold text-gray-900 mb-2">{formatCurrency(stats.remainingUnearned, orgCurrency)}</div>
                   <div className="text-xs text-gray-500">
                     Balance as of {stats.lastDayFormatted}
                   </div>
@@ -527,7 +536,7 @@ function DashboardPageContent() {
                         axisLine={false} 
                         tickLine={false} 
                         tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                        tickFormatter={(value) => `$${value/1000}K`}
+                        tickFormatter={(value) => formatCurrencyCompact(value, orgCurrency)}
                       />
                       <Tooltip content={<CustomTooltip />} />
                       <Bar 
@@ -578,7 +587,7 @@ function DashboardPageContent() {
                         axisLine={false} 
                         tickLine={false} 
                         tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                        tickFormatter={(value) => `$${value/1000}K`}
+                        tickFormatter={(value) => formatCurrencyCompact(value, orgCurrency)}
                       />
                       <Tooltip content={<CustomTooltip />} />
                       <Bar 
@@ -702,16 +711,16 @@ function DashboardPageContent() {
                       )}
                     </td>
                     <td className="px-5 py-3">
-                      <div className="text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount)}</div>
+                      <div className="text-sm font-bold text-gray-900">{formatCurrency(schedule.totalAmount, orgCurrency)}</div>
                       {schedule.remainingBalance !== undefined && (
                         <div className="text-xs text-gray-500">
-                          Remaining: {formatCurrency(schedule.remainingBalance)}
+                          Remaining: {formatCurrency(schedule.remainingBalance, orgCurrency)}
                         </div>
                       )}
                     </td>
                     <td className="px-5 py-3">
                       <div className="text-sm text-gray-900">
-                        {formatDate(schedule.startDate)} - {formatDate(schedule.endDate)}
+                        {formatDateOnly(schedule.startDate)} - {formatDateOnly(schedule.endDate)}
                       </div>
                       {schedule.totalPeriods !== undefined && (
                         <div className="text-xs text-gray-500 mt-0.5">
@@ -747,7 +756,7 @@ function DashboardPageContent() {
                         }
                       })()}
                     </td>
-                    <td className="px-5 py-3 text-sm text-gray-500">{formatDate(schedule.createdAt)}</td>
+                    <td className="px-5 py-3 text-sm text-gray-500">{formatDateInTimezone(schedule.createdAt, getOrgTimezone(tenantId))}</td>
                   </tr>
                 ))}
                 {sortedRecentSchedules.length === 0 && (

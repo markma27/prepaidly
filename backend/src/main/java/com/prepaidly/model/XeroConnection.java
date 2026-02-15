@@ -46,6 +46,18 @@ public class XeroConnection {
     @Column(name = "tenant_name")
     private String tenantName;
 
+    /** Xero organization timezone (e.g., "NEWZEALANDSTANDARDTIME", "USSTANDARDTIME") */
+    @Column(name = "timezone", length = 100)
+    private String timezone;
+
+    /** Xero organization country code (e.g., "NZ", "US", "AU") */
+    @Column(name = "country_code", length = 10)
+    private String countryCode;
+
+    /** Xero organization base currency (e.g., "NZD", "USD", "AUD") */
+    @Column(name = "base_currency", length = 10)
+    private String baseCurrency;
+
     /** OAuth access token (encrypted, expires after 30 minutes) */
     @Column(name = "access_token", nullable = false, length = 2000)
     private String accessToken; // Encrypted

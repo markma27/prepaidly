@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, xeroApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { getOrgCurrency } from '@/lib/OrgContext';
 import type { Schedule, JournalEntry, XeroAccount } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -21,6 +22,9 @@ function AnalyticsPageContent() {
   const [accounts, setAccounts] = useState<XeroAccount[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
+  
+  // Get org currency for formatting
+  const orgCurrency = getOrgCurrency(tenantId) || 'USD';
   const [activeTab, setActiveTab] = useState<TabType>('prepayment');
   // 12-month window: start year-month "YYYY-MM". Default = current month.
   const getCurrentStartYearMonth = () => {
@@ -88,7 +92,7 @@ function AnalyticsPageContent() {
   const formatAmountOrDash = (value: number | null | undefined): string => {
     if (value == null) return '-';
     if (Math.round(value * 100) === 0) return '-';
-    return formatCurrency(value);
+    return formatCurrency(value, orgCurrency);
   };
 
   // 12 months starting from selected start month

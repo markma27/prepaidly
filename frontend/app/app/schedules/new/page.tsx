@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, xeroApi, settingsApi } from '@/lib/api';
-import { validateDateRange, formatCurrency, formatDate, generateProRataSchedule, countProRataPeriods } from '@/lib/utils';
+import { validateDateRange, formatCurrency, formatDateOnly, generateProRataSchedule, countProRataPeriods, getCurrencySymbol } from '@/lib/utils';
+import { getOrgCurrency } from '@/lib/OrgContext';
 import type { XeroAccount, ScheduleType } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -27,6 +28,9 @@ function NewSchedulePageContent() {
   const [accounts, setAccounts] = useState<XeroAccount[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
+  
+  // Get org currency for formatting
+  const orgCurrency = getOrgCurrency(tenantId) || 'USD';
 
   // Form state
   const [type, setType] = useState<ScheduleType>('PREPAID');
@@ -763,7 +767,7 @@ function NewSchedulePageContent() {
                         </label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
-                            $
+                            {getCurrencySymbol(orgCurrency)}
                           </span>
                           <input
                             type="number"
@@ -939,7 +943,7 @@ function NewSchedulePageContent() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-500">Invoice date</span>
                         <span className="text-sm font-medium text-gray-900 truncate ml-2 max-w-[150px]">
-                          {formatDate(invoiceDate)}
+                          {formatDateOnly(invoiceDate)}
                         </span>
                       </div>
                     )}
@@ -960,7 +964,7 @@ function NewSchedulePageContent() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-500">Total Amount</span>
                           <span className="text-sm font-bold text-gray-900">
-                            {formatCurrency(parseFloat(totalAmount))}
+                            {formatCurrency(parseFloat(totalAmount), orgCurrency)}
                           </span>
                         </div>
                       </>
@@ -1059,7 +1063,7 @@ function NewSchedulePageContent() {
                         <p className="text-xs text-gray-500 mt-0.5">
                           {previewEntries.length}{' '}
                           {previewEntries.length === 1 ? 'period' : 'periods'} — Total:{' '}
-                          {formatCurrency(parseFloat(totalAmount))}
+                          {formatCurrency(parseFloat(totalAmount), orgCurrency)}
                         </p>
                       </div>
                     </div>
@@ -1086,7 +1090,7 @@ function NewSchedulePageContent() {
                                 {entry.days}
                               </td>
                               <td className="px-5 py-2.5 text-sm font-medium text-gray-900 text-right">
-                                {formatCurrency(entry.amount)}
+                                {formatCurrency(entry.amount, orgCurrency)}
                               </td>
                             </tr>
                           ))}
@@ -1100,7 +1104,7 @@ function NewSchedulePageContent() {
                               {previewEntries.reduce((sum, e) => sum + e.days, 0)}
                             </td>
                             <td className="px-5 py-3 text-sm text-gray-900 text-right">
-                              {formatCurrency(parseFloat(totalAmount))}
+                              {formatCurrency(parseFloat(totalAmount), orgCurrency)}
                             </td>
                           </tr>
                         </tfoot>

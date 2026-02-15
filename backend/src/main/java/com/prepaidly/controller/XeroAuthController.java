@@ -256,15 +256,27 @@ public class XeroAuthController {
                     conn.getTenantId(), conn.getTenantName(), conn.getUser().getId());
             }
             
-            // Immediately trigger a token refresh to ensure the connection is active
-            // This also helps verify the connection works and updates tenant name if needed
+            // Immediately fetch and store organization info (timezone, country, currency)
+            // This must happen right after connection creation while tokens are fresh
             try {
-                log.info("Triggering immediate token refresh for newly connected tenant: {}", connection.getTenantId());
+                log.info("Fetching organization info for newly connected tenant: {}", connection.getTenantId());
+                // Fetch the connection fresh from database to ensure we have the managed entity
+                XeroConnection freshConnection = xeroConnectionRepository.findByTenantId(connection.getTenantId())
+                    .orElse(connection);
+                xeroOAuthService.updateOrganizationInfo(freshConnection);
+                log.info("Successfully fetched organization info for new connection");
+            } catch (Exception e) {
+                log.warn("Could not fetch organization info for new connection (will be retried by scheduler): {}", e.getMessage());
+            }
+            
+            // Optionally trigger a token refresh to verify the connection is active
+            try {
+                log.info("Triggering token refresh for newly connected tenant: {}", connection.getTenantId());
                 tokenRefreshScheduler.refreshConnectionById(connection.getTenantId());
                 log.info("Successfully refreshed tokens for new connection");
             } catch (Exception e) {
                 // Don't fail the connection if refresh fails - it will be retried by scheduler
-                log.warn("Could not immediately refresh tokens for new connection (will be retried by scheduler): {}", e.getMessage());
+                log.warn("Could not refresh tokens for new connection (will be retried by scheduler): {}", e.getMessage());
             }
             
             // Redirect to /app page to show all connections instead of just the first one
@@ -451,6 +463,11 @@ public class XeroAuthController {
                         response.setTenantName(storedTenantName != null && !storedTenantName.trim().isEmpty() 
                             ? storedTenantName : conn.getTenantId());
                         
+                        // Include organization info (timezone, country, currency)
+                        response.setTimezone(conn.getTimezone());
+                        response.setCountryCode(conn.getCountryCode());
+                        response.setBaseCurrency(conn.getBaseCurrency());
+                        
                         // Use stored connection_status as primary source of truth
                         boolean isStoredConnected = conn.isConnected();
                         
@@ -511,6 +528,9 @@ public class XeroAuthController {
                         XeroConnectionResponse errorResp = new XeroConnectionResponse();
                         errorResp.setTenantId(conn.getTenantId());
                         errorResp.setTenantName(conn.getTenantName() != null ? conn.getTenantName() : conn.getTenantId());
+                        errorResp.setTimezone(conn.getTimezone());
+                        errorResp.setCountryCode(conn.getCountryCode());
+                        errorResp.setBaseCurrency(conn.getBaseCurrency());
                         errorResp.setConnected(false);
                         errorResp.setMessage("Error: " + e.getMessage());
                         errorResp.setDisconnectReason(conn.getDisconnectReason());
@@ -539,6 +559,9 @@ public class XeroAuthController {
                     XeroConnectionResponse fb = new XeroConnectionResponse();
                     fb.setTenantId(conn.getTenantId());
                     fb.setTenantName(conn.getTenantName() != null ? conn.getTenantName() : conn.getTenantId());
+                    fb.setTimezone(conn.getTimezone());
+                    fb.setCountryCode(conn.getCountryCode());
+                    fb.setBaseCurrency(conn.getBaseCurrency());
                     fb.setConnected(conn.isConnected());
                     fb.setMessage(conn.isConnected() ? "Connected" : "Disconnected");
                     fb.setDisconnectReason(conn.getDisconnectReason());

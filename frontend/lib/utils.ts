@@ -21,15 +21,78 @@ export function formatDate(dateString: string): string {
 }
 
 /**
- * Format currency to system locale
+ * Format currency to system locale.
+ * For dollar currencies (USD, AUD, NZD, CAD, etc.), just shows '$' without country prefix.
  */
 export function formatCurrency(amount: number, currency: string = 'USD'): string {
+  const upperCurrency = currency.toUpperCase();
+  
+  // Dollar currencies - format with plain '$' symbol
+  const dollarCurrencies = ['USD', 'AUD', 'NZD', 'CAD', 'SGD', 'HKD', 'MXN'];
+  if (dollarCurrencies.includes(upperCurrency)) {
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Math.abs(amount));
+    const sign = amount < 0 ? '-' : '';
+    return `${sign}$${formatted}`;
+  }
+  
+  // Other currencies - use standard formatting
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: currency,
+    currency: upperCurrency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
+}
+
+/**
+ * Get currency symbol for a currency code.
+ * All dollar currencies (USD, AUD, NZD, CAD, etc.) just show '$'
+ */
+export function getCurrencySymbol(currency: string = 'USD'): string {
+  const symbols: Record<string, string> = {
+    'USD': '$',
+    'AUD': '$',
+    'NZD': '$',
+    'CAD': '$',
+    'SGD': '$',
+    'HKD': '$',
+    'MXN': '$',
+    'GBP': '£',
+    'EUR': '€',
+    'JPY': '¥',
+    'CNY': '¥',
+    'KRW': '₩',
+    'INR': '₹',
+    'ZAR': 'R',
+    'CHF': 'CHF',
+    'SEK': 'kr',
+    'NOK': 'kr',
+    'DKK': 'kr',
+    'BRL': 'R$',
+    'AED': 'د.إ',
+    'SAR': '﷼',
+    'THB': '฿',
+    'MYR': 'RM',
+    'PHP': '₱',
+    'IDR': 'Rp',
+  };
+  return symbols[currency.toUpperCase()] || '$';
+}
+
+/**
+ * Format currency for chart display (compact, e.g., "$10K")
+ */
+export function formatCurrencyCompact(amount: number, currency: string = 'USD'): string {
+  const symbol = getCurrencySymbol(currency);
+  if (amount >= 1000000) {
+    return `${symbol}${(amount / 1000000).toFixed(1)}M`;
+  } else if (amount >= 1000) {
+    return `${symbol}${(amount / 1000).toFixed(0)}K`;
+  }
+  return `${symbol}${amount.toFixed(0)}`;
 }
 
 /**
@@ -247,5 +310,355 @@ export function debounce<T extends (...args: any[]) => any>(
  */
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Xero timezone to IANA timezone mapping
+ * Xero returns timezones in format like "NEWZEALANDSTANDARDTIME", "USSTANDARDTIME"
+ */
+const XERO_TIMEZONE_MAP: Record<string, { iana: string; display: string }> = {
+  // Australia/New Zealand
+  'NEWZEALANDSTANDARDTIME': { iana: 'Pacific/Auckland', display: 'New Zealand (UTC+12/+13)' },
+  'AABORLINTIME': { iana: 'Australia/Sydney', display: 'Sydney (UTC+10/+11)' },
+  'AUSEASTERNSTANDARDTIME': { iana: 'Australia/Sydney', display: 'Sydney (UTC+10/+11)' },
+  'AABORLINETIME': { iana: 'Australia/Sydney', display: 'Sydney (UTC+10/+11)' },
+  'EAABORLINETIME': { iana: 'Australia/Sydney', display: 'Sydney (UTC+10/+11)' },
+  'EAUSSTANDARDTIME': { iana: 'Australia/Sydney', display: 'Sydney (UTC+10/+11)' },
+  'EAUSTRALIASTANDARDTIME': { iana: 'Australia/Sydney', display: 'Sydney (UTC+10/+11)' },
+  'AUSCENTRALSTANDARDTIME': { iana: 'Australia/Adelaide', display: 'Adelaide (UTC+9:30/+10:30)' },
+  'CENAUSTRALIASTANDARDTIME': { iana: 'Australia/Adelaide', display: 'Adelaide (UTC+9:30/+10:30)' },
+  'AUSWESTERNSTANDARDTIME': { iana: 'Australia/Perth', display: 'Perth (UTC+8)' },
+  'WAUSSTANDARDTIME': { iana: 'Australia/Perth', display: 'Perth (UTC+8)' },
+  'WAUSTRALIAST': { iana: 'Australia/Perth', display: 'Perth (UTC+8)' },
+  'WAUSTRALISTANDARDTIME': { iana: 'Australia/Perth', display: 'Perth (UTC+8)' },
+  'TASMANIASTANDARDTIME': { iana: 'Australia/Hobart', display: 'Hobart (UTC+10/+11)' },
+  
+  // US
+  'USSTANDARDTIME': { iana: 'America/Los_Angeles', display: 'US Pacific (UTC-8/-7)' },
+  'PACIFICSTANDARDTIME': { iana: 'America/Los_Angeles', display: 'US Pacific (UTC-8/-7)' },
+  'USMOUNTAINSTANDARDTIME': { iana: 'America/Denver', display: 'US Mountain (UTC-7/-6)' },
+  'MOUNTAINSTANDARDTIME': { iana: 'America/Denver', display: 'US Mountain (UTC-7/-6)' },
+  'USCENTRALSTANDARDTIME': { iana: 'America/Chicago', display: 'US Central (UTC-6/-5)' },
+  'CENTRALSTANDARDTIME': { iana: 'America/Chicago', display: 'US Central (UTC-6/-5)' },
+  'USEASTERNSTANDARDTIME': { iana: 'America/New_York', display: 'US Eastern (UTC-5/-4)' },
+  'EASTERNSTANDARDTIME': { iana: 'America/New_York', display: 'US Eastern (UTC-5/-4)' },
+  'HAWAIISTANDARDTIME': { iana: 'Pacific/Honolulu', display: 'Hawaii (UTC-10)' },
+  'ALASKANSTANDARDTIME': { iana: 'America/Anchorage', display: 'Alaska (UTC-9/-8)' },
+  
+  // UK/Europe
+  'GMTSTANDARDTIME': { iana: 'Europe/London', display: 'London (UTC+0/+1)' },
+  'GREENWICHMEANTIME': { iana: 'Europe/London', display: 'London (UTC+0/+1)' },
+  'UTCTIME': { iana: 'UTC', display: 'UTC (UTC+0)' },
+  'UTC': { iana: 'UTC', display: 'UTC (UTC+0)' },
+  'WESTEUROPESTANDARDTIME': { iana: 'Europe/Amsterdam', display: 'Amsterdam (UTC+1/+2)' },
+  'CENTRALEUROPESTANDARDTIME': { iana: 'Europe/Berlin', display: 'Berlin (UTC+1/+2)' },
+  'ROMANCESTANDARDTIME': { iana: 'Europe/Paris', display: 'Paris (UTC+1/+2)' },
+  
+  // Asia
+  'SINGAPORESTANDARDTIME': { iana: 'Asia/Singapore', display: 'Singapore (UTC+8)' },
+  'CHINASTANDARDTIME': { iana: 'Asia/Shanghai', display: 'China (UTC+8)' },
+  'TOKYOSTANDARDTIME': { iana: 'Asia/Tokyo', display: 'Tokyo (UTC+9)' },
+  'KOREASTANDARDTIME': { iana: 'Asia/Seoul', display: 'Seoul (UTC+9)' },
+  'INDIASTANDARDTIME': { iana: 'Asia/Kolkata', display: 'India (UTC+5:30)' },
+  
+  // Canada
+  'CANADAEASTERNSTANDARDTIME': { iana: 'America/Toronto', display: 'Toronto (UTC-5/-4)' },
+  'CANADACENTRALSTANDARDTIME': { iana: 'America/Winnipeg', display: 'Winnipeg (UTC-6/-5)' },
+  'CANADAMOUNTAINSTANDARDTIME': { iana: 'America/Edmonton', display: 'Edmonton (UTC-7/-6)' },
+  'CANADAPACIFICSTANDARDTIME': { iana: 'America/Vancouver', display: 'Vancouver (UTC-8/-7)' },
+  'ATLANTICSTANDARDTIME': { iana: 'America/Halifax', display: 'Halifax (UTC-4/-3)' },
+  'NEWFOUNDLANDSTANDARDTIME': { iana: 'America/St_Johns', display: 'Newfoundland (UTC-3:30/-2:30)' },
+  
+  // South Africa
+  'SOUTHAFRICASTANDARDTIME': { iana: 'Africa/Johannesburg', display: 'South Africa (UTC+2)' },
+};
+
+/**
+ * Convert Xero timezone string to display name
+ */
+export function formatXeroTimezone(xeroTimezone: string | null | undefined): string {
+  if (!xeroTimezone) return 'Not set';
+  
+  const normalized = xeroTimezone.toUpperCase().replace(/[^A-Z]/g, '');
+  const mapping = XERO_TIMEZONE_MAP[normalized];
+  
+  if (mapping) {
+    return mapping.display;
+  }
+  
+  // Fallback: format the raw string more nicely
+  return xeroTimezone
+    .replace(/STANDARDTIME$/i, '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .trim() || xeroTimezone;
+}
+
+/**
+ * Get IANA timezone from Xero timezone string
+ */
+export function getIanaTimezone(xeroTimezone: string | null | undefined): string {
+  if (!xeroTimezone) return 'UTC';
+  
+  const normalized = xeroTimezone.toUpperCase().replace(/[^A-Z]/g, '');
+  const mapping = XERO_TIMEZONE_MAP[normalized];
+  
+  return mapping?.iana || 'UTC';
+}
+
+/**
+ * Country code to country name mapping
+ */
+const COUNTRY_NAMES: Record<string, string> = {
+  'AU': 'Australia',
+  'NZ': 'New Zealand',
+  'US': 'United States',
+  'CA': 'Canada',
+  'GB': 'United Kingdom',
+  'UK': 'United Kingdom',
+  'IE': 'Ireland',
+  'SG': 'Singapore',
+  'HK': 'Hong Kong',
+  'ZA': 'South Africa',
+  'IN': 'India',
+  'DE': 'Germany',
+  'FR': 'France',
+  'NL': 'Netherlands',
+  'BE': 'Belgium',
+  'CH': 'Switzerland',
+  'AT': 'Austria',
+  'IT': 'Italy',
+  'ES': 'Spain',
+  'PT': 'Portugal',
+  'SE': 'Sweden',
+  'NO': 'Norway',
+  'DK': 'Denmark',
+  'FI': 'Finland',
+  'JP': 'Japan',
+  'KR': 'South Korea',
+  'CN': 'China',
+  'MY': 'Malaysia',
+  'PH': 'Philippines',
+  'ID': 'Indonesia',
+  'TH': 'Thailand',
+  'VN': 'Vietnam',
+  'MX': 'Mexico',
+  'BR': 'Brazil',
+  'AR': 'Argentina',
+  'CL': 'Chile',
+  'CO': 'Colombia',
+  'AE': 'United Arab Emirates',
+  'SA': 'Saudi Arabia',
+};
+
+/**
+ * Convert country code to country name
+ */
+export function formatCountryCode(countryCode: string | null | undefined): string {
+  if (!countryCode) return 'Not set';
+  return COUNTRY_NAMES[countryCode.toUpperCase()] || countryCode;
+}
+
+/**
+ * Currency code to currency name mapping
+ */
+const CURRENCY_NAMES: Record<string, string> = {
+  'AUD': 'Australian Dollar',
+  'NZD': 'New Zealand Dollar',
+  'USD': 'US Dollar',
+  'CAD': 'Canadian Dollar',
+  'GBP': 'British Pound',
+  'EUR': 'Euro',
+  'SGD': 'Singapore Dollar',
+  'HKD': 'Hong Kong Dollar',
+  'ZAR': 'South African Rand',
+  'INR': 'Indian Rupee',
+  'JPY': 'Japanese Yen',
+  'KRW': 'South Korean Won',
+  'CNY': 'Chinese Yuan',
+  'MYR': 'Malaysian Ringgit',
+  'PHP': 'Philippine Peso',
+  'IDR': 'Indonesian Rupiah',
+  'THB': 'Thai Baht',
+  'VND': 'Vietnamese Dong',
+  'MXN': 'Mexican Peso',
+  'BRL': 'Brazilian Real',
+  'ARS': 'Argentine Peso',
+  'CLP': 'Chilean Peso',
+  'COP': 'Colombian Peso',
+  'AED': 'UAE Dirham',
+  'SAR': 'Saudi Riyal',
+  'CHF': 'Swiss Franc',
+  'SEK': 'Swedish Krona',
+  'NOK': 'Norwegian Krone',
+  'DKK': 'Danish Krone',
+};
+
+/**
+ * Format currency code with name
+ */
+export function formatCurrencyCode(currencyCode: string | null | undefined): string {
+  if (!currencyCode) return 'Not set';
+  const name = CURRENCY_NAMES[currencyCode.toUpperCase()];
+  return name ? `${currencyCode} (${name})` : currencyCode;
+}
+
+/**
+ * Format a DATE string (YYYY-MM-DD) to display format.
+ * This treats the date as a pure date without timezone conversion.
+ * Use for: startDate, endDate, periodDate, invoiceDate
+ */
+export function formatDateOnly(dateString: string | null | undefined): string {
+  if (!dateString) return '';
+  
+  // Parse date parts directly to avoid timezone issues
+  // Date strings from backend are in YYYY-MM-DD format
+  const parts = dateString.split('T')[0].split('-');
+  if (parts.length !== 3) return dateString;
+  
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
+  const day = parseInt(parts[2], 10);
+  
+  // Create date in local timezone at noon to avoid DST issues
+  const date = new Date(year, month, day, 12, 0, 0);
+  
+  const dayStr = String(date.getDate()).padStart(2, '0');
+  const monthStr = date.toLocaleString('en-US', { month: 'short' });
+  const yearStr = date.getFullYear();
+  
+  return `${dayStr} ${monthStr} ${yearStr}`;
+}
+
+/**
+ * Format a TIMESTAMP string to display in a specific timezone.
+ * Use for: createdAt, postedAt, updatedAt (audit timestamps)
+ * 
+ * @param timestampString - ISO timestamp string from backend
+ * @param xeroTimezone - Xero timezone string (e.g., "NEWZEALANDSTANDARDTIME")
+ * @param options - Formatting options
+ */
+export function formatTimestampInTimezone(
+  timestampString: string | null | undefined,
+  xeroTimezone: string | null | undefined,
+  options: {
+    includeTime?: boolean;
+    includeSeconds?: boolean;
+    includeWeekday?: boolean;
+  } = {}
+): string {
+  if (!timestampString) return '';
+  
+  const { includeTime = true, includeSeconds = false, includeWeekday = false } = options;
+  
+  // Get IANA timezone
+  const ianaTimezone = getIanaTimezone(xeroTimezone);
+  
+  try {
+    const date = new Date(timestampString);
+    
+    // Build date format options
+    const dateOptions: Intl.DateTimeFormatOptions = {
+      timeZone: ianaTimezone,
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    };
+    
+    if (includeWeekday) {
+      dateOptions.weekday = 'long';
+    }
+    
+    let result = date.toLocaleDateString('en-US', dateOptions);
+    
+    if (includeTime) {
+      const timeOptions: Intl.DateTimeFormatOptions = {
+        timeZone: ianaTimezone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      };
+      
+      if (includeSeconds) {
+        timeOptions.second = '2-digit';
+      }
+      
+      const timeStr = date.toLocaleTimeString('en-US', timeOptions);
+      result += `, ${timeStr}`;
+    }
+    
+    return result;
+  } catch (e) {
+    console.error('Error formatting timestamp:', e);
+    return timestampString;
+  }
+}
+
+/**
+ * Format a short timestamp (date only) in a specific timezone.
+ * Use for: displaying created date in tables
+ */
+export function formatDateInTimezone(
+  timestampString: string | null | undefined,
+  xeroTimezone: string | null | undefined
+): string {
+  if (!timestampString) return '';
+  
+  const ianaTimezone = getIanaTimezone(xeroTimezone);
+  
+  try {
+    const date = new Date(timestampString);
+    
+    // Use the same format as formatDate but with timezone
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: ianaTimezone,
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    };
+    
+    // Format and rearrange to DD MMM YYYY
+    const parts = date.toLocaleDateString('en-GB', options).split(' ');
+    return parts.join(' ');
+  } catch (e) {
+    console.error('Error formatting date in timezone:', e);
+    return timestampString;
+  }
+}
+
+/**
+ * Get the current date in the org's timezone as YYYY-MM-DD string.
+ * Useful for setting default dates in forms.
+ */
+export function getTodayInTimezone(xeroTimezone: string | null | undefined): string {
+  const ianaTimezone = getIanaTimezone(xeroTimezone);
+  
+  try {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: ianaTimezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    };
+    
+    // Format as parts and reassemble as YYYY-MM-DD
+    const formatter = new Intl.DateTimeFormat('en-CA', options); // en-CA gives YYYY-MM-DD format
+    return formatter.format(now);
+  } catch (e) {
+    console.error('Error getting today in timezone:', e);
+    return formatDateForInput(new Date());
+  }
+}
+
+/**
+ * Parse a date input value and ensure it's interpreted correctly.
+ * The input value is in YYYY-MM-DD format from the date picker.
+ * We want to treat this as a date in the org's timezone, not the user's local timezone.
+ */
+export function parseDateInputValue(dateValue: string): string {
+  // The date input value is already in YYYY-MM-DD format
+  // We just need to ensure we're not adding any timezone offset
+  // Return as-is since the backend stores dates as DATE type (no time)
+  return dateValue;
 }
 

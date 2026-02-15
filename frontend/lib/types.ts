@@ -19,6 +19,9 @@ export interface XeroConnection {
   connected: boolean | null; // null means "unknown" - not validated yet
   message: string;
   disconnectReason?: string | null; // reason for disconnection (null if connected)
+  timezone?: string | null; // Xero org timezone (e.g., "NEWZEALANDSTANDARDTIME")
+  countryCode?: string | null; // Xero org country code (e.g., "NZ", "US", "AU")
+  baseCurrency?: string | null; // Xero org base currency (e.g., "NZD", "USD", "AUD")
 }
 
 export interface XeroConnectionStatusResponse {

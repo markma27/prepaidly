@@ -32,5 +32,14 @@ public class XeroConnectionResponse {
 
     /** Reason for disconnection (null if connected) */
     private String disconnectReason;
+    
+    /** Xero organization timezone (e.g., "NEWZEALANDSTANDARDTIME", "USSTANDARDTIME") */
+    private String timezone;
+    
+    /** Xero organization country code (e.g., "NZ", "US", "AU") */
+    private String countryCode;
+    
+    /** Xero organization base currency (e.g., "NZD", "USD", "AUD") */
+    private String baseCurrency;
 }
 

@@ -600,5 +600,60 @@ public class XeroOAuthService {
             return null;
         }
     }
+    
+    /**
+     * Fetch and update organization info (timezone, country, currency) from Xero API.
+     * Called after initial OAuth connection and during token refresh.
+     */
+    public void updateOrganizationInfo(XeroConnection connection) {
+        try {
+            String accessToken = getValidAccessToken(connection);
+            Map<String, Object> tenantInfo = getTenantInfo(accessToken, connection.getTenantId());
+            
+            if (tenantInfo != null) {
+                boolean updated = false;
+                
+                // Update tenant name
+                String tenantName = (String) tenantInfo.get("Name");
+                if (tenantName != null && !tenantName.trim().isEmpty()) {
+                    if (!tenantName.equals(connection.getTenantName())) {
+                        connection.setTenantName(tenantName);
+                        updated = true;
+                        log.info("Updated tenant name to '{}' for tenant {}", tenantName, connection.getTenantId());
+                    }
+                }
+                
+                // Update timezone
+                String timezone = (String) tenantInfo.get("Timezone");
+                if (timezone != null && !timezone.equals(connection.getTimezone())) {
+                    connection.setTimezone(timezone);
+                    updated = true;
+                    log.info("Updated timezone to '{}' for tenant {}", timezone, connection.getTenantId());
+                }
+                
+                // Update country code
+                String countryCode = (String) tenantInfo.get("CountryCode");
+                if (countryCode != null && !countryCode.equals(connection.getCountryCode())) {
+                    connection.setCountryCode(countryCode);
+                    updated = true;
+                    log.info("Updated country code to '{}' for tenant {}", countryCode, connection.getTenantId());
+                }
+                
+                // Update base currency
+                String baseCurrency = (String) tenantInfo.get("BaseCurrency");
+                if (baseCurrency != null && !baseCurrency.equals(connection.getBaseCurrency())) {
+                    connection.setBaseCurrency(baseCurrency);
+                    updated = true;
+                    log.info("Updated base currency to '{}' for tenant {}", baseCurrency, connection.getTenantId());
+                }
+                
+                if (updated) {
+                    xeroConnectionRepository.save(connection);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not update organization info for {}: {}", connection.getTenantId(), e.getMessage());
+        }
+    }
 }
 

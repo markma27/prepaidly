@@ -106,11 +106,11 @@ public class TokenRefreshScheduler {
             log.info("Successfully refreshed tokens for tenant {} ({}). New expiry: {}", 
                 tenantName, tenantId, refreshedConnection.getExpiresAt());
             
-            // Update tenant name during refresh
+            // Update tenant info (name, timezone, country, currency) during refresh
             try {
-                updateTenantName(refreshedConnection);
+                updateTenantInfo(refreshedConnection);
             } catch (Exception e) {
-                log.debug("Could not update tenant name for {}: {}", tenantId, e.getMessage());
+                log.debug("Could not update tenant info for {}: {}", tenantId, e.getMessage());
             }
         } catch (XeroOAuthService.InvalidGrantException e) {
             // Connection already marked DISCONNECTED by refreshTokens
@@ -139,26 +139,10 @@ public class TokenRefreshScheduler {
     }
 
     /**
-     * Fetch and update tenant name from Xero API.
+     * Fetch and update tenant info (name, timezone, country, currency) from Xero API.
      */
-    private void updateTenantName(XeroConnection connection) {
-        try {
-            String accessToken = xeroOAuthService.getValidAccessToken(connection);
-            Map<String, Object> tenantInfo = xeroOAuthService.getTenantInfo(accessToken, connection.getTenantId());
-            
-            if (tenantInfo != null) {
-                String tenantName = (String) tenantInfo.get("Name");
-                if (tenantName != null && !tenantName.trim().isEmpty()) {
-                    if (!tenantName.equals(connection.getTenantName())) {
-                        connection.setTenantName(tenantName);
-                        xeroConnectionRepository.save(connection);
-                        log.info("Updated tenant name to '{}' for tenant {}", tenantName, connection.getTenantId());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Could not update tenant name for {}: {}", connection.getTenantId(), e.getMessage());
-        }
+    private void updateTenantInfo(XeroConnection connection) {
+        xeroOAuthService.updateOrganizationInfo(connection);
     }
 
     /**

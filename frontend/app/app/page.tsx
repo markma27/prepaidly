@@ -66,6 +66,14 @@ export default function AppPage() {
       setLoading(true);
       setError(null);
       
+      // Clear the connections cache to ensure fresh data
+      // This is important after OAuth callback to get the latest org info (timezone, currency)
+      const CACHE_KEY = 'xero_connections_cache';
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(CACHE_KEY);
+        console.log('Cleared connections cache to fetch fresh data');
+      }
+      
       // Get user email from Supabase session (stored in sessionStorage for backward compatibility)
       // Note: The backend API now returns all connections, so userId is optional
       const userStr = typeof window !== 'undefined' ? sessionStorage.getItem('user') : null;
@@ -92,6 +100,15 @@ export default function AppPage() {
       console.log('Connections array length:', status?.connections?.length);
       console.log('Connections:', status?.connections);
       setConnectionStatus(status);
+      
+      // Update the cache with fresh data so DashboardLayout has it
+      if (typeof window !== 'undefined' && status?.connections) {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          data: status.connections,
+          timestamp: Date.now(),
+        }));
+        console.log('Updated connections cache with fresh data including org info');
+      }
     } catch (err: any) {
       console.error('Error checking connection status:', err);
       console.error('Error details:', {
