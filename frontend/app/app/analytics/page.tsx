@@ -386,17 +386,9 @@ function AnalyticsPageContent() {
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {/* Title always visible - consistent with other pages */}
-          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-4">
-            <div className="flex justify-between items-start gap-4">
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-gray-900">
-                  Analytics
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Monthly amounts to be posted by contact and account
-                </p>
-              </div>
-            </div>
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+            <h3 className="text-base font-bold text-gray-900">Analytics</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Monthly amounts to be posted by contact and account</p>
           </div>
 
           <div className="p-5">

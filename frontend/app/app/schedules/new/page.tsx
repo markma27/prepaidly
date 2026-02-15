@@ -651,7 +651,7 @@ function NewSchedulePageContent() {
                             }}
                             onKeyDown={handleContactKeyDown}
                             placeholder="Enter contact / customer / supplier name"
-                            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
                             autoComplete="off"
                           />
                         </div>
@@ -714,7 +714,7 @@ function NewSchedulePageContent() {
                           type="date"
                           value={invoiceDate}
                           onChange={(e) => setInvoiceDate(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
                         />
                         <p className="text-xs text-gray-500 mt-1">
                           Date on the related invoice
@@ -736,7 +736,7 @@ function NewSchedulePageContent() {
                             setShowPreview(false);
                           }}
                           required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
                         />
                       </div>
                       <div>
@@ -752,7 +752,7 @@ function NewSchedulePageContent() {
                           }}
                           required
                           min={startDate}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
                         />
                       </div>
                     </div>
@@ -783,7 +783,7 @@ function NewSchedulePageContent() {
                             }}
                             required
                             placeholder="0.00"
-                            className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm"
+                            className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
                           />
                         </div>
                       </div>
@@ -802,7 +802,7 @@ function NewSchedulePageContent() {
                             }
                           }}
                           required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm appearance-none bg-white"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900 appearance-none bg-white"
                         >
                           <option value="">Please select an account</option>
                           {getFilteredAccounts(type === 'PREPAID' ? 'EXPENSE' : 'REVENUE').map(
@@ -826,7 +826,7 @@ function NewSchedulePageContent() {
                         onChange={(e) => setDescription(e.target.value)}
                         placeholder="Optional notes or description for this schedule"
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm resize-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900 resize-none"
                       />
                     </div>
 
