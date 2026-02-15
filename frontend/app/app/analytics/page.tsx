@@ -227,7 +227,7 @@ function AnalyticsPageContent() {
 
   return (
     <DashboardLayout tenantId={tenantId}>
-      <div className="max-w-[1800px] mx-auto p-6">
+      <div className="max-w-[1800px] mx-auto">
         {error && (
           <ErrorMessage message={error} onDismiss={() => setError(null)} />
         )}
