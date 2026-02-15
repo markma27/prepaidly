@@ -10,7 +10,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import Skeleton from '@/components/Skeleton';
-import { ChevronLeft, ChevronRight, Calendar, DollarSign, FileText, RefreshCw, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, DollarSign, FileText, RefreshCw, Download, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 type TabType = 'prepayment' | 'unearned';
@@ -122,7 +122,8 @@ function AnalyticsPageContent() {
     setStartYearMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
 
-  const filteredSchedules = useMemo(() => {
+  // Filter schedules by type first
+  const typeFilteredSchedules = useMemo(() => {
     const type = activeTab === 'prepayment' ? 'PREPAID' : 'UNEARNED';
     return schedules.filter((s) => s.type === type);
   }, [schedules, activeTab]);
@@ -145,6 +146,60 @@ function AnalyticsPageContent() {
     });
     return map;
   };
+
+  // Further filter to hide schedules that have no amounts in the visible 12-month window
+  // AND are outside the 3-month grace period on either side of the window
+  const filteredSchedules = useMemo(() => {
+    const [startY, startM] = startYearMonth.split('-').map(Number);
+    
+    // Cutoff for past: 3 months before the start of the visible window
+    const pastCutoffDate = new Date(startY, startM - 1 - 3, 1);
+    const pastCutoffYearMonth = `${pastCutoffDate.getFullYear()}-${String(pastCutoffDate.getMonth() + 1).padStart(2, '0')}-01`;
+    
+    // Cutoff for future: 3 months after the end of the visible window (window is 12 months, so end is startM + 11)
+    const futureCutoffDate = new Date(startY, startM - 1 + 12 + 3, 1);
+    const futureCutoffYearMonth = `${futureCutoffDate.getFullYear()}-${String(futureCutoffDate.getMonth() + 1).padStart(2, '0')}-01`;
+
+    return typeFilteredSchedules.filter((schedule) => {
+      const amountByMonth = getAmountByMonth(schedule);
+      
+      // Check if schedule has any amounts in the visible 12-month window
+      const hasAmountInWindow = monthColumns.some((col) => {
+        const amount = amountByMonth.get(col.yearMonth);
+        return amount != null && Math.round(amount * 100) !== 0;
+      });
+
+      // If it has amounts in the window, show it
+      if (hasAmountInWindow) return true;
+
+      const entries = schedule.journalEntries ?? [];
+      if (entries.length === 0) {
+        // No entries yet - check if invoice/start date is within 3 months after window end
+        const fromDate = schedule.invoiceDate || schedule.startDate;
+        if (!fromDate) return false;
+        const fromYearMonth = `${fromDate.slice(0, 7)}-01`;
+        return fromYearMonth < futureCutoffYearMonth;
+      }
+
+      // Find the first and last journal entry dates
+      let firstEntryDate = '9999-99-01';
+      let lastEntryDate = '0000-00-01';
+      entries.forEach((je) => {
+        const d = new Date(je.periodDate);
+        const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        if (yearMonth < firstEntryDate) firstEntryDate = yearMonth;
+        if (yearMonth > lastEntryDate) lastEntryDate = yearMonth;
+      });
+
+      // Hide if too far in the past: last entry is more than 3 months before window start
+      if (lastEntryDate < pastCutoffYearMonth) return false;
+      
+      // Hide if too far in the future: first entry is more than 3 months after window end
+      if (firstEntryDate >= futureCutoffYearMonth) return false;
+
+      return true;
+    });
+  }, [typeFilteredSchedules, monthColumns, startYearMonth]);
 
   const handleRowClick = (scheduleId: number) => {
     router.push(`/app/schedules/${scheduleId}?tenantId=${tenantId}`);
@@ -431,6 +486,29 @@ function AnalyticsPageContent() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Legend and info section */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-5 text-xs">
+              <div className="flex items-center gap-4">
+                <span className="text-gray-500 font-medium">Legend:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                  <span className="text-gray-600">Posted</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+                  <span className="text-gray-600">Pending</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-gray-400"></span>
+                  <span className="text-gray-600">No entry</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-gray-400">
+                <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Schedules are hidden if outside the visible period by more than 3 months</span>
               </div>
             </div>
 
