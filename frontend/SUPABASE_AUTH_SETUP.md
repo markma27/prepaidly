@@ -11,6 +11,7 @@
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
 ```
 
 你可以在 Supabase Dashboard → Settings → API 中找到这些值。
@@ -31,6 +32,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 在 Supabase Dashboard → Authentication → URL Configuration 中：
 
 - **Site URL**: 设置为 `http://localhost:3000` (开发环境) 或你的生产环境 URL
+  - **注意**: `NEXT_PUBLIC_SITE_URL` 应与这里保持一致
 
 ## 4. 密码重置邮件模板（可选）
 
