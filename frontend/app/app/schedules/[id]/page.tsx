@@ -10,7 +10,8 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import ScheduleDetailSkeleton from '@/components/ScheduleDetailSkeleton';
-import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink, Clock, User, FileText } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink, Clock, User, FileText, FileDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 
 function ScheduleDetailContent() {
@@ -235,6 +236,63 @@ function ScheduleDetailContent() {
     }
   };
 
+  const handleExportToExcel = () => {
+    if (!schedule) return;
+
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Schedule Details
+    const detailsData: (string | number)[][] = [
+      ['Schedule Details', ''],
+      ['Type', schedule.type === 'PREPAID' ? 'Prepayment' : 'Unearned Revenue'],
+      ['Contact', schedule.contactName || ''],
+      ['Total Amount', formatCurrency(schedule.totalAmount, orgCurrency)],
+      ['Remaining', schedule.remainingBalance !== undefined ? formatCurrency(schedule.remainingBalance, orgCurrency) : ''],
+      ['Start Date', formatDateOnly(schedule.startDate)],
+      ['End Date', formatDateOnly(schedule.endDate)],
+      ['Periods', `${schedule.postedPeriods || 0} / ${schedule.totalPeriods || 0}`],
+      ['Status', schedule.postedPeriods === schedule.totalPeriods && schedule.totalPeriods ? 'Complete' : 'In Progress'],
+      [schedule.type === 'PREPAID' ? 'Expense Account' : 'Revenue Account', getAccountDisplay(schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode, schedule.type === 'PREPAID' ? 'Expense' : 'Revenue')],
+      ['Invoice Date', schedule.invoiceDate ? formatDateOnly(schedule.invoiceDate) : ''],
+      ['Created', formatDateInTimezone(schedule.createdAt, getOrgTimezone(tenantId))],
+      ['Description', schedule.description || ''],
+    ];
+    const wsDetails = XLSX.utils.aoa_to_sheet(detailsData);
+    wsDetails['!cols'] = [{ wch: 22 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, wsDetails, 'Schedule Details');
+
+    // Sheet 2: Journal Entries
+    const journalData: (string | number)[][] = [
+      ['Period Date', 'Amount', 'Status', 'Xero Journal #'],
+      ...sortedEntries.map((entry) => [
+        formatDateOnly(entry.periodDate),
+        formatCurrency(entry.amount, orgCurrency),
+        entry.posted ? 'Posted' : 'Pending',
+        entry.xeroManualJournalId ? `#${entry.xeroJournalNumber || entry.id}` : '-',
+      ]),
+    ];
+    const wsJournal = XLSX.utils.aoa_to_sheet(journalData);
+    wsJournal['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, wsJournal, 'Journal Entries');
+
+    // Sheet 3: Audit Trail
+    const auditData: (string | number)[][] = [
+      ['Date & Time', 'Action', 'Description', 'Details'],
+      ...auditTrail.map((entry) => [
+        formatTimestampInTimezone(entry.date, getOrgTimezone(tenantId), { includeTime: true, includeSeconds: true }),
+        entry.action,
+        entry.description + ((entry.userName || entry.userId) ? ` by ${entry.userName || `User ID: ${entry.userId}`}` : ''),
+        entry.details || '-',
+      ]),
+    ];
+    const wsAudit = XLSX.utils.aoa_to_sheet(auditData);
+    wsAudit['!cols'] = [{ wch: 22 }, { wch: 18 }, { wch: 50 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, wsAudit, 'Audit Trail');
+
+    const filename = `Schedule_${schedule.id}_${schedule.contactName?.replace(/\s+/g, '_') || 'Export'}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  };
+
   if (loading && !tenantId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -279,14 +337,24 @@ function ScheduleDetailContent() {
   return (
     <DashboardLayout tenantId={tenantId}>
       <div className="space-y-7 max-w-[1800px] mx-auto">
-        {/* Back Button */}
-        <button
-          onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}
-          className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Schedule Register
-        </button>
+        {/* Top bar: Back button (left) + Export (right) */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}
+            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Schedule Register
+          </button>
+          <button
+            type="button"
+            onClick={handleExportToExcel}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-800 bg-green-100 rounded-lg hover:bg-green-200 transition-colors"
+          >
+            <FileDown className="w-4 h-4" />
+            Export to Excel
+          </button>
+        </div>
 
         {/* Schedule Summary Card */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
