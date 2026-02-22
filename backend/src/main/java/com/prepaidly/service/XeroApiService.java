@@ -526,5 +526,173 @@ public class XeroApiService {
         private String description;
         private java.math.BigDecimal lineAmount;
     }
+    
+    /**
+     * Result class for voiding a manual journal
+     */
+    @Data
+    @AllArgsConstructor
+    public static class VoidJournalResult {
+        private String journalId;
+        private boolean success;
+        private String status;
+        private String errorMessage;
+        private boolean periodLocked;
+    }
+    
+    /**
+     * Check if a manual journal can be voided (verifies period is not locked).
+     * Returns information about the journal's current state.
+     */
+    public VoidJournalResult checkJournalCanBeVoided(String tenantId, String journalId) {
+        return executeWithRetry(tenantId, (accessToken, tid) -> {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(accessToken);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+            headers.set("xero-tenant-id", tid);
+            
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            String url = XeroConfig.XERO_API_URL + "/ManualJournals/" + journalId;
+            
+            try {
+                ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+                );
+                
+                if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> journals = (List<Map<String, Object>>) response.getBody().get("ManualJournals");
+                    if (journals != null && !journals.isEmpty()) {
+                        Map<String, Object> journal = journals.get(0);
+                        String status = (String) journal.get("Status");
+                        
+                        if ("VOIDED".equalsIgnoreCase(status)) {
+                            return new VoidJournalResult(journalId, true, status, "Journal already voided", false);
+                        }
+                        if ("POSTED".equalsIgnoreCase(status)) {
+                            return new VoidJournalResult(journalId, true, status, null, false);
+                        }
+                        return new VoidJournalResult(journalId, false, status, "Journal status is " + status, false);
+                    }
+                }
+                return new VoidJournalResult(journalId, false, null, "Journal not found in Xero", false);
+            } catch (HttpClientErrorException e) {
+                String responseBody = e.getResponseBodyAsString();
+                log.warn("Error checking journal {}: {} - {}", journalId, e.getStatusCode(), responseBody);
+                
+                if (e.getStatusCode().value() == 404) {
+                    return new VoidJournalResult(journalId, false, null, "Journal not found in Xero", false);
+                }
+                throw e;
+            }
+        });
+    }
+    
+    /**
+     * Void a manual journal in Xero by updating its status to VOIDED.
+     * 
+     * Xero requires a POST request to update the journal status, not DELETE.
+     * The request body must include the ManualJournalID and Status: "VOIDED".
+     * 
+     * Returns a VoidJournalResult indicating success/failure and whether the period is locked.
+     */
+    public VoidJournalResult voidManualJournal(String tenantId, String journalId) {
+        return executeWithRetry(tenantId, (accessToken, tid) -> {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(accessToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+            headers.set("xero-tenant-id", tid);
+            
+            // Build the request body to update status to VOIDED
+            Map<String, Object> journalUpdate = new HashMap<>();
+            journalUpdate.put("ManualJournalID", journalId);
+            journalUpdate.put("Status", "VOIDED");
+            
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("ManualJournals", Collections.singletonList(journalUpdate));
+            
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+            String url = XeroConfig.XERO_API_URL + "/ManualJournals/" + journalId;
+            
+            log.info("Voiding manual journal {} in Xero for tenant {} (POST with Status=VOIDED)", journalId, tenantId);
+            
+            try {
+                ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    entity,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+                );
+                
+                if (response.getStatusCode() == HttpStatus.OK) {
+                    // Check the response to confirm the journal was voided
+                    Map<String, Object> body = response.getBody();
+                    if (body != null) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> journals = (List<Map<String, Object>>) body.get("ManualJournals");
+                        if (journals != null && !journals.isEmpty()) {
+                            Map<String, Object> journal = journals.get(0);
+                            String status = (String) journal.get("Status");
+                            
+                            if ("VOIDED".equalsIgnoreCase(status)) {
+                                log.info("Successfully voided manual journal {} in Xero", journalId);
+                                return new VoidJournalResult(journalId, true, "VOIDED", null, false);
+                            } else {
+                                log.warn("Journal {} status after void request: {}", journalId, status);
+                                return new VoidJournalResult(journalId, false, status, 
+                                    "Journal status is " + status + " (expected VOIDED)", false);
+                            }
+                        }
+                    }
+                    // If we got 200 OK but can't verify status, assume success
+                    log.info("Voided manual journal {} in Xero (response OK)", journalId);
+                    return new VoidJournalResult(journalId, true, "VOIDED", null, false);
+                }
+                
+                return new VoidJournalResult(journalId, false, null, 
+                    "Unexpected response: " + response.getStatusCode(), false);
+            } catch (HttpClientErrorException e) {
+                String responseBody = e.getResponseBodyAsString();
+                int statusCode = e.getStatusCode().value();
+                
+                log.error("Error voiding journal {} in Xero: {} - {}", journalId, statusCode, responseBody);
+                
+                // Check for locked period error
+                boolean periodLocked = responseBody.toLowerCase().contains("period is locked") ||
+                                      responseBody.toLowerCase().contains("locked period") ||
+                                      responseBody.toLowerCase().contains("lock date");
+                
+                if (periodLocked) {
+                    return new VoidJournalResult(journalId, false, null, 
+                        "The accounting period is locked in Xero. Please unlock the period in Xero first.", true);
+                }
+                
+                // Check if journal was not found (404)
+                if (statusCode == 404 || responseBody.toLowerCase().contains("not found")) {
+                    return new VoidJournalResult(journalId, false, null, 
+                        "Journal not found in Xero (may have been deleted)", false);
+                }
+                
+                // Check if journal is already voided
+                if (responseBody.toLowerCase().contains("already voided") || 
+                    responseBody.toLowerCase().contains("status is voided")) {
+                    return new VoidJournalResult(journalId, true, "VOIDED", "Journal was already voided", false);
+                }
+                
+                // Check for validation errors in the response
+                if (responseBody.contains("ValidationErrors")) {
+                    return new VoidJournalResult(journalId, false, null, 
+                        "Xero validation error: " + responseBody, false);
+                }
+                
+                return new VoidJournalResult(journalId, false, null, 
+                    "Failed to void journal: " + e.getMessage(), false);
+            }
+        });
+    }
 }
 

@@ -6,6 +6,7 @@ import {
   CreateScheduleRequest,
   PostJournalRequest,
   PostJournalResponse,
+  VoidScheduleResponse,
 } from './types';
 
 // API base URL - must be set in Vercel env for production; localhost always uses :8080
@@ -258,7 +259,8 @@ export const scheduleApi = {
   },
 
   /**
-   * Void a schedule. Voided schedules are excluded from Analytics and Register by default.
+   * Void a schedule (simple - no Xero journal voiding).
+   * @deprecated Use voidScheduleWithJournals instead
    */
   voidSchedule: async (scheduleId: number): Promise<Schedule> => {
     const result = await fetchApi<Schedule>(`/api/schedules/${scheduleId}/void`, {
@@ -267,6 +269,27 @@ export const scheduleApi = {
     if (result.tenantId) {
       clearCachedData(getCacheKey('schedules', result.tenantId));
       clearCachedData(getCacheKey('schedules', result.tenantId) + ':voided');
+    }
+    return result;
+  },
+
+  /**
+   * Void a schedule and its posted journals in Xero.
+   * 
+   * This method:
+   * 1. Checks all posted journals can be voided (period not locked in Xero)
+   * 2. If any period is locked, returns error without voiding anything
+   * 3. Voids all posted journals in Xero
+   * 4. Marks the schedule as voided in our database
+   */
+  voidScheduleWithJournals: async (scheduleId: number, tenantId: string): Promise<VoidScheduleResponse> => {
+    const result = await fetchApi<VoidScheduleResponse>(
+      `/api/schedules/${scheduleId}/void-with-journals?tenantId=${encodeURIComponent(tenantId)}`,
+      { method: 'POST' }
+    );
+    if (result.schedule?.tenantId) {
+      clearCachedData(getCacheKey('schedules', result.schedule.tenantId));
+      clearCachedData(getCacheKey('schedules', result.schedule.tenantId) + ':voided');
     }
     return result;
   },

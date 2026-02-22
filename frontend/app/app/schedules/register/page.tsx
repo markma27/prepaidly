@@ -45,15 +45,16 @@ function ScheduleRegisterContent() {
 
   useEffect(() => {
     if (tenantId) {
-      loadSchedules(tenantId, showVoided);
+      loadSchedules(tenantId);
     }
-  }, [tenantId, showVoided]);
+  }, [tenantId]);
 
-  const loadSchedules = async (tid: string, includeVoided: boolean) => {
+  const loadSchedules = async (tid: string) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await scheduleApi.getSchedules(tid, includeVoided);
+      // Always fetch all schedules (including voided) - filter client-side when toggling
+      const response = await scheduleApi.getSchedules(tid, true);
       setSchedules(response.schedules);
     } catch (err: any) {
       console.error('Error loading schedules:', err);
@@ -96,14 +97,20 @@ function ScheduleRegisterContent() {
     return accountMap.get(code) || '';
   };
 
-  // Filter schedules based on search query
+  // Filter schedules: first by showVoided, then by search query
   const filteredSchedules = useMemo(() => {
+    // Filter by voided visibility (no API call - instant toggle)
+    let result = schedules;
+    if (!showVoided) {
+      result = schedules.filter(s => !s.voided);
+    }
+
     if (!searchQuery.trim()) {
-      return schedules;
+      return result;
     }
 
     const query = searchQuery.toLowerCase().trim();
-    return schedules.filter(schedule => {
+    return result.filter(schedule => {
       // Search by type
       const typeMatch = schedule.type.toLowerCase().includes(query) ||
         (schedule.type === 'PREPAID' ? 'prepayment' : 'unearned revenue').includes(query);
@@ -140,7 +147,7 @@ function ScheduleRegisterContent() {
       
       return typeMatch || accountCodeMatch || accountNameMatch || amountMatch || contactMatch || dateMatch;
     });
-  }, [schedules, searchQuery, accountMap]);
+  }, [schedules, showVoided, searchQuery, accountMap]);
 
   // Sort filtered schedules (default: created date, newest first)
   const sortedSchedules = useMemo(() => {
@@ -385,7 +392,7 @@ function ScheduleRegisterContent() {
                           {(() => {
                             if (schedule.voided) {
                               return (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-200 text-gray-700">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-100 text-red-700">
                                   Voided
                                 </span>
                               );

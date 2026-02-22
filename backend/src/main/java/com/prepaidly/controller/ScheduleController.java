@@ -2,6 +2,7 @@ package com.prepaidly.controller;
 
 import com.prepaidly.dto.CreateScheduleRequest;
 import com.prepaidly.dto.ScheduleResponse;
+import com.prepaidly.dto.VoidScheduleResponse;
 import com.prepaidly.service.ScheduleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -283,6 +284,9 @@ public class ScheduleController {
         }
     }
 
+    /**
+     * Void a schedule (simple - no Xero journal voiding)
+     */
     @PostMapping("/{id}/void")
     public ResponseEntity<?> voidSchedule(@PathVariable Long id) {
         try {
@@ -293,6 +297,44 @@ public class ScheduleController {
                 return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
             }
             throw e;
+        }
+    }
+    
+    /**
+     * Void a schedule and its posted journals in Xero.
+     * 
+     * This endpoint:
+     * 1. Checks all posted journals can be voided (period not locked in Xero)
+     * 2. If any period is locked, returns error without voiding anything
+     * 3. Voids all posted journals in Xero
+     * 4. Marks the schedule as voided in our database
+     * 
+     * @param id The schedule ID to void
+     * @param tenantId The Xero tenant ID (required for Xero API calls)
+     */
+    @PostMapping("/{id}/void-with-journals")
+    public ResponseEntity<?> voidScheduleWithJournals(
+            @PathVariable Long id,
+            @RequestParam String tenantId) {
+        try {
+            log.info("Voiding schedule {} with journals for tenant {}", id, tenantId);
+            VoidScheduleResponse response = scheduleService.voidScheduleWithJournals(id, tenantId);
+            
+            if (!response.isSuccess()) {
+                // Return 400 for locked period errors so frontend can display the message
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            log.error("Error voiding schedule {} with journals", id, e);
+            if (e.getMessage() != null && e.getMessage().contains("not found")) {
+                return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+            }
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Failed to void schedule: " + e.getMessage(),
+                "success", false
+            ));
         }
     }
 

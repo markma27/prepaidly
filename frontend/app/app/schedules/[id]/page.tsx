@@ -10,7 +10,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import ScheduleDetailSkeleton from '@/components/ScheduleDetailSkeleton';
-import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink, Clock, User, FileText, FileDown, Ban } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink, Clock, User, FileText, FileDown, Ban, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 
@@ -27,6 +27,9 @@ function ScheduleDetailContent() {
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [voiding, setVoiding] = useState(false);
   const [showVoidModal, setShowVoidModal] = useState(false);
+  const [voidError, setVoidError] = useState<string | null>(null);
+  const [voidWarning, setVoidWarning] = useState<string | null>(null);
+  const [voidSuccessMessage, setVoidSuccessMessage] = useState<string | null>(null);
 
   const scheduleId = params?.id ? parseInt(params.id as string) : null;
   
@@ -296,15 +299,50 @@ function ScheduleDetailContent() {
   };
 
   const handleVoidConfirm = async () => {
-    if (!scheduleId || !schedule || schedule.voided) return;
+    if (!scheduleId || !schedule || schedule.voided || !tenantId) return;
+    
+    setVoidError(null);
+    setVoidWarning(null);
+    
     try {
       setVoiding(true);
-      const updated = await scheduleApi.voidSchedule(scheduleId);
-      setSchedule(updated);
+      
+      // Use the new endpoint that also voids journals in Xero
+      const response = await scheduleApi.voidScheduleWithJournals(scheduleId, tenantId);
+      
+      if (!response.success) {
+        // Failed - could be locked period, or other void error
+        setVoidError(response.message);
+        return;
+      }
+      
+      // Success - update schedule and close modal
+      if (response.schedule) {
+        setSchedule(response.schedule);
+      }
+      
+      // Show success popup with journal count
+      const journalCount = response.voidedJournalIds?.length ?? 0;
+      const successMsg = journalCount > 0
+        ? `Schedule voided and ${journalCount} journal${journalCount === 1 ? '' : 's'} voided in Xero.`
+        : 'Schedule voided successfully.';
+      setVoidSuccessMessage(successMsg);
+      
+      // Show info message if there are any notes (e.g., journals not found in Xero)
+      if (response.message && (response.message.includes('Note:') || response.message.includes('Warning:'))) {
+        setVoidWarning(response.message);
+      }
+      
       setShowVoidModal(false);
     } catch (err: any) {
       console.error('Error voiding schedule:', err);
-      setError(err.message || 'Failed to void schedule');
+      // Check if response contains detailed error message
+      const errorData = err.data;
+      if (errorData?.message) {
+        setVoidError(errorData.message);
+      } else {
+        setVoidError(err.message || 'Failed to void schedule');
+      }
     } finally {
       setVoiding(false);
     }
@@ -391,6 +429,23 @@ function ScheduleDetailContent() {
           </div>
         </div>
 
+        {/* Warning banner for partial void success */}
+        {voidWarning && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-amber-800 font-medium">Void completed with warnings</p>
+              <p className="text-sm text-amber-700 mt-1">{voidWarning}</p>
+            </div>
+            <button
+              onClick={() => setVoidWarning(null)}
+              className="text-amber-600 hover:text-amber-800"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
         {/* Schedule Summary Card */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
           <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
@@ -431,7 +486,7 @@ function ScheduleDetailContent() {
               <div>
                 <div className="text-xs text-gray-500 mb-1">Status</div>
                 {schedule.voided ? (
-                  <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-200 text-gray-700">
+                  <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-100 text-red-700">
                     Voided
                   </span>
                 ) : schedule.postedPeriods === schedule.totalPeriods && schedule.totalPeriods ? (
@@ -535,7 +590,12 @@ function ScheduleDetailContent() {
                       <div className="text-sm font-bold text-gray-900">{formatCurrency(entry.amount, orgCurrency)}</div>
                     </td>
                     <td className="px-5 py-3">
-                      {entry.posted ? (
+                      {schedule.voided && entry.posted && entry.xeroManualJournalId ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-100 text-red-700">
+                          <Ban className="w-3 h-3" />
+                          Voided
+                        </span>
+                      ) : entry.posted ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
                           <CheckCircle className="w-3 h-3" />
                           Posted
@@ -563,13 +623,19 @@ function ScheduleDetailContent() {
                       )}
                     </td>
                     <td className="px-5 py-3">
-                      {entry.posted ? (
+                      {schedule.voided && entry.posted && entry.xeroManualJournalId ? (
+                        <span className="text-xs text-gray-400">Voided</span>
+                      ) : entry.posted ? (
                         <span className="text-xs text-gray-400">Already posted</span>
                       ) : (
                         <button
                           onClick={(e) => handlePostJournal(entry, e)}
-                          disabled={posting.has(entry.id)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#6d69ff] rounded-lg hover:bg-[#5a56e6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={posting.has(entry.id) || schedule.voided}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            schedule.voided
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                              : 'text-white bg-[#6d69ff] hover:bg-[#5a56e6]'
+                          }`}
                         >
                           {posting.has(entry.id) ? (
                             <>
@@ -667,42 +733,126 @@ function ScheduleDetailContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => !voiding && setShowVoidModal(false)}
+            onClick={() => !voiding && !voidError && setShowVoidModal(false)}
             aria-hidden
           />
           <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-gray-200">
             <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <Ban className="w-6 h-6 text-red-600" />
+              <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
+                voidError ? 'bg-amber-100' : 'bg-red-100'
+              }`}>
+                <Ban className={`w-6 h-6 ${voidError ? 'text-amber-600' : 'text-red-600'}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-semibold text-gray-900">Void schedule</h3>
-                <p className="mt-2 text-sm text-gray-600">
-                  Are you sure you want to void this schedule? It will be hidden from Analytics and Schedule Register. You can still view it by enabling &quot;Show voided&quot; in Schedule Register.
-                </p>
-                <div className="mt-6 flex gap-3 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => !voiding && setShowVoidModal(false)}
-                    disabled={voiding}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleVoidConfirm}
-                    disabled={voiding}
-                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {voiding ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Voiding...
-                      </>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {voidError ? 'Cannot Void Schedule' : 'Void Schedule'}
+                </h3>
+                
+                {voidError ? (
+                  <>
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-800">{voidError}</p>
+                    </div>
+                    {voidError.toLowerCase().includes('locked') ? (
+                      <p className="mt-3 text-sm text-gray-500">
+                        Please unlock the accounting period in Xero and try again.
+                      </p>
                     ) : (
-                      'Void schedule'
+                      <p className="mt-3 text-sm text-gray-500">
+                        Please check the journal in Xero and try again.
+                      </p>
                     )}
+                    <div className="mt-6 flex gap-3 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVoidError(null);
+                          setShowVoidModal(false);
+                        }}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-2 text-sm text-gray-600">
+                      Are you sure you want to void this schedule?
+                    </p>
+                    
+                    {/* Show info about Xero journals if any are posted */}
+                    {schedule?.journalEntries?.some(e => e.posted && e.xeroManualJournalId) && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          <strong>Note:</strong> Posted journals will also be voided in Xero.
+                        </p>
+                      </div>
+                    )}
+                    
+                    <p className="mt-3 text-sm text-gray-500">
+                      The schedule will be hidden from Analytics and Schedule Register. You can still view it by enabling &quot;Show voided&quot;.
+                    </p>
+                    
+                    <div className="mt-6 flex gap-3 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVoidError(null);
+                          setShowVoidModal(false);
+                        }}
+                        disabled={voiding}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleVoidConfirm}
+                        disabled={voiding}
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {voiding ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Voiding...
+                          </>
+                        ) : (
+                          'Void Schedule'
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Void success popup */}
+      {voidSuccessMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setVoidSuccessMessage(null)}
+            aria-hidden
+          />
+          <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-gray-200">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-gray-900">Schedule Voided</h3>
+                <p className="mt-2 text-sm text-gray-600">{voidSuccessMessage}</p>
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setVoidSuccessMessage(null)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-[#6d69ff] rounded-lg hover:bg-[#5a56e6] transition-colors"
+                  >
+                    OK
                   </button>
                 </div>
               </div>

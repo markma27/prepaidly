@@ -102,3 +102,11 @@ export interface PostJournalResponse {
   message: string;
 }
 
+export interface VoidScheduleResponse {
+  success: boolean;
+  message: string;
+  schedule?: Schedule;
+  voidedJournalIds?: string[];
+  failedJournalIds?: string[];
+}
+

@@ -3,6 +3,7 @@ package com.prepaidly.service;
 import com.prepaidly.dto.CreateScheduleRequest;
 import com.prepaidly.dto.JournalEntryResponse;
 import com.prepaidly.dto.ScheduleResponse;
+import com.prepaidly.dto.VoidScheduleResponse;
 import com.prepaidly.model.JournalEntry;
 import com.prepaidly.model.Schedule;
 import com.prepaidly.repository.JournalEntryRepository;
@@ -18,6 +19,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -30,6 +32,7 @@ public class ScheduleService {
     private final ScheduleRepository scheduleRepository;
     private final JournalEntryRepository journalEntryRepository;
     private final UserRepository userRepository;
+    private final XeroApiService xeroApiService;
     
     /**
      * Create a new schedule and generate journal entries
@@ -244,6 +247,231 @@ public class ScheduleService {
         schedule.setVoided(true);
         schedule = scheduleRepository.save(schedule);
         return toScheduleResponse(schedule);
+    }
+    
+    /**
+     * Void a schedule with Xero journal voiding.
+     * 
+     * This method:
+     * 1. Checks all posted journals can be voided (period not locked)
+     * 2. If any period is locked, returns error without voiding anything
+     * 3. Voids all posted journals in Xero
+     * 4. Marks the schedule as voided in our database
+     * 
+     * @param scheduleId The schedule to void
+     * @param tenantId The Xero tenant ID for API calls
+     * @return VoidScheduleResponse with details about the void operation
+     */
+    @Transactional
+    public VoidScheduleResponse voidScheduleWithJournals(Long scheduleId, String tenantId) {
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+            .orElseThrow(() -> new RuntimeException("Schedule not found: " + scheduleId));
+        
+        if (Boolean.TRUE.equals(schedule.getVoided())) {
+            return new VoidScheduleResponse(
+                true,
+                "Schedule was already voided",
+                toScheduleResponse(schedule),
+                List.of(),
+                List.of()
+            );
+        }
+        
+        // Get all journal entries for this schedule
+        List<JournalEntry> entries = journalEntryRepository.findByScheduleId(scheduleId);
+        
+        // Filter to only posted entries with Xero journal IDs
+        List<JournalEntry> postedEntries = entries.stream()
+            .filter(e -> Boolean.TRUE.equals(e.getPosted()) && e.getXeroManualJournalId() != null)
+            .collect(Collectors.toList());
+        
+        log.info("Voiding schedule {} with {} posted journals", scheduleId, postedEntries.size());
+        
+        // If no posted journals, just void the schedule
+        if (postedEntries.isEmpty()) {
+            schedule.setVoided(true);
+            schedule = scheduleRepository.save(schedule);
+            return new VoidScheduleResponse(
+                true,
+                "Schedule voided successfully (no posted journals to void in Xero)",
+                toScheduleResponse(schedule),
+                List.of(),
+                List.of()
+            );
+        }
+        
+        // STEP 1: Check all journals can be voided first (Option C - all-or-nothing check)
+        List<String> lockedPeriodJournals = new ArrayList<>();
+        List<String> alreadyVoidedJournals = new ArrayList<>();
+        List<String> notFoundJournals = new ArrayList<>();
+        List<String> otherFailedJournals = new ArrayList<>();
+        String firstCheckError = null;
+        
+        for (JournalEntry entry : postedEntries) {
+            String journalId = entry.getXeroManualJournalId();
+            try {
+                XeroApiService.VoidJournalResult checkResult = 
+                    xeroApiService.checkJournalCanBeVoided(tenantId, journalId);
+                
+                log.info("Check result for journal {}: success={}, status={}, error={}", 
+                    journalId, checkResult.isSuccess(), checkResult.getStatus(), checkResult.getErrorMessage());
+                
+                if ("VOIDED".equalsIgnoreCase(checkResult.getStatus())) {
+                    alreadyVoidedJournals.add(journalId);
+                    log.info("Journal {} is already voided in Xero", journalId);
+                } else if (checkResult.isSuccess()) {
+                    // Journal is POSTED and can be voided - this is good
+                    log.info("Journal {} is POSTED and can be voided", journalId);
+                } else {
+                    // Check failed - categorize the error
+                    if (checkResult.isPeriodLocked()) {
+                        lockedPeriodJournals.add(journalId);
+                    } else if (checkResult.getErrorMessage() != null && 
+                               checkResult.getErrorMessage().toLowerCase().contains("not found")) {
+                        notFoundJournals.add(journalId);
+                    } else {
+                        // Any other check failure
+                        otherFailedJournals.add(journalId);
+                        if (firstCheckError == null) {
+                            firstCheckError = checkResult.getErrorMessage();
+                        }
+                        log.error("Journal {} cannot be voided: {}", journalId, checkResult.getErrorMessage());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error checking journal {} for void eligibility: {}", journalId, e.getMessage(), e);
+                otherFailedJournals.add(journalId);
+                if (firstCheckError == null) {
+                    firstCheckError = "Error checking journal: " + e.getMessage();
+                }
+            }
+        }
+        
+        // If any period is locked, fail the entire operation
+        if (!lockedPeriodJournals.isEmpty()) {
+            String lockedIds = String.join(", ", lockedPeriodJournals);
+            log.warn("Cannot void schedule {}: {} journal(s) have locked periods in Xero: {}", 
+                scheduleId, lockedPeriodJournals.size(), lockedIds);
+            return new VoidScheduleResponse(
+                false,
+                "Cannot void: The Xero accounting period is locked for " + lockedPeriodJournals.size() + 
+                    " journal(s). Please unlock the period in Xero first.",
+                null,
+                List.of(),
+                lockedPeriodJournals
+            );
+        }
+        
+        // If any journal check failed for other reasons, fail the entire operation
+        if (!otherFailedJournals.isEmpty()) {
+            log.warn("Cannot void schedule {}: {} journal(s) cannot be voided: {}", 
+                scheduleId, otherFailedJournals.size(), firstCheckError);
+            return new VoidScheduleResponse(
+                false,
+                "Cannot void: " + (firstCheckError != null ? firstCheckError : "One or more journals cannot be voided in Xero."),
+                null,
+                List.of(),
+                otherFailedJournals
+            );
+        }
+        
+        // STEP 2: Void all journals in Xero
+        List<String> voidedJournalIds = new ArrayList<>();
+        List<String> failedJournalIds = new ArrayList<>();
+        String firstError = null;
+        
+        for (JournalEntry entry : postedEntries) {
+            String journalId = entry.getXeroManualJournalId();
+            
+            // Skip already voided journals - these are OK to proceed
+            if (alreadyVoidedJournals.contains(journalId)) {
+                voidedJournalIds.add(journalId);
+                log.info("Skipping already voided journal: {}", journalId);
+                continue;
+            }
+            
+            // Journals not found in Xero - show warning and let user decide
+            // (This is different from "failed to void" - the journal doesn't exist anymore)
+            if (notFoundJournals.contains(journalId)) {
+                log.warn("Journal {} not found in Xero - may have been deleted externally", journalId);
+                // Don't add to failedJournalIds - treat as "handled" since it doesn't exist
+                voidedJournalIds.add(journalId);
+                continue;
+            }
+            
+            try {
+                XeroApiService.VoidJournalResult result = 
+                    xeroApiService.voidManualJournal(tenantId, journalId);
+                
+                if (result.isSuccess()) {
+                    voidedJournalIds.add(journalId);
+                    log.info("Successfully voided journal {} in Xero", journalId);
+                } else {
+                    // ANY failure to void a journal should stop the entire operation
+                    failedJournalIds.add(journalId);
+                    if (firstError == null) {
+                        firstError = result.getErrorMessage();
+                    }
+                    log.error("Failed to void journal {}: {}", journalId, result.getErrorMessage());
+                    
+                    // Determine the appropriate error message
+                    String errorMessage;
+                    if (result.isPeriodLocked()) {
+                        errorMessage = "Cannot void: The Xero accounting period is locked. Please unlock the period in Xero first.";
+                    } else {
+                        errorMessage = "Cannot void: Failed to void journal in Xero. " + 
+                            (result.getErrorMessage() != null ? result.getErrorMessage() : "Unknown error");
+                    }
+                    
+                    return new VoidScheduleResponse(
+                        false,
+                        errorMessage,
+                        null,
+                        voidedJournalIds,
+                        failedJournalIds
+                    );
+                }
+            } catch (Exception e) {
+                failedJournalIds.add(journalId);
+                if (firstError == null) {
+                    firstError = e.getMessage();
+                }
+                log.error("Exception voiding journal {}: {}", journalId, e.getMessage(), e);
+                
+                // Exception also stops the entire operation
+                return new VoidScheduleResponse(
+                    false,
+                    "Cannot void: Error voiding journal in Xero. " + e.getMessage(),
+                    null,
+                    voidedJournalIds,
+                    failedJournalIds
+                );
+            }
+        }
+        
+        // STEP 3: Only mark schedule as voided if ALL journals were successfully voided
+        // (We only reach here if no failures occurred above)
+        schedule.setVoided(true);
+        schedule = scheduleRepository.save(schedule);
+        
+        // Build success message
+        String message = "Schedule voided successfully. " + voidedJournalIds.size() + " journal(s) voided in Xero.";
+        if (!alreadyVoidedJournals.isEmpty()) {
+            message += " (" + alreadyVoidedJournals.size() + " were already voided)";
+        }
+        if (!notFoundJournals.isEmpty()) {
+            message += " Note: " + notFoundJournals.size() + " journal(s) were not found in Xero (may have been deleted externally).";
+        }
+        
+        log.info("Void operation complete for schedule {}: {}", scheduleId, message);
+        
+        return new VoidScheduleResponse(
+            true,
+            message,
+            toScheduleResponse(schedule),
+            voidedJournalIds,
+            List.of()  // No failed journals if we reach here
+        );
     }
 
     /**

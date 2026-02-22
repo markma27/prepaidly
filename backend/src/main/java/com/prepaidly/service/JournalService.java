@@ -34,6 +34,11 @@ public class JournalService {
         
         Schedule schedule = entry.getSchedule();
         
+        // Reject posting for voided schedules
+        if (Boolean.TRUE.equals(schedule.getVoided())) {
+            throw new RuntimeException("Cannot post journal: schedule has been voided");
+        }
+        
         // Verify tenant matches
         if (!schedule.getTenantId().equals(tenantId)) {
             throw new RuntimeException("Journal entry does not belong to tenant: " + tenantId);
