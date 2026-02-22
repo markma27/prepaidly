@@ -119,10 +119,10 @@ public class XeroOAuthService {
      * - Sets expires_at and last_refreshed_at
      */
     @Transactional
-    public XeroConnection exchangeCodeForTokens(String code, String state, Long userId) {
-        // Validate state parameter for CSRF protection
-        if (!oAuthStateCache.validateState(state, userId)) {
-            log.error("State validation failed for user {}. State: {}", userId, state);
+    public XeroConnection exchangeCodeForTokens(String code, String state) {
+        Long userId = oAuthStateCache.consumeState(state);
+        if (userId == null) {
+            log.error("State validation failed (missing or expired). State: {}", state);
             throw new RuntimeException("Invalid or expired state parameter. This may indicate a CSRF attack or expired OAuth flow. Please try connecting again.");
         }
         

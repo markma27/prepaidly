@@ -10,6 +10,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { usersApi } from '@/lib/api'
+import { xeroAuthApi } from '@/lib/api'
 
 function LoginContent() {
   const router = useRouter()
@@ -73,6 +75,13 @@ function LoginContent() {
         }))
       }
 
+      // Sync users from Supabase to backend on each login (best effort)
+      try {
+        await usersApi.syncSupabase()
+      } catch (syncErr) {
+        console.warn('Supabase user sync failed:', syncErr)
+      }
+
       router.push('/app')
       router.refresh()
     } catch (err: any) {
@@ -80,6 +89,16 @@ function LoginContent() {
       setError(err.message || 'Sign in failed, please try again')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleXeroLogin = () => {
+    try {
+      const connectUrl = xeroAuthApi.getConnectUrl(undefined)
+      window.location.href = connectUrl
+    } catch (err: any) {
+      console.error('Error starting Xero login:', err)
+      setError(err.message || 'Failed to start Xero login')
     }
   }
 
@@ -160,6 +179,16 @@ function LoginContent() {
                 ) : 'Sign In'}
               </Button>
             </form>
+            <div className="mt-4">
+              <Button
+                type="button"
+                onClick={handleXeroLogin}
+                className="w-full h-11 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 active:scale-[0.98] transition-all duration-150 font-bold text-sm shadow-sm"
+                disabled={loading}
+              >
+                Sign in with Xero
+              </Button>
+            </div>
             <div className="mt-8 text-center text-xs border-t border-slate-100 pt-6">
               <span className="text-slate-400 font-medium">Don&apos;t have an account?</span>{' '}
               <Link href="/auth/signup" className="text-slate-900 hover:underline font-bold ml-1">

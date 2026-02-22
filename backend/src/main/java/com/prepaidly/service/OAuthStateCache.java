@@ -132,6 +132,35 @@ public class OAuthStateCache {
         log.debug("State validated successfully for user {}: {}", userId, state);
         return true;
     }
+
+    /**
+     * Validate and consume a state parameter, returning the associated userId.
+     *
+     * @param state The state parameter received from OAuth callback
+     * @return userId if state is valid, null otherwise
+     */
+    public Long consumeState(String state) {
+        if (state == null || state.isEmpty()) {
+            log.warn("State validation failed: state is null or empty");
+            return null;
+        }
+
+        StateEntry entry = stateCache.get(state);
+        if (entry == null) {
+            log.warn("State validation failed: state not found in cache: {}", state);
+            return null;
+        }
+
+        if (entry.isExpired()) {
+            log.warn("State validation failed: state expired for user {}: {}", entry.getUserId(), state);
+            stateCache.remove(state);
+            return null;
+        }
+
+        stateCache.remove(state);
+        log.debug("State validated successfully for user {}: {}", entry.getUserId(), state);
+        return entry.getUserId();
+    }
     
     /**
      * Remove a state from cache (e.g., after successful validation)

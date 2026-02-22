@@ -38,7 +38,6 @@ export default function AppPage() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError || !session) {
-        // User not logged in, redirect to login
         router.push('/auth/login');
         return;
       }
@@ -53,7 +52,6 @@ export default function AppPage() {
         }));
       }
 
-      // User is authenticated, load connection status
       checkConnectionStatus();
     } catch (err) {
       console.error('Error checking auth:', err);
