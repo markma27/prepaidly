@@ -244,16 +244,31 @@ export const scheduleApi = {
 
   /**
    * Get all schedules for a tenant
+   * @param includeVoided when true, includes voided schedules (default false for Register/Analytics)
    */
-  getSchedules: async (tenantId: string): Promise<{ schedules: Schedule[]; count: number }> => {
-    const cacheKey = getCacheKey('schedules', tenantId);
+  getSchedules: async (tenantId: string, includeVoided = false): Promise<{ schedules: Schedule[]; count: number }> => {
+    const cacheKey = getCacheKey('schedules', tenantId) + (includeVoided ? ':voided' : '');
     const cached = getCachedData<{ schedules: Schedule[]; count: number }>(cacheKey, DEFAULT_CACHE_TTL_MS);
     if (cached) return cached;
     const data = await fetchApi<{ schedules: Schedule[]; count: number }>(
-      `/api/schedules?tenantId=${encodeURIComponent(tenantId)}`
+      `/api/schedules?tenantId=${encodeURIComponent(tenantId)}&includeVoided=${includeVoided}`
     );
     setCachedData(cacheKey, data);
     return data;
+  },
+
+  /**
+   * Void a schedule. Voided schedules are excluded from Analytics and Register by default.
+   */
+  voidSchedule: async (scheduleId: number): Promise<Schedule> => {
+    const result = await fetchApi<Schedule>(`/api/schedules/${scheduleId}/void`, {
+      method: 'POST',
+    });
+    if (result.tenantId) {
+      clearCachedData(getCacheKey('schedules', result.tenantId));
+      clearCachedData(getCacheKey('schedules', result.tenantId) + ':voided');
+    }
+    return result;
   },
 
   /**

@@ -22,6 +22,7 @@ function ScheduleRegisterContent() {
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showVoided, setShowVoided] = useState(false);
   
   // Get org currency for formatting
   const orgCurrency = getOrgCurrency(tenantId) || 'USD';
@@ -35,21 +36,24 @@ function ScheduleRegisterContent() {
     const tenantIdParam = searchParams.get('tenantId');
     if (tenantIdParam) {
       setTenantId(tenantIdParam);
-      Promise.all([
-        loadSchedules(tenantIdParam),
-        loadAccounts(tenantIdParam)
-      ]);
+      loadAccounts(tenantIdParam);
     } else {
       setError('Missing Tenant ID');
       setLoading(false);
     }
   }, [searchParams]);
 
-  const loadSchedules = async (tid: string) => {
+  useEffect(() => {
+    if (tenantId) {
+      loadSchedules(tenantId, showVoided);
+    }
+  }, [tenantId, showVoided]);
+
+  const loadSchedules = async (tid: string, includeVoided: boolean) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await scheduleApi.getSchedules(tid);
+      const response = await scheduleApi.getSchedules(tid, includeVoided);
       setSchedules(response.schedules);
     } catch (err: any) {
       console.error('Error loading schedules:', err);
@@ -275,15 +279,26 @@ function ScheduleRegisterContent() {
               <p className="text-xs text-gray-500 mt-0.5">Search and view all prepayment and unearned revenue schedules</p>
             </div>
             <div className="p-4 border-b border-gray-100">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search schedules by type, account code, account name, amount, or date..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
-                />
+              <div className="flex items-center gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search schedules by type, account code, account name, amount, or date..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={showVoided}
+                    onChange={(e) => setShowVoided(e.target.checked)}
+                    className="rounded border-gray-300 text-[#6d69ff] focus:ring-[#6d69ff]"
+                  />
+                  Show voided
+                </label>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -368,8 +383,14 @@ function ScheduleRegisterContent() {
                         </td>
                         <td className="px-5 py-3">
                           {(() => {
+                            if (schedule.voided) {
+                              return (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-200 text-gray-700">
+                                  Voided
+                                </span>
+                              );
+                            }
                             const isNotPosted = postedCount === 0 && totalCount > 0;
-                            
                             if (isComplete) {
                               return (
                                 <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-100 text-purple-700">

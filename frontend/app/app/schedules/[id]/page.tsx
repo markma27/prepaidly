@@ -10,7 +10,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import ScheduleDetailSkeleton from '@/components/ScheduleDetailSkeleton';
-import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink, Clock, User, FileText, FileDown } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink, Clock, User, FileText, FileDown, Ban } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 
@@ -25,6 +25,8 @@ function ScheduleDetailContent() {
   const [tenantId, setTenantId] = useState<string>('');
   const [accounts, setAccounts] = useState<XeroAccount[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
+  const [voiding, setVoiding] = useState(false);
+  const [showVoidModal, setShowVoidModal] = useState(false);
 
   const scheduleId = params?.id ? parseInt(params.id as string) : null;
   
@@ -293,6 +295,21 @@ function ScheduleDetailContent() {
     XLSX.writeFile(wb, filename);
   };
 
+  const handleVoidConfirm = async () => {
+    if (!scheduleId || !schedule || schedule.voided) return;
+    try {
+      setVoiding(true);
+      const updated = await scheduleApi.voidSchedule(scheduleId);
+      setSchedule(updated);
+      setShowVoidModal(false);
+    } catch (err: any) {
+      console.error('Error voiding schedule:', err);
+      setError(err.message || 'Failed to void schedule');
+    } finally {
+      setVoiding(false);
+    }
+  };
+
   if (loading && !tenantId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -336,8 +353,9 @@ function ScheduleDetailContent() {
 
   return (
     <DashboardLayout tenantId={tenantId}>
+      <>
       <div className="space-y-7 max-w-[1800px] mx-auto">
-        {/* Top bar: Back button (left) + Export (right) */}
+        {/* Top bar: Back button (left) + Void + Export (right) */}
         <div className="flex items-center justify-between">
           <button
             onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}
@@ -346,14 +364,31 @@ function ScheduleDetailContent() {
             <ArrowLeft className="w-4 h-4" />
             Back to Schedule Register
           </button>
-          <button
-            type="button"
-            onClick={handleExportToExcel}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-800 bg-green-100 rounded-lg hover:bg-green-200 transition-colors"
-          >
-            <FileDown className="w-4 h-4" />
-            Export to Excel
-          </button>
+          <div className="flex items-center gap-2">
+            {!schedule.voided && (
+              <button
+                type="button"
+                onClick={() => setShowVoidModal(true)}
+                disabled={voiding}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+              >
+                {voiding ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Ban className="w-4 h-4" />
+                )}
+                Void schedule
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleExportToExcel}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-800 bg-green-100 rounded-lg hover:bg-green-200 transition-colors"
+            >
+              <FileDown className="w-4 h-4" />
+              Export to Excel
+            </button>
+          </div>
         </div>
 
         {/* Schedule Summary Card */}
@@ -395,7 +430,11 @@ function ScheduleDetailContent() {
               </div>
               <div>
                 <div className="text-xs text-gray-500 mb-1">Status</div>
-                {schedule.postedPeriods === schedule.totalPeriods && schedule.totalPeriods ? (
+                {schedule.voided ? (
+                  <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-200 text-gray-700">
+                    Voided
+                  </span>
+                ) : schedule.postedPeriods === schedule.totalPeriods && schedule.totalPeriods ? (
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
                     Complete ({schedule.postedPeriods}/{schedule.totalPeriods})
                   </span>
@@ -622,6 +661,56 @@ function ScheduleDetailContent() {
           </div>
         </div>
       </div>
+
+      {/* Void confirmation modal */}
+      {showVoidModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !voiding && setShowVoidModal(false)}
+            aria-hidden
+          />
+          <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-gray-200">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <Ban className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-gray-900">Void schedule</h3>
+                <p className="mt-2 text-sm text-gray-600">
+                  Are you sure you want to void this schedule? It will be hidden from Analytics and Schedule Register. You can still view it by enabling &quot;Show voided&quot; in Schedule Register.
+                </p>
+                <div className="mt-6 flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => !voiding && setShowVoidModal(false)}
+                    disabled={voiding}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleVoidConfirm}
+                    disabled={voiding}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {voiding ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Voiding...
+                      </>
+                    ) : (
+                      'Void schedule'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
     </DashboardLayout>
   );
 }

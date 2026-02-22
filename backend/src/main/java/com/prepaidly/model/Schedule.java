@@ -89,6 +89,10 @@ public class Schedule {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** Whether the schedule has been voided. Voided schedules are excluded from Analytics and Register by default. */
+    @Column(name = "voided", nullable = false)
+    private Boolean voided = false;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

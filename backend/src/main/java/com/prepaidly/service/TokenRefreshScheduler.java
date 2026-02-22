@@ -129,7 +129,7 @@ public class TokenRefreshScheduler {
      * Public method to refresh a specific connection by tenant ID.
      */
     public void refreshConnectionById(String tenantId) {
-        xeroConnectionRepository.findByTenantId(tenantId).ifPresentOrElse(
+        xeroConnectionRepository.findFirstByTenantIdOrderByIdDesc(tenantId).ifPresentOrElse(
             connection -> {
                 log.info("Manually refreshing connection for tenant: {}", tenantId);
                 refreshConnection(connection);

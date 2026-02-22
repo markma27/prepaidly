@@ -160,6 +160,11 @@ public class ScheduleResponse {
      * Example: "2025-01-15T10:30:00"
      */
     private LocalDateTime createdAt;
+
+    /**
+     * Whether the schedule has been voided. Voided schedules are excluded from Analytics and Register by default.
+     */
+    private Boolean voided;
     
     /**
      * List of journal entries generated for this schedule
