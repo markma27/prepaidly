@@ -155,15 +155,19 @@ export function resolveEndDate(startDate: string, endDateInput: string): string 
     return formatDateForInput(end);
   }
 
-  // Parse as date — support dd/mm/yyyy and yyyy-mm-dd
+  // Parse as date — only accept complete dd/mm/yyyy or yyyy-mm-dd (avoid parsing "1" etc.)
   const ddmmyyyy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (ddmmyyyy) {
     const [, d, m, y] = ddmmyyyy;
     const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
     if (!isNaN(date.getTime())) return formatDateForInput(date);
   }
-  const date = new Date(trimmed);
-  if (!isNaN(date.getTime())) return formatDateForInput(date);
+  const yyyymmdd = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (yyyymmdd) {
+    const [, y, m, d] = yyyymmdd;
+    const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+    if (!isNaN(date.getTime())) return formatDateForInput(date);
+  }
   return null;
 }
 

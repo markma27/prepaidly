@@ -64,6 +64,8 @@ function NewSchedulePageContent() {
   const [invoiceStorageUrl, setInvoiceStorageUrl] = useState<string | null>(null);
   const [uploadingInvoice, setUploadingInvoice] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const invoiceDatePickerRef = useRef<HTMLInputElement>(null);
+  const startDatePickerRef = useRef<HTMLInputElement>(null);
   const endDatePickerRef = useRef<HTMLInputElement>(null);
 
   // Preview state
@@ -716,12 +718,23 @@ function NewSchedulePageContent() {
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
                           Invoice Date <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="date"
-                          value={invoiceDate}
-                          onChange={(e) => setInvoiceDate(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
-                        />
+                        <div className="relative">
+                          <input
+                            ref={invoiceDatePickerRef}
+                            type="date"
+                            value={invoiceDate}
+                            onChange={(e) => setInvoiceDate(e.target.value)}
+                            className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900 [&::-webkit-calendar-picker-indicator]:opacity-0"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => invoiceDatePickerRef.current?.showPicker?.()}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                            aria-label="Open date picker"
+                          >
+                            <Calendar className="w-4 h-4" />
+                          </button>
+                        </div>
                         <p className="text-xs text-gray-500 mt-1">
                           Date on the related invoice
                         </p>
@@ -734,16 +747,27 @@ function NewSchedulePageContent() {
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
                           Start Date <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => {
-                            setStartDate(e.target.value);
-                            setShowPreview(false);
-                          }}
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
-                        />
+                        <div className="relative">
+                          <input
+                            ref={startDatePickerRef}
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => {
+                              setStartDate(e.target.value);
+                              setShowPreview(false);
+                            }}
+                            required
+                            className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900 [&::-webkit-calendar-picker-indicator]:opacity-0"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => startDatePickerRef.current?.showPicker?.()}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                            aria-label="Open date picker"
+                          >
+                            <Calendar className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
