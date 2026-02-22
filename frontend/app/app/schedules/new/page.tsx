@@ -3,14 +3,14 @@
 import { Suspense, useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, xeroApi, settingsApi } from '@/lib/api';
-import { validateDateRange, formatCurrency, formatDateOnly, generateProRataSchedule, countProRataPeriods, getCurrencySymbol } from '@/lib/utils';
+import { validateDateRange, formatCurrency, formatDateOnly, formatDateToDDMMYYYY, generateProRataSchedule, countProRataPeriods, getCurrencySymbol, resolveEndDate } from '@/lib/utils';
 import { getOrgCurrency } from '@/lib/OrgContext';
 import type { XeroAccount, ScheduleType } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import Skeleton from '@/components/Skeleton';
-import { User, Eye, DollarSign, FileText, AlertTriangle, Info, Upload, X } from 'lucide-react';
+import { User, Eye, DollarSign, FileText, AlertTriangle, Info, Upload, X, Calendar } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 interface PreviewEntry {
@@ -64,6 +64,7 @@ function NewSchedulePageContent() {
   const [invoiceStorageUrl, setInvoiceStorageUrl] = useState<string | null>(null);
   const [uploadingInvoice, setUploadingInvoice] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const endDatePickerRef = useRef<HTMLInputElement>(null);
 
   // Preview state
   const [showPreview, setShowPreview] = useState(false);
@@ -311,7 +312,7 @@ function NewSchedulePageContent() {
   const generatePreview = () => {
     setError(null);
 
-    const dateValidation = validateDateRange(startDate, endDate);
+    const dateValidation = validateDateRange(startDate, resolvedEndDate);
     if (!dateValidation.valid) {
       setError(dateValidation.error || 'Invalid date range');
       return;
@@ -322,7 +323,7 @@ function NewSchedulePageContent() {
       return;
     }
 
-    const proRataEntries = generateProRataSchedule(startDate, endDate, parseFloat(totalAmount));
+    const proRataEntries = generateProRataSchedule(startDate, resolvedEndDate, parseFloat(totalAmount));
 
     const entries: PreviewEntry[] = proRataEntries.map((entry) => ({
       period: entry.period,
@@ -347,7 +348,7 @@ function NewSchedulePageContent() {
       return;
     }
 
-    const dateValidation = validateDateRange(startDate, endDate);
+    const dateValidation = validateDateRange(startDate, resolvedEndDate);
     if (!dateValidation.valid) {
       setError(dateValidation.error || 'Invalid date range');
       return;
@@ -395,7 +396,7 @@ function NewSchedulePageContent() {
         tenantId,
         type,
         startDate,
-        endDate,
+        endDate: resolvedEndDate,
         totalAmount: parseFloat(totalAmount),
         expenseAcctCode: type === 'PREPAID' ? expenseAcctCode : undefined,
         revenueAcctCode: type === 'UNEARNED' ? revenueAcctCode : undefined,
@@ -418,16 +419,21 @@ function NewSchedulePageContent() {
     }
   };
 
+  // Resolve End Date: supports "+1", "+2" (months from start) or explicit date
+  const resolvedEndDate = useMemo(() => {
+    return resolveEndDate(startDate, endDate) ?? '';
+  }, [startDate, endDate]);
+
   // Calculate period count for display (using pro-rata logic)
   const periodCount = useMemo(() => {
-    if (startDate && endDate) {
-      const validation = validateDateRange(startDate, endDate);
+    if (startDate && resolvedEndDate) {
+      const validation = validateDateRange(startDate, resolvedEndDate);
       if (validation.valid) {
-        return countProRataPeriods(startDate, endDate);
+        return countProRataPeriods(startDate, resolvedEndDate);
       }
     }
     return 0;
-  }, [startDate, endDate]);
+  }, [startDate, resolvedEndDate]);
 
   if (!tenantId) {
     return (
@@ -743,17 +749,52 @@ function NewSchedulePageContent() {
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
                           End Date <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => {
-                            setEndDate(e.target.value);
-                            setShowPreview(false);
-                          }}
-                          required
-                          min={startDate}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
-                        />
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={
+                              /^\d{4}-\d{2}-\d{2}$/.test(endDate)
+                                ? formatDateToDDMMYYYY(endDate)
+                                : endDate
+                            }
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const resolved = resolveEndDate(startDate, raw);
+                              if (resolved) {
+                                setEndDate(resolved);
+                              } else {
+                                setEndDate(raw);
+                              }
+                              setShowPreview(false);
+                            }}
+                            placeholder="dd/mm/yyyy or +1, +2"
+                            className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
+                            autoComplete="off"
+                          />
+                          <input
+                            ref={endDatePickerRef}
+                            type="date"
+                            value={resolvedEndDate || ''}
+                            onChange={(e) => {
+                              setEndDate(e.target.value);
+                              setShowPreview(false);
+                            }}
+                            min={startDate}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 opacity-0 pointer-events-none"
+                            aria-hidden
+                          />
+                          <button
+                            type="button"
+                            onClick={() => endDatePickerRef.current?.showPicker?.()}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                            aria-label="Open date picker"
+                          >
+                            <Calendar className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Enter a date, or +1 / +2 / +8 etc. to add months from start date
+                        </p>
                       </div>
                     </div>
                     {periodCount > 0 && (
@@ -952,7 +993,7 @@ function NewSchedulePageContent() {
                     )}
 
                     {/* Period */}
-                    {startDate && endDate && periodCount > 0 && (
+                    {startDate && resolvedEndDate && periodCount > 0 && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-500">Periods</span>
                         <span className="text-sm font-medium text-gray-900">

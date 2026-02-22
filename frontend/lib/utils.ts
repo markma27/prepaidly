@@ -107,6 +107,17 @@ export function formatDateForInput(date: Date | string): string {
 }
 
 /**
+ * Format YYYY-MM-DD date as dd/mm/yyyy for display in inputs
+ */
+export function formatDateToDDMMYYYY(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('T')[0].split('-');
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+}
+
+/**
  * Get today's date in YYYY-MM-DD format
  */
 export function getTodayDate(): string {
@@ -120,6 +131,40 @@ export function addMonths(date: Date, months: number): Date {
   const result = new Date(date);
   result.setMonth(result.getMonth() + months);
   return result;
+}
+
+/**
+ * Resolve End Date input to a YYYY-MM-DD date string.
+ * Supports:
+ * - "+1", "+2", "+N" — adds N months from start date
+ * - Date strings (yyyy-mm-dd or dd/mm/yyyy)
+ */
+export function resolveEndDate(startDate: string, endDateInput: string): string | null {
+  const trimmed = endDateInput.trim();
+  if (!trimmed) return null;
+
+  const plusMatch = trimmed.match(/^\+(\d+)$/);
+  if (plusMatch) {
+    const months = parseInt(plusMatch[1], 10);
+    if (months < 1) return null;
+    if (!startDate) return null;
+    const start = new Date(startDate);
+    if (isNaN(start.getTime())) return null;
+    const end = addMonths(start, months);
+    end.setDate(end.getDate() - 1); // minus one day
+    return formatDateForInput(end);
+  }
+
+  // Parse as date — support dd/mm/yyyy and yyyy-mm-dd
+  const ddmmyyyy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ddmmyyyy) {
+    const [, d, m, y] = ddmmyyyy;
+    const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+    if (!isNaN(date.getTime())) return formatDateForInput(date);
+  }
+  const date = new Date(trimmed);
+  if (!isNaN(date.getTime())) return formatDateForInput(date);
+  return null;
 }
 
 /**
