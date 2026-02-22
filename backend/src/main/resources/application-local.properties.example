@@ -36,3 +36,7 @@ jwt.secret=your_jwt_secret_here
 # sentry.dsn=your_sentry_dsn_here
 # sentry.environment=development
 
+# Supabase Admin API (required for user sync)
+supabase.url=https://YOUR_PROJECT_REF.supabase.co
+supabase.serviceRoleKey=your_supabase_service_role_key_here
+

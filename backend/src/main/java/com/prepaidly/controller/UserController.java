@@ -5,6 +5,7 @@ import com.prepaidly.dto.UpdateUserRequest;
 import com.prepaidly.dto.UserResponse;
 import com.prepaidly.model.User;
 import com.prepaidly.repository.UserRepository;
+import com.prepaidly.service.SupabaseAdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +54,7 @@ import java.util.stream.Collectors;
 public class UserController {
 
     private final UserRepository userRepository;
+    private final SupabaseAdminService supabaseAdminService;
 
     /**
      * Create a New User
@@ -146,6 +148,35 @@ public class UserController {
             log.error("Error creating user", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Failed to create user: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Sync Users from Supabase Auth
+     *
+     * Pulls all users from Supabase Auth (using the service role key) and
+     * overwrites the local users table to match Supabase as the source of truth.
+     *
+     * Notes:
+     * - Users not present in Supabase are deleted locally.
+     * - Local fields are overwritten on each sync.
+     * - This should be protected in production (e.g., admin-only).
+     *
+     * @return Sync statistics: fetched, upserted, deleted
+     */
+    @PostMapping("/sync-supabase")
+    public ResponseEntity<?> syncSupabaseUsers() {
+        try {
+            SupabaseAdminService.SyncResult result = supabaseAdminService.syncAllUsersFromSupabase();
+            return ResponseEntity.ok(Map.of(
+                "fetched", result.fetched(),
+                "upserted", result.upserted(),
+                "deleted", result.deleted()
+            ));
+        } catch (Exception e) {
+            log.error("Failed to sync users from Supabase", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to sync users: " + e.getMessage()));
         }
     }
 

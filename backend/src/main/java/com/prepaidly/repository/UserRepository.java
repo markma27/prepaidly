@@ -19,5 +19,28 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return Optional containing the user if found, empty otherwise
      */
     Optional<User> findByEmail(String email);
+
+    /**
+     * Find a user by Supabase UUID.
+     *
+     * @param supabaseUserId Supabase user UUID
+     * @return Optional containing the user if found, empty otherwise
+     */
+    Optional<User> findBySupabaseUserId(String supabaseUserId);
+
+    /**
+     * Find users whose Supabase UUID is not in the provided set.
+     *
+     * @param supabaseUserIds Supabase user UUIDs to keep
+     * @return users not in the set
+     */
+    java.util.List<User> findBySupabaseUserIdNotIn(java.util.Collection<String> supabaseUserIds);
+
+    /**
+     * Find users that do not have a Supabase UUID (legacy data).
+     *
+     * @return users without Supabase UUID
+     */
+    java.util.List<User> findBySupabaseUserIdIsNull();
 }
 

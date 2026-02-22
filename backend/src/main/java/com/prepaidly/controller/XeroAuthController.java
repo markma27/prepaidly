@@ -3,6 +3,7 @@ package com.prepaidly.controller;
 import com.prepaidly.config.XeroConfig;
 import com.prepaidly.dto.XeroConnectionResponse;
 import com.prepaidly.dto.XeroConnectionStatusResponse;
+import com.prepaidly.model.User;
 import com.prepaidly.model.XeroConnection;
 import com.prepaidly.repository.UserRepository;
 import com.prepaidly.repository.XeroConnectionRepository;
@@ -70,8 +71,7 @@ public class XeroAuthController {
     @Value("${frontend.url:http://localhost:3000}")
     private String frontendUrl;
     
-    // Temporary: For development, we'll use a default user ID
-    // In production, this should come from authenticated session
+    // Temporary: For development only
     private static final Long DEFAULT_USER_ID = 1L;
 
     /**
@@ -121,11 +121,17 @@ public class XeroAuthController {
      * @see XeroAuthController#callback(String, String, Long) for handling the OAuth callback
      */
     @GetMapping("/connect")
-    public ResponseEntity<?> connect() {
+    public ResponseEntity<?> connect(
+            @RequestParam(required = false) String supabaseUserId,
+            @RequestParam(required = false) String email) {
         try {
-            // Always use default user for OAuth; no query params to avoid 400 from invalid userId
-            long targetUserId = DEFAULT_USER_ID;
-            log.info("Xero connect request received, using user: {}", targetUserId);
+            if (supabaseUserId == null || supabaseUserId.isBlank()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Missing supabaseUserId"));
+            }
+
+            long targetUserId = resolveUserIdFromSupabase(supabaseUserId, email);
+            log.info("Xero connect request received for Supabase user {}, backend user {}", supabaseUserId, targetUserId);
             String authUrl = xeroOAuthService.getAuthorizationUrl(targetUserId);
             
             log.info("Redirecting to Xero authorization URL");
@@ -139,16 +145,36 @@ public class XeroAuthController {
         }
     }
 
-    /** Parse userId from query param; use DEFAULT_USER_ID if null, empty, "undefined", or not a number (e.g. Supabase UUID). */
-    private static Long parseUserId(String userId) {
-        if (userId == null || userId.isBlank() || "undefined".equalsIgnoreCase(userId) || "null".equalsIgnoreCase(userId)) {
+    private Long resolveUserIdFromSupabase(String supabaseUserId, String email) {
+        String trimmed = supabaseUserId != null ? supabaseUserId.trim() : "";
+        if (trimmed.isEmpty()) {
             return DEFAULT_USER_ID;
         }
-        try {
-            return Long.parseLong(userId.trim());
-        } catch (NumberFormatException e) {
-            return DEFAULT_USER_ID;
+
+        return userRepository.findBySupabaseUserId(trimmed)
+            .map(User::getId)
+            .orElseGet(() -> {
+                if (email != null && !email.isBlank()) {
+                    User existingByEmail = userRepository.findByEmail(email.trim()).orElse(null);
+                    if (existingByEmail != null) {
+                        existingByEmail.setSupabaseUserId(trimmed);
+                        User savedExisting = userRepository.save(existingByEmail);
+                        return savedExisting.getId();
+                    }
+                }
+                User user = new User();
+                user.setSupabaseUserId(trimmed);
+                user.setEmail(resolveUserEmail(email, trimmed));
+                User saved = userRepository.save(user);
+                return saved.getId();
+            });
+    }
+
+    private String resolveUserEmail(String email, String supabaseUserId) {
+        if (email != null && !email.isBlank()) {
+            return email.trim();
         }
+        return "supabase-" + supabaseUserId + "@prepaidly.local";
     }
 
     /**
@@ -222,14 +248,11 @@ public class XeroAuthController {
     @GetMapping("/callback")
     public ResponseEntity<?> callback(
             @RequestParam String code,
-            @RequestParam(required = false) String state,
-            @RequestParam(required = false) String userId) {
+            @RequestParam(required = false) String state) {
         try {
-            Long targetUserId = parseUserId(userId);
-            
             // Validate state parameter is present
             if (state == null || state.isEmpty()) {
-                log.error("OAuth callback missing state parameter for user {}", targetUserId);
+                log.error("OAuth callback missing state parameter");
                 String errorRedirectUrl = frontendUrl + "/app/connected?success=false&error=" + 
                     java.net.URLEncoder.encode("Missing state parameter. This may indicate a security issue.", java.nio.charset.StandardCharsets.UTF_8);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -240,7 +263,7 @@ public class XeroAuthController {
                     ));
             }
             
-            XeroConnection connection = xeroOAuthService.exchangeCodeForTokens(code, state, targetUserId);
+            XeroConnection connection = xeroOAuthService.exchangeCodeForTokens(code, state);
             
             // Log all connections that were created/updated
             // Note: exchangeCodeForTokens now processes ALL connections from the OAuth response
@@ -445,10 +468,26 @@ public class XeroAuthController {
      */
     @GetMapping("/status")
     public ResponseEntity<XeroConnectionStatusResponse> status(
-            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String supabaseUserId,
             @RequestParam(required = false, defaultValue = "false") boolean validateTokens) {
         try {
-            List<XeroConnection> connections = xeroConnectionRepository.findAll();
+            if (supabaseUserId == null || supabaseUserId.isBlank()) {
+                XeroConnectionStatusResponse empty = new XeroConnectionStatusResponse();
+                empty.setConnections(List.of());
+                empty.setTotalConnections(0);
+                return ResponseEntity.ok(empty);
+            }
+
+            User user = userRepository.findBySupabaseUserId(supabaseUserId.trim())
+                .orElse(null);
+            if (user == null) {
+                XeroConnectionStatusResponse empty = new XeroConnectionStatusResponse();
+                empty.setConnections(List.of());
+                empty.setTotalConnections(0);
+                return ResponseEntity.ok(empty);
+            }
+
+            List<XeroConnection> connections = xeroConnectionRepository.findByUserId(user.getId());
             
             log.info("Found {} total connections. validateTokens={}", connections.size(), validateTokens);
             
@@ -645,9 +684,24 @@ public class XeroAuthController {
      * @see XeroAuthController#connect(Long) for reconnecting after disconnection
      */
     @DeleteMapping("/disconnect")
-    public ResponseEntity<?> disconnect(@RequestParam String tenantId) {
+    public ResponseEntity<?> disconnect(
+            @RequestParam String tenantId,
+            @RequestParam(required = false) String supabaseUserId) {
         try {
-            XeroConnection connection = xeroConnectionRepository.findFirstByTenantIdOrderByIdDesc(tenantId)
+            if (supabaseUserId == null || supabaseUserId.isBlank()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Missing supabaseUserId"));
+            }
+
+            User user = userRepository.findBySupabaseUserId(supabaseUserId.trim())
+                .orElse(null);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "User not found for Supabase ID"));
+            }
+
+            XeroConnection connection = xeroConnectionRepository
+                .findByUserIdAndTenantId(user.getId(), tenantId)
                 .orElse(null);
             
             if (connection == null) {

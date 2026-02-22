@@ -68,6 +68,18 @@ const clearTenantCaches = (tenantId: string) => {
   clearCachedData(getCacheKey('settings', tenantId));
 };
 
+const getSupabaseUser = (): { id?: string; email?: string } => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = sessionStorage.getItem('user');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return { id: parsed?.id, email: parsed?.email };
+  } catch {
+    return {};
+  }
+};
+
 class ApiError extends Error {
   constructor(
     message: string,
@@ -141,6 +153,8 @@ export const xeroAuthApi = {
   getStatus: async (userId?: number, validateTokens: boolean = false): Promise<XeroConnectionStatusResponse> => {
     const params = new URLSearchParams();
     if (userId) params.append('userId', userId.toString());
+    const supabaseUser = getSupabaseUser();
+    if (supabaseUser.id) params.append('supabaseUserId', supabaseUser.id);
     params.append('validateTokens', validateTokens.toString());
     return fetchApi<XeroConnectionStatusResponse>(`/api/auth/xero/status?${params.toString()}`);
   },
@@ -156,15 +170,29 @@ export const xeroAuthApi = {
         500
       );
     }
-    return `${API_BASE_URL}/api/auth/xero/connect`;
+    const supabaseUser = getSupabaseUser();
+    if (!supabaseUser.id) {
+      throw new ApiError('Missing Supabase user session. Please log in first.', 401);
+    }
+    const params = new URLSearchParams();
+    if (supabaseUser.id) params.append('supabaseUserId', supabaseUser.id);
+    if (supabaseUser.email) params.append('email', supabaseUser.email);
+    const query = params.toString();
+    return query
+      ? `${API_BASE_URL}/api/auth/xero/connect?${query}`
+      : `${API_BASE_URL}/api/auth/xero/connect`;
   },
 
   /**
    * Disconnect from Xero (delete connection)
    */
   disconnect: async (tenantId: string): Promise<{ success: boolean; message: string }> => {
+    const supabaseUser = getSupabaseUser();
+    const params = new URLSearchParams();
+    params.append('tenantId', tenantId);
+    if (supabaseUser.id) params.append('supabaseUserId', supabaseUser.id);
     const result = await fetchApi<{ success: boolean; message: string }>(
-      `/api/auth/xero/disconnect?tenantId=${encodeURIComponent(tenantId)}`,
+      `/api/auth/xero/disconnect?${params.toString()}`,
       {
         method: 'DELETE',
       }
@@ -323,6 +351,20 @@ export const authApi = {
     // });
     
     return { user: userResponse };
+  },
+};
+
+// Users API
+export const usersApi = {
+  /**
+   * Sync users from Supabase Auth into the backend users table.
+   * This overwrites local user data to match Supabase as source of truth.
+   */
+  syncSupabase: async () => {
+    return fetchApi<{ fetched: number; upserted: number; deleted: number }>(
+      '/api/users/sync-supabase',
+      { method: 'POST' }
+    );
   },
 };
 
