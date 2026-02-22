@@ -61,8 +61,13 @@ public class ScheduleService {
         
         schedule = scheduleRepository.save(schedule);
         
-        // Generate journal entries
-        generateJournalEntries(schedule);
+        // Generate journal entries (actual days or equal monthly)
+        boolean useEqualMonthly = "equal".equalsIgnoreCase(request.getAllocationMethod());
+        if (useEqualMonthly) {
+            generateEqualMonthlyJournalEntries(schedule);
+        } else {
+            generateJournalEntries(schedule);
+        }
         
         return toScheduleResponse(schedule);
     }
@@ -150,6 +155,84 @@ public class ScheduleService {
             throw new IllegalArgumentException("Schedule must generate at least one journal entry");
         }
     }
+    
+    /**
+     * Generate journal entries using equal monthly amount.
+     * - N = full months + 1 when both start and end are partial
+     * - First period (if partial): pro-rate by (days in period / days in month) * base
+     * - Full months: base = total / N
+     * - Last period: balance (ensures exact total)
+     */
+    private void generateEqualMonthlyJournalEntries(Schedule schedule) {
+        LocalDate startDate = schedule.getStartDate();
+        LocalDate endDate = schedule.getEndDate();
+        
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Start date must be before end date");
+        }
+        
+        BigDecimal totalAmount = schedule.getTotalAmount();
+        BigDecimal allocated = BigDecimal.ZERO;
+        
+        LocalDate periodStart = startDate;
+        int periodNumber = 0;
+        
+        // First pass: build period structure
+        java.util.List<PeriodInfo> periods = new java.util.ArrayList<>();
+        LocalDate pStart = startDate;
+        
+        while (!pStart.isAfter(endDate)) {
+            LocalDate lastDayOfMonth = pStart.withDayOfMonth(pStart.lengthOfMonth());
+            LocalDate dayCountEnd = lastDayOfMonth.isBefore(endDate) ? lastDayOfMonth : endDate;
+            long daysInPeriod = ChronoUnit.DAYS.between(pStart, dayCountEnd) + 1;
+            int daysInMonth = pStart.lengthOfMonth();
+            LocalDate nextStart = dayCountEnd.plusDays(1);
+            boolean isLast = nextStart.isAfter(endDate);
+            boolean isFirst = periods.isEmpty();
+            boolean isFullMonth = daysInPeriod == daysInMonth;
+            
+            periods.add(new PeriodInfo(pStart, lastDayOfMonth, (int) daysInPeriod, daysInMonth, isFirst, isLast, isFullMonth));
+            pStart = nextStart;
+        }
+        
+        // N = full months + 1 when both partials
+        long fullMonths = periods.stream().filter(p -> p.isFullMonth).count();
+        boolean firstPartial = !periods.isEmpty() && periods.get(0).periodStart.getDayOfMonth() != 1;
+        boolean lastPartial = !periods.isEmpty() && !periods.get(periods.size() - 1).isFullMonth;
+        int N = (int) (fullMonths + (firstPartial && lastPartial ? 1 : 0));
+        if (N < 1) N = 1;
+        BigDecimal baseMonthlyAmount = totalAmount.divide(BigDecimal.valueOf(N), 2, RoundingMode.HALF_UP);
+        
+        for (PeriodInfo p : periods) {
+            periodNumber++;
+            BigDecimal amount;
+            
+            if (p.isLast) {
+                amount = totalAmount.subtract(allocated).setScale(2, RoundingMode.HALF_UP);
+            } else if (p.isFirst && firstPartial) {
+                amount = baseMonthlyAmount
+                    .multiply(BigDecimal.valueOf(p.daysInPeriod))
+                    .divide(BigDecimal.valueOf(p.daysInMonth), 2, RoundingMode.HALF_UP);
+            } else {
+                amount = baseMonthlyAmount;
+            }
+            allocated = allocated.add(amount);
+            
+            JournalEntry entry = new JournalEntry();
+            entry.setSchedule(schedule);
+            entry.setPeriodDate(p.periodEnd);
+            entry.setAmount(amount);
+            entry.setPosted(false);
+            journalEntryRepository.save(entry);
+        }
+        
+        if (periodNumber == 0) {
+            throw new IllegalArgumentException("Schedule must generate at least one journal entry");
+        }
+    }
+    
+    private record PeriodInfo(LocalDate periodStart, LocalDate periodEnd, int daysInPeriod, int daysInMonth,
+                             boolean isFirst, boolean isLast, boolean isFullMonth) {}
     
     /**
      * Get all schedules for a tenant

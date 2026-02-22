@@ -185,16 +185,8 @@ export function validateDateRange(startDate: string, endDate: string): {
   const start = new Date(startDate);
   const end = new Date(endDate);
 
-  if (start >= end) {
-    return { valid: false, error: 'End date must be after start date' };
-  }
-
-  // Check if range is at least one month
-  const monthsDiff = (end.getFullYear() - start.getFullYear()) * 12 + 
-                     (end.getMonth() - start.getMonth());
-  
-  if (monthsDiff < 1) {
-    return { valid: false, error: 'Schedule must span at least one month' };
+  if (start > end) {
+    return { valid: false, error: 'End date must be on or after start date' };
   }
 
   return { valid: true };
@@ -301,6 +293,88 @@ export function generateProRataSchedule(
     periodStart = nextPeriodStart;
   }
   
+  return entries;
+}
+
+/**
+ * Generate equal-monthly amortisation schedule entries.
+ *
+ * - Total months N = full months + 1 when both start and end are partial (e.g. 6 periods → 5 months)
+ * - First period: If partial, pro-rate by (days in period / days in month) * base amount
+ * - Full months: Fixed amount = total / N
+ * - Last period: Balance (ensures exact total, no rounding drift)
+ */
+export function generateEqualMonthlySchedule(
+  startDateStr: string,
+  endDateStr: string,
+  totalAmount: number
+): ProRataEntry[] {
+  const startDate = new Date(startDateStr);
+  const endDate = new Date(endDateStr);
+
+  if (startDate >= endDate) return [];
+
+  const entries: ProRataEntry[] = [];
+  let periodNumber = 0;
+  let allocated = 0;
+
+  // First pass: build period structure (same as pro-rata)
+  const periods: Array<{ periodStart: Date; periodEnd: Date; daysInPeriod: number; daysInMonth: number; isFirst: boolean; isLast: boolean; isFullMonth: boolean }> = [];
+  let pStart = new Date(startDate);
+
+  while (pStart <= endDate) {
+    const lastDayOfMonth = new Date(pStart.getFullYear(), pStart.getMonth() + 1, 0);
+    const dayCountEnd = lastDayOfMonth < endDate ? lastDayOfMonth : new Date(endDate);
+    const daysInPeriod = Math.round((dayCountEnd.getTime() - pStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const daysInMonth = lastDayOfMonth.getDate();
+    const nextStart = new Date(dayCountEnd);
+    nextStart.setDate(nextStart.getDate() + 1);
+    const isLast = nextStart > endDate;
+    const isFirst = periods.length === 0;
+    const isFullMonth = daysInPeriod === daysInMonth;
+
+    periods.push({
+      periodStart: new Date(pStart),
+      periodEnd: new Date(lastDayOfMonth),
+      daysInPeriod,
+      daysInMonth,
+      isFirst,
+      isLast,
+      isFullMonth,
+    });
+    pStart = nextStart;
+  }
+
+  // N = total months for base amount: full months + 1 when both start and end are partial
+  const fullMonths = periods.filter((p) => p.isFullMonth).length;
+  const firstPartial = periods[0]?.periodStart.getDate() !== 1;
+  const lastPartial = periods.length > 0 && !periods[periods.length - 1].isFullMonth;
+  const N = fullMonths + (firstPartial && lastPartial ? 1 : 0) || 1;
+  const baseMonthlyAmount = totalAmount / N;
+
+  periods.forEach((p) => {
+    periodNumber++;
+    let amount: number;
+
+    if (p.isLast) {
+      amount = Math.round((totalAmount - allocated) * 100) / 100;
+    } else if (p.isFirst && firstPartial) {
+      // First period is partial: pro-rate by days
+      amount = Math.round((p.daysInPeriod / p.daysInMonth) * baseMonthlyAmount * 100) / 100;
+    } else {
+      amount = Math.round(baseMonthlyAmount * 100) / 100;
+    }
+    allocated += amount;
+
+    entries.push({
+      period: periodNumber,
+      periodStart: p.periodStart,
+      periodEnd: p.periodEnd,
+      days: p.daysInPeriod,
+      amount,
+    });
+  });
+
   return entries;
 }
 
