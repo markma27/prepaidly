@@ -4,7 +4,9 @@ import com.prepaidly.dto.CreateUserRequest;
 import com.prepaidly.dto.UpdateUserRequest;
 import com.prepaidly.dto.UserResponse;
 import com.prepaidly.model.User;
+import com.prepaidly.model.XeroConnection;
 import com.prepaidly.repository.UserRepository;
+import com.prepaidly.repository.XeroConnectionRepository;
 import com.prepaidly.service.SupabaseAdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -54,6 +57,7 @@ import java.util.stream.Collectors;
 public class UserController {
 
     private final UserRepository userRepository;
+    private final XeroConnectionRepository xeroConnectionRepository;
     private final SupabaseAdminService supabaseAdminService;
 
     /**
@@ -247,6 +251,39 @@ public class UserController {
             ));
         } catch (Exception e) {
             log.error("Error fetching users", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to fetch users: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get users who have access to the given entity (tenant).
+     * Returns users that have a Xero connection for the given tenantId.
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @GetMapping("/by-tenant")
+    public ResponseEntity<?> getUsersByTenant(@RequestParam(required = false) String tenantId) {
+        if (tenantId == null || tenantId.isBlank() || "null".equals(tenantId) || "undefined".equals(tenantId)) {
+            return ResponseEntity.ok(Map.of(
+                "users", List.of(),
+                "count", 0
+            ));
+        }
+        try {
+            List<XeroConnection> connections = xeroConnectionRepository.findByTenantId(tenantId.trim());
+            Set<Long> userIds = connections.stream()
+                .map(conn -> conn.getUser().getId())
+                .collect(Collectors.toSet());
+            List<User> users = userRepository.findAllById(userIds);
+            List<UserResponse> responses = users.stream()
+                .map(this::toUserResponse)
+                .collect(Collectors.toList());
+            return ResponseEntity.ok(Map.of(
+                "users", responses,
+                "count", responses.size()
+            ));
+        } catch (Exception e) {
+            log.error("Error fetching users by tenant", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Failed to fetch users: " + e.getMessage()));
         }
@@ -570,6 +607,8 @@ public class UserController {
         UserResponse response = new UserResponse();
         response.setId(user.getId());
         response.setEmail(user.getEmail());
+        response.setRole(user.getRole());
+        response.setLastLogin(user.getLastLogin());
         response.setCreatedAt(user.getCreatedAt());
         return response;
     }

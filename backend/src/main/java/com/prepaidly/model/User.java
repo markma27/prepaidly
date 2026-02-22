@@ -38,6 +38,14 @@ public class User {
     @Column(name = "supabase_synced_at")
     private OffsetDateTime supabaseSyncedAt;
 
+    /** User's role in the system */
+    @Column(name = "role")
+    private String role;
+
+    /** User's last login timestamp */
+    @Column(name = "last_login")
+    private LocalDateTime lastLogin;
+
     /** Timestamp when the user was created */
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

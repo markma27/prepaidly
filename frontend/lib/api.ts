@@ -104,6 +104,7 @@ async function fetchApi<T>(
   }
 
   const url = `${API_BASE_URL}${endpoint}`;
+  console.log(`fetchApi: ${options?.method || 'GET'} ${url}`);
   
   try {
   const response = await fetch(url, {
@@ -387,6 +388,18 @@ export const usersApi = {
     return fetchApi<{ fetched: number; upserted: number; deleted: number }>(
       '/api/users/sync-supabase',
       { method: 'POST' }
+    );
+  },
+
+  /**
+   * Get users who have access to the entity (tenant).
+   */
+  getByTenant: async (tenantId: string) => {
+    if (!tenantId || tenantId === 'null' || tenantId === 'undefined') {
+      return { users: [], count: 0 };
+    }
+    return fetchApi<{ users: { id: number; email: string; role?: string; lastLogin?: string; createdAt: string }[]; count: number }>(
+      `/api/users/by-tenant?tenantId=${encodeURIComponent(tenantId)}`
     );
   },
 };

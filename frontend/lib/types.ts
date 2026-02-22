@@ -1,5 +1,14 @@
 // TypeScript type definitions for Prepaidly API responses
 
+/** User as returned by /api/users and /api/users/by-tenant */
+export interface UserListItem {
+  id: number;
+  email: string;
+  role?: string;
+  lastLogin?: string;
+  createdAt: string;
+}
+
 export interface XeroAccount {
   accountID: string;
   code: string;

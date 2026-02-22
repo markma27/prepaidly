@@ -41,6 +41,16 @@ public class UserResponse {
     private String email;
     
     /**
+     * User's role in the system
+     */
+    private String role;
+    
+    /**
+     * User's last login timestamp
+     */
+    private LocalDateTime lastLogin;
+    
+    /**
      * Timestamp when the user account was created
      * 
      * Automatically set by the system when the user is first created. Cannot be

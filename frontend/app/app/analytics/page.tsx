@@ -29,7 +29,7 @@ function AnalyticsPageContent() {
   const [activeTab, setActiveTab] = useState<TabType>('prepayment');
   const [sortKey, setSortKey] = useState<string>('contactName');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  // 12-month window: start year-month "YYYY-MM". Default = current month.
+  // 10-month window: start year-month "YYYY-MM". Default = current month.
   const getCurrentStartYearMonth = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -109,14 +109,14 @@ function AnalyticsPageContent() {
     return formatCurrency(value, orgCurrency);
   };
 
-  // 12 months starting from selected start month
+  // 10 months starting from selected start month
   const monthColumns = useMemo(() => {
     const cols: { key: string; label: string; yearMonth: string }[] = [];
     const [y, m] = startYearMonth.split('-').map(Number);
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 10; i++) {
       const d = new Date(y, m - 1 + i, 1);
       const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-      const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
       cols.push({ key: yearMonth, label, yearMonth });
     }
     return cols;
@@ -125,7 +125,7 @@ function AnalyticsPageContent() {
   const rangeLabel = useMemo(() => {
     if (monthColumns.length === 0) return '';
     const first = monthColumns[0].label;
-    const last = monthColumns[11].label;
+    const last = monthColumns[9].label;
     return `${first} – ${last}`;
   }, [monthColumns]);
 
@@ -160,7 +160,7 @@ function AnalyticsPageContent() {
     return map;
   };
 
-  // Further filter to hide schedules that have no amounts in the visible 12-month window
+  // Further filter to hide schedules that have no amounts in the visible 10-month window
   // AND are outside the 3-month grace period on either side of the window
   const filteredSchedules = useMemo(() => {
     const [startY, startM] = startYearMonth.split('-').map(Number);
@@ -169,14 +169,14 @@ function AnalyticsPageContent() {
     const pastCutoffDate = new Date(startY, startM - 1 - 3, 1);
     const pastCutoffYearMonth = `${pastCutoffDate.getFullYear()}-${String(pastCutoffDate.getMonth() + 1).padStart(2, '0')}-01`;
     
-    // Cutoff for future: 3 months after the end of the visible window (window is 12 months, so end is startM + 11)
-    const futureCutoffDate = new Date(startY, startM - 1 + 12 + 3, 1);
+    // Cutoff for future: 3 months after the end of the visible window (window is 10 months, so end is startM + 9)
+    const futureCutoffDate = new Date(startY, startM - 1 + 10 + 3, 1);
     const futureCutoffYearMonth = `${futureCutoffDate.getFullYear()}-${String(futureCutoffDate.getMonth() + 1).padStart(2, '0')}-01`;
 
     return typeFilteredSchedules.filter((schedule) => {
       const amountByMonth = getAmountByMonth(schedule);
       
-      // Check if schedule has any amounts in the visible 12-month window
+      // Check if schedule has any amounts in the visible 10-month window
       const hasAmountInWindow = monthColumns.some((col) => {
         const amount = amountByMonth.get(col.yearMonth);
         return amount != null && Math.round(amount * 100) !== 0;
@@ -483,8 +483,8 @@ function AnalyticsPageContent() {
                       onClick={() => shiftStartMonth(-1)}
                       disabled={loading}
                       className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      title="Previous 12 months"
-                      aria-label="Previous 12 months"
+                      title="Previous 10 months"
+                      aria-label="Previous 10 months"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
@@ -493,8 +493,8 @@ function AnalyticsPageContent() {
                       onClick={() => shiftStartMonth(1)}
                       disabled={loading}
                       className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      title="Next 12 months"
-                      aria-label="Next 12 months"
+                      title="Next 10 months"
+                      aria-label="Next 10 months"
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>

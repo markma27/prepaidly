@@ -855,7 +855,7 @@ function NewSchedulePageContent() {
                           </button>
                         </div>
                         <p className="text-xs text-gray-500 mt-1">
-                          Enter a date, or +1 / +2 / +8 etc. to add months from start date
+                          Enter a date, or +1 / +2 etc. to add months from start date
                         </p>
                       </div>
                     </div>

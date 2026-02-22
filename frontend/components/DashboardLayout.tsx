@@ -19,6 +19,7 @@ import {
   Calendar,
   ArrowLeft,
   User,
+  Users,
   LogOut
 } from 'lucide-react';
 import Skeleton from '@/components/Skeleton';
@@ -282,6 +283,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
   ];
 
   const footerNavigation = [
+    { name: 'Users', href: `/app/users?tenantId=${tenantId || ''}`, icon: Users, path: '/app/users' },
     { name: 'Settings', href: `/app/settings?tenantId=${tenantId || ''}`, icon: Settings, path: '/app/settings' },
     { name: 'Help & Support', href: `/app/dashboard?tenantId=${tenantId || ''}`, icon: HelpCircle, path: '/app/dashboard' },
   ];
@@ -316,6 +318,8 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
       }
       return false;
     }
+    // Users page
+    if (pathname === '/app/users') return itemName === 'Users';
     // For other pages, match by pathname
     return pathname === itemPath;
   };
