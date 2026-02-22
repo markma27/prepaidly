@@ -67,6 +67,7 @@ export interface Schedule {
   remainingBalance?: number;
   totalPeriods?: number;
   postedPeriods?: number;
+  voided?: boolean;
 }
 
 export interface CreateScheduleRequest {

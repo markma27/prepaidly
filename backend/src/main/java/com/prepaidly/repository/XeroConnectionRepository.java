@@ -20,8 +20,9 @@ public interface XeroConnectionRepository extends JpaRepository<XeroConnection, 
     
     /**
      * Find a Xero connection by tenant ID.
+     * Returns the most recent connection if multiple exist (e.g. from reconnects).
      */
-    Optional<XeroConnection> findByTenantId(String tenantId);
+    Optional<XeroConnection> findFirstByTenantIdOrderByIdDesc(String tenantId);
     
     /**
      * Find a Xero connection by user ID and tenant ID.

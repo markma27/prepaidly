@@ -235,13 +235,31 @@ public class ScheduleService {
                              boolean isFirst, boolean isLast, boolean isFullMonth) {}
     
     /**
+     * Void a schedule. Voided schedules are excluded from Analytics and Register by default.
+     */
+    @Transactional
+    public ScheduleResponse voidSchedule(Long scheduleId) {
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+            .orElseThrow(() -> new RuntimeException("Schedule not found: " + scheduleId));
+        schedule.setVoided(true);
+        schedule = scheduleRepository.save(schedule);
+        return toScheduleResponse(schedule);
+    }
+
+    /**
      * Get all schedules for a tenant
      * Note: Using PROPAGATION_SUPPORTS to avoid transaction issues with connection poolers
+     * @param includeVoided when true, includes voided schedules; when false, excludes them (default for Register/Analytics)
      */
     @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
-    public List<ScheduleResponse> getSchedulesByTenant(String tenantId) {
+    public List<ScheduleResponse> getSchedulesByTenant(String tenantId, boolean includeVoided) {
         try {
             List<Schedule> schedules = scheduleRepository.findByTenantId(tenantId);
+            if (!includeVoided) {
+                schedules = schedules.stream()
+                    .filter(s -> s.getVoided() == null || !s.getVoided())
+                    .collect(Collectors.toList());
+            }
             return schedules.stream()
                 .map(schedule -> {
                     try {
@@ -329,6 +347,7 @@ public class ScheduleService {
         response.setInvoiceFilename(schedule.getInvoiceFilename());
         response.setCreatedBy(schedule.getCreatedBy());
         response.setCreatedAt(schedule.getCreatedAt());
+        response.setVoided(Boolean.TRUE.equals(schedule.getVoided()));
         
         // Look up creator's name from user repository
         if (schedule.getCreatedBy() != null) {
@@ -416,6 +435,7 @@ public class ScheduleService {
         response.setInvoiceFilename(schedule.getInvoiceFilename());
         response.setCreatedBy(schedule.getCreatedBy());
         response.setCreatedAt(schedule.getCreatedAt());
+        response.setVoided(Boolean.TRUE.equals(schedule.getVoided()));
         response.setJournalEntries(List.of());
         response.setTotalPeriods(0);
         response.setPostedPeriods(0);

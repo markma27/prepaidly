@@ -109,7 +109,7 @@ class ScheduleServiceTest {
         when(journalEntryRepository.findByScheduleId(2L))
             .thenReturn(Collections.emptyList());
 
-        List<ScheduleResponse> responses = scheduleService.getSchedulesByTenant("test-tenant");
+        List<ScheduleResponse> responses = scheduleService.getSchedulesByTenant("test-tenant", false);
 
         assertEquals(2, responses.size());
         verify(scheduleRepository, times(1)).findByTenantId("test-tenant");

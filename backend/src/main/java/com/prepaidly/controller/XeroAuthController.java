@@ -261,7 +261,7 @@ public class XeroAuthController {
             try {
                 log.info("Fetching organization info for newly connected tenant: {}", connection.getTenantId());
                 // Fetch the connection fresh from database to ensure we have the managed entity
-                XeroConnection freshConnection = xeroConnectionRepository.findByTenantId(connection.getTenantId())
+                XeroConnection freshConnection = xeroConnectionRepository.findFirstByTenantIdOrderByIdDesc(connection.getTenantId())
                     .orElse(connection);
                 xeroOAuthService.updateOrganizationInfo(freshConnection);
                 log.info("Successfully fetched organization info for new connection");
@@ -647,7 +647,7 @@ public class XeroAuthController {
     @DeleteMapping("/disconnect")
     public ResponseEntity<?> disconnect(@RequestParam String tenantId) {
         try {
-            XeroConnection connection = xeroConnectionRepository.findByTenantId(tenantId)
+            XeroConnection connection = xeroConnectionRepository.findFirstByTenantIdOrderByIdDesc(tenantId)
                 .orElse(null);
             
             if (connection == null) {

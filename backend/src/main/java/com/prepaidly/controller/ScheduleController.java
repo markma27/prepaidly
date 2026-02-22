@@ -178,9 +178,11 @@ public class ScheduleController {
      *        or list view. Each schedule includes its journal entries and posting status.
      */
     @GetMapping
-    public ResponseEntity<?> getSchedules(@RequestParam String tenantId) {
+    public ResponseEntity<?> getSchedules(
+            @RequestParam String tenantId,
+            @RequestParam(required = false, defaultValue = "false") boolean includeVoided) {
         try {
-            List<ScheduleResponse> schedules = scheduleService.getSchedulesByTenant(tenantId);
+            List<ScheduleResponse> schedules = scheduleService.getSchedulesByTenant(tenantId, includeVoided);
             return ResponseEntity.ok(Map.of(
                 "schedules", schedules,
                 "count", schedules.size()
@@ -278,6 +280,19 @@ public class ScheduleController {
             return ResponseEntity.status(500).body(Map.of(
                 "error", "Failed to fetch contact names: " + e.getMessage()
             ));
+        }
+    }
+
+    @PostMapping("/{id}/void")
+    public ResponseEntity<?> voidSchedule(@PathVariable Long id) {
+        try {
+            ScheduleResponse schedule = scheduleService.voidSchedule(id);
+            return ResponseEntity.ok(schedule);
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("not found")) {
+                return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+            }
+            throw e;
         }
     }
 

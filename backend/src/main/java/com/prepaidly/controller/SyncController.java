@@ -125,7 +125,7 @@ public class SyncController {
     @PostMapping
     public ResponseEntity<?> sync(@RequestParam String tenantId) {
         try {
-            XeroConnection connection = xeroConnectionRepository.findByTenantId(tenantId)
+            XeroConnection connection = xeroConnectionRepository.findFirstByTenantIdOrderByIdDesc(tenantId)
                 .orElseThrow(() -> new RuntimeException("Xero connection not found for tenant: " + tenantId));
 
             // If connection is already marked DISCONNECTED, tell user to re-authorize

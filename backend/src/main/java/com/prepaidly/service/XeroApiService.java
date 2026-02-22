@@ -54,7 +54,7 @@ public class XeroApiService {
      * 4. If retry also fails: mark DISCONNECTED and throw
      */
     private <T> T executeWithRetry(String tenantId, XeroApiCall<T> apiCall) {
-        XeroConnection connection = xeroConnectionRepository.findByTenantId(tenantId)
+        XeroConnection connection = xeroConnectionRepository.findFirstByTenantIdOrderByIdDesc(tenantId)
             .orElseThrow(() -> new RuntimeException("Xero connection not found for tenant: " + tenantId));
 
         // Check if connection is already disconnected
@@ -96,7 +96,7 @@ public class XeroApiService {
     private <T> T retryAfterRefresh(String tenantId, XeroApiCall<T> apiCall) {
         log.warn("Xero API returned 401/403 for tenant {}. Attempting token refresh + retry...", tenantId);
         
-        XeroConnection connection = xeroConnectionRepository.findByTenantId(tenantId)
+        XeroConnection connection = xeroConnectionRepository.findFirstByTenantIdOrderByIdDesc(tenantId)
             .orElseThrow(() -> new RuntimeException("Connection not found during retry: " + tenantId));
         
         try {
