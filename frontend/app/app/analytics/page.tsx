@@ -10,7 +10,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import Skeleton from '@/components/Skeleton';
-import { ChevronLeft, ChevronRight, Calendar, DollarSign, FileText, RefreshCw, Download, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Calendar, DollarSign, FileText, RefreshCw, Download, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 type TabType = 'prepayment' | 'unearned';
@@ -27,6 +27,8 @@ function AnalyticsPageContent() {
   // Get org currency for formatting
   const orgCurrency = getOrgCurrency(tenantId) || 'USD';
   const [activeTab, setActiveTab] = useState<TabType>('prepayment');
+  const [sortKey, setSortKey] = useState<string>('contactName');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   // 12-month window: start year-month "YYYY-MM". Default = current month.
   const getCurrentStartYearMonth = () => {
     const now = new Date();
@@ -87,6 +89,17 @@ function AnalyticsPageContent() {
   const getAccountName = (code: string | undefined): string => {
     if (!code) return '';
     return accountMap.get(code) || '';
+  };
+
+  const getAccountCodeAndName = (schedule: Schedule): string => {
+    if (schedule.type === 'PREPAID') {
+      const code = schedule.expenseAcctCode || '';
+      const name = getAccountName(schedule.expenseAcctCode);
+      return name ? `${code} - ${name}` : code || '-';
+    }
+    const code = schedule.revenueAcctCode || '';
+    const name = getAccountName(schedule.revenueAcctCode);
+    return name ? `${code} - ${name}` : code || '-';
   };
 
   // Show '-' for zero or rounding-to-zero (avoids $0.00 from floating point)
@@ -201,6 +214,46 @@ function AnalyticsPageContent() {
     });
   }, [typeFilteredSchedules, monthColumns, startYearMonth]);
 
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedSchedules = useMemo(() => {
+    if (!sortKey) return filteredSchedules;
+    const list = [...filteredSchedules];
+    if (sortKey === 'contactName') {
+      list.sort((a, b) => {
+        const va = (a.contactName ?? '').toLowerCase();
+        const vb = (b.contactName ?? '').toLowerCase();
+        const cmp = va.localeCompare(vb);
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    } else if (sortKey === 'account') {
+      list.sort((a, b) => {
+        const va = getAccountCodeAndName(a).toLowerCase();
+        const vb = getAccountCodeAndName(b).toLowerCase();
+        const cmp = va.localeCompare(vb);
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    } else {
+      // sort by month amount (yearMonth key)
+      list.sort((a, b) => {
+        const amountByMonthA = getAmountByMonth(a);
+        const amountByMonthB = getAmountByMonth(b);
+        const va = amountByMonthA.get(sortKey) ?? 0;
+        const vb = amountByMonthB.get(sortKey) ?? 0;
+        const cmp = va - vb;
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
+    return list;
+  }, [filteredSchedules, sortKey, sortDir]);
+
   const handleRowClick = (scheduleId: number) => {
     router.push(`/app/schedules/${scheduleId}?tenantId=${tenantId}`);
   };
@@ -295,17 +348,6 @@ function AnalyticsPageContent() {
     // Generate filename with date range
     const filename = `Analytics_${tabLabel}_${rangeLabel.replace(' – ', '_to_')}.xlsx`;
     XLSX.writeFile(wb, filename);
-  };
-
-  const getAccountCodeAndName = (schedule: Schedule): string => {
-    if (schedule.type === 'PREPAID') {
-      const code = schedule.expenseAcctCode || '';
-      const name = getAccountName(schedule.expenseAcctCode);
-      return name ? `${code} - ${name}` : code || '-';
-    }
-    const code = schedule.revenueAcctCode || '';
-    const name = getAccountName(schedule.revenueAcctCode);
-    return name ? `${code} - ${name}` : code || '-';
   };
 
   // Totals per month for the current tab's schedules
@@ -629,23 +671,50 @@ function AnalyticsPageContent() {
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
-                        Contact Name
+                        <button
+                          type="button"
+                          onClick={() => handleSort('contactName')}
+                          className="flex items-center gap-1 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                          title="Sort by Contact Name"
+                          aria-label={sortKey === 'contactName' ? `Sort by Contact Name ${sortDir === 'asc' ? 'descending' : 'ascending'}` : 'Sort by Contact Name'}
+                        >
+                          Contact Name
+                          {sortKey === 'contactName' ? (sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />) : null}
+                        </button>
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
-                        Account Code and Name
+                        <button
+                          type="button"
+                          onClick={() => handleSort('account')}
+                          className="flex items-center gap-1 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                          title="Sort by Account"
+                          aria-label={sortKey === 'account' ? `Sort by Account ${sortDir === 'asc' ? 'descending' : 'ascending'}` : 'Sort by Account'}
+                        >
+                          Account Code and Name
+                          {sortKey === 'account' ? (sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />) : null}
+                        </button>
                       </th>
                       {monthColumns.map((col) => (
                         <th
                           key={col.key}
                           className="text-right py-3 px-3 font-semibold text-gray-700 whitespace-nowrap"
                         >
-                          {col.label}
+                          <button
+                            type="button"
+                            onClick={() => handleSort(col.yearMonth)}
+                            className="inline-flex items-center justify-end gap-1 w-full hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                            title={`Sort by ${col.label}`}
+                            aria-label={sortKey === col.yearMonth ? `Sort by ${col.label} ${sortDir === 'asc' ? 'descending' : 'ascending'}` : `Sort by ${col.label}`}
+                          >
+                            {col.label}
+                            {sortKey === col.yearMonth ? (sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />) : null}
+                          </button>
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredSchedules.length === 0 ? (
+                    {sortedSchedules.length === 0 ? (
                       <tr>
                         <td
                           colSpan={2 + monthColumns.length}
@@ -656,7 +725,7 @@ function AnalyticsPageContent() {
                         </td>
                       </tr>
                     ) : (
-                      filteredSchedules.map((schedule) => {
+                      sortedSchedules.map((schedule) => {
                         const amountByMonth = getAmountByMonth(schedule);
                         return (
                           <tr
@@ -702,7 +771,7 @@ function AnalyticsPageContent() {
                       })
                     )}
                   </tbody>
-                  {filteredSchedules.length > 0 && (
+                  {sortedSchedules.length > 0 && (
                     <tfoot>
                       <tr className="bg-gray-100 border-t-2 border-gray-200 font-semibold">
                         <td className="py-3 px-4 text-gray-900 whitespace-nowrap" colSpan={2}>
@@ -735,23 +804,50 @@ function AnalyticsPageContent() {
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
-                          Contact Name
+                          <button
+                            type="button"
+                            onClick={() => handleSort('contactName')}
+                            className="flex items-center gap-1 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                            title="Sort by Contact Name"
+                            aria-label={sortKey === 'contactName' ? `Sort by Contact Name ${sortDir === 'asc' ? 'descending' : 'ascending'}` : 'Sort by Contact Name'}
+                          >
+                            Contact Name
+                            {sortKey === 'contactName' ? (sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />) : null}
+                          </button>
                         </th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
-                          Account Code and Name
+                          <button
+                            type="button"
+                            onClick={() => handleSort('account')}
+                            className="flex items-center gap-1 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                            title="Sort by Account"
+                            aria-label={sortKey === 'account' ? `Sort by Account ${sortDir === 'asc' ? 'descending' : 'ascending'}` : 'Sort by Account'}
+                          >
+                            Account Code and Name
+                            {sortKey === 'account' ? (sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />) : null}
+                          </button>
                         </th>
                         {monthColumns.map((col) => (
                           <th
                             key={col.key}
                             className="text-right py-3 px-3 font-semibold text-gray-700 whitespace-nowrap"
                           >
-                            {col.label}
+                            <button
+                              type="button"
+                              onClick={() => handleSort(col.yearMonth)}
+                              className="inline-flex items-center justify-end gap-1 w-full hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                              title={`Sort by ${col.label}`}
+                              aria-label={sortKey === col.yearMonth ? `Sort by ${col.label} ${sortDir === 'asc' ? 'descending' : 'ascending'}` : `Sort by ${col.label}`}
+                            >
+                              {col.label}
+                              {sortKey === col.yearMonth ? (sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />) : null}
+                            </button>
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredSchedules.length === 0 ? (
+                      {sortedSchedules.length === 0 ? (
                         <tr>
                           <td
                             colSpan={2 + monthColumns.length}
@@ -762,7 +858,7 @@ function AnalyticsPageContent() {
                           </td>
                         </tr>
                       ) : (
-                        filteredSchedules.map((schedule) => {
+                        sortedSchedules.map((schedule) => {
                           const balanceByMonth = getRemainingBalanceByMonth(schedule);
                           return (
                             <tr
@@ -806,7 +902,7 @@ function AnalyticsPageContent() {
                         })
                       )}
                     </tbody>
-                    {filteredSchedules.length > 0 && (
+                    {sortedSchedules.length > 0 && (
                       <tfoot>
                         <tr className="bg-gray-100 border-t-2 border-gray-200 font-semibold">
                           <td className="py-3 px-4 text-gray-900 whitespace-nowrap" colSpan={2}>
