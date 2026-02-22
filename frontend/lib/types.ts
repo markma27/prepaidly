@@ -85,6 +85,8 @@ export interface CreateScheduleRequest {
   invoiceUrl?: string;
   invoiceFilename?: string;
   createdBy?: number;
+  /** 'actual' = daily pro-rata, 'equal' = equal monthly amount. Defaults to 'actual'. */
+  allocationMethod?: 'actual' | 'equal';
 }
 
 export interface PostJournalRequest {

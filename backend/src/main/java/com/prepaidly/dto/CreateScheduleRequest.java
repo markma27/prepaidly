@@ -87,8 +87,8 @@ public class CreateScheduleRequest {
      * up to and including this date.
      * 
      * Required: Yes
-     * Must be after startDate
-     * Schedule must span at least one month
+     * Must be on or after startDate
+     * Schedules of one month or less are fully expensed in a single period
      * Example: "2025-03-31"
      */
     @NotNull(message = "End date is required")
@@ -189,5 +189,15 @@ public class CreateScheduleRequest {
      * Example: 1
      */
     private Long createdBy;
+
+    /**
+     * Allocation method for journal entries
+     * 
+     * - "actual": Daily pro-rata (amount proportional to days in each period)
+     * - "equal": Equal monthly amount (full months get total/N, first partial pro-rated, last gets balance)
+     * 
+     * Required: No (defaults to "actual")
+     */
+    private String allocationMethod;
 }
 

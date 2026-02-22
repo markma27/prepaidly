@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, xeroApi, settingsApi } from '@/lib/api';
-import { validateDateRange, formatCurrency, formatDateOnly, formatDateToDDMMYYYY, generateProRataSchedule, countProRataPeriods, getCurrencySymbol, resolveEndDate } from '@/lib/utils';
+import { validateDateRange, formatCurrency, formatDateOnly, formatDateToDDMMYYYY, generateProRataSchedule, generateEqualMonthlySchedule, countProRataPeriods, getCurrencySymbol, resolveEndDate } from '@/lib/utils';
 import { getOrgCurrency } from '@/lib/OrgContext';
 import type { XeroAccount, ScheduleType } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -71,6 +71,7 @@ function NewSchedulePageContent() {
   // Preview state
   const [showPreview, setShowPreview] = useState(false);
   const [previewEntries, setPreviewEntries] = useState<PreviewEntry[]>([]);
+  const [allocationMethod, setAllocationMethod] = useState<'actual' | 'equal'>('actual');
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
@@ -207,9 +208,9 @@ function NewSchedulePageContent() {
     if (!code) return null;
     const account = accounts.find(acc => acc.code === code);
     if (account) {
-      return `[${account.code}] ${account.name}`;
+      return `${account.code} - ${account.name}`;
     }
-    return `[${code}]`;
+    return code;
   };
 
   // Filter accounts by type
@@ -310,7 +311,7 @@ function NewSchedulePageContent() {
     }
   };
 
-  // Generate amortisation schedule preview using daily pro-rata
+  // Generate amortisation schedule preview
   const generatePreview = () => {
     setError(null);
 
@@ -325,9 +326,11 @@ function NewSchedulePageContent() {
       return;
     }
 
-    const proRataEntries = generateProRataSchedule(startDate, resolvedEndDate, parseFloat(totalAmount));
+    const scheduleEntries = allocationMethod === 'actual'
+      ? generateProRataSchedule(startDate, resolvedEndDate, parseFloat(totalAmount))
+      : generateEqualMonthlySchedule(startDate, resolvedEndDate, parseFloat(totalAmount));
 
-    const entries: PreviewEntry[] = proRataEntries.map((entry) => ({
+    const entries: PreviewEntry[] = scheduleEntries.map((entry) => ({
       period: entry.period,
       date: entry.periodEnd.toLocaleDateString('en-GB', {
         day: '2-digit',
@@ -340,6 +343,29 @@ function NewSchedulePageContent() {
 
     setPreviewEntries(entries);
     setShowPreview(true);
+  };
+
+  // Regenerate preview when allocation method changes (if preview is visible)
+  const handleAllocationMethodChange = (method: 'actual' | 'equal') => {
+    setAllocationMethod(method);
+    if (showPreview && startDate && resolvedEndDate && totalAmount && parseFloat(totalAmount) > 0) {
+      const dateValidation = validateDateRange(startDate, resolvedEndDate);
+      if (dateValidation.valid) {
+        const scheduleEntries = method === 'actual'
+          ? generateProRataSchedule(startDate, resolvedEndDate, parseFloat(totalAmount))
+          : generateEqualMonthlySchedule(startDate, resolvedEndDate, parseFloat(totalAmount));
+        setPreviewEntries(scheduleEntries.map((entry) => ({
+          period: entry.period,
+          date: entry.periodEnd.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          }),
+          days: entry.days,
+          amount: entry.amount,
+        })));
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -408,6 +434,7 @@ function NewSchedulePageContent() {
         invoiceDate: invoiceDate.trim(),
         invoiceUrl: invoiceStorageUrl || undefined,
         invoiceFilename: invoiceFile?.name || undefined,
+        allocationMethod,
       };
 
       const created = await scheduleApi.createSchedule(request);
@@ -782,14 +809,25 @@ function NewSchedulePageContent() {
                                 : endDate
                             }
                             onChange={(e) => {
-                              const raw = e.target.value;
-                              const resolved = resolveEndDate(startDate, raw);
-                              if (resolved) {
-                                setEndDate(resolved);
-                              } else {
-                                setEndDate(raw);
-                              }
+                              setEndDate(e.target.value);
                               setShowPreview(false);
+                            }}
+                            onBlur={(e) => {
+                              const raw = e.currentTarget.value.trim();
+                              const resolved = resolveEndDate(startDate, raw);
+                              if (resolved) setEndDate(resolved);
+                              setShowPreview(false);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const raw = (e.target as HTMLInputElement).value.trim();
+                                const resolved = resolveEndDate(startDate, raw);
+                                if (resolved) {
+                                  setEndDate(resolved);
+                                  e.preventDefault();
+                                }
+                                setShowPreview(false);
+                              }
                             }}
                             placeholder="dd/mm/yyyy or +1, +2"
                             className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
@@ -821,11 +859,6 @@ function NewSchedulePageContent() {
                         </p>
                       </div>
                     </div>
-                    {periodCount > 0 && (
-                      <p className="text-xs text-gray-500 -mt-3">
-                        {periodCount} {periodCount === 1 ? 'period' : 'periods'} (daily pro-rata)
-                      </p>
-                    )}
 
                     {/* Total Amount & Account Selection */}
                     <div className="grid grid-cols-2 gap-4">
@@ -873,7 +906,7 @@ function NewSchedulePageContent() {
                           {getFilteredAccounts(type === 'PREPAID' ? 'EXPENSE' : 'REVENUE').map(
                             (account) => (
                               <option key={account.accountID} value={account.code}>
-                                [{account.code}] {account.name}
+                                {account.code} - {account.name}
                               </option>
                             )
                           )}
@@ -1048,7 +1081,7 @@ function NewSchedulePageContent() {
                           {(() => {
                             const code = type === 'PREPAID' ? expenseAcctCode : revenueAcctCode;
                             const account = accounts.find((acc) => acc.code === code);
-                            return account ? `[${code}] ${account.name}` : `[${code}]`;
+                            return account ? `${code} - ${account.name}` : code;
                           })()}
                         </span>
                       </div>
@@ -1123,16 +1156,42 @@ function NewSchedulePageContent() {
                 {/* Schedule Preview */}
                 {showPreview && previewEntries.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200">
-                    <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-base font-bold text-gray-900">
-                          Schedule Preview
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {previewEntries.length}{' '}
-                          {previewEntries.length === 1 ? 'period' : 'periods'} — Total:{' '}
-                          {formatCurrency(parseFloat(totalAmount), orgCurrency)}
-                        </p>
+                    <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div>
+                          <h3 className="text-base font-bold text-gray-900">
+                            Schedule Preview
+                          </h3>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {previewEntries.length}{' '}
+                            {previewEntries.length === 1 ? 'period' : 'periods'} — Total:{' '}
+                            {formatCurrency(parseFloat(totalAmount), orgCurrency)}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleAllocationMethodChange('actual')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              allocationMethod === 'actual'
+                                ? 'bg-[#6d69ff] text-white'
+                                : 'bg-white/80 text-gray-600 hover:bg-white border border-gray-300'
+                            }`}
+                          >
+                            Actual days
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAllocationMethodChange('equal')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              allocationMethod === 'equal'
+                                ? 'bg-[#6d69ff] text-white'
+                                : 'bg-white/80 text-gray-600 hover:bg-white border border-gray-300'
+                            }`}
+                          >
+                            Equal monthly
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <div className="overflow-x-auto">
