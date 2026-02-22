@@ -783,16 +783,18 @@ function ScheduleDetailContent() {
                     
                     {/* Show info about Xero journals if any are posted */}
                     {schedule?.journalEntries?.some(e => e.posted && e.xeroManualJournalId) && (
-                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
                         <p className="text-sm text-blue-800">
-                          <strong>Note:</strong> Posted journals will also be voided in Xero.
+                          <strong>How this works:</strong> The app will void each posted journal in Xero, then mark this schedule as voided. The schedule will be hidden from Analytics and Register.
+                        </p>
+                        <p className="text-sm text-blue-800">
+                          <strong>Locked period:</strong> If any journal&apos;s accounting period is locked in Xero, the void will fail and the schedule will stay active. Unlock the period in Xero first, then try again.
+                        </p>
+                        <p className="text-sm text-blue-800">
+                          <strong>Already voided:</strong> Journals already voided in Xero (e.g. manually) are skipped and do not block this action.
                         </p>
                       </div>
                     )}
-                    
-                    <p className="mt-3 text-sm text-gray-500">
-                      The schedule will be hidden from Analytics and Schedule Register. You can still view it by enabling &quot;Show voided&quot;.
-                    </p>
                     
                     <div className="mt-6 flex gap-3 justify-end">
                       <button
