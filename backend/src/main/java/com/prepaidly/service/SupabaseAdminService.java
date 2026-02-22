@@ -1,6 +1,5 @@
 package com.prepaidly.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prepaidly.model.User;
 import com.prepaidly.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +11,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.core.ParameterizedTypeReference;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -35,7 +35,6 @@ public class SupabaseAdminService {
     private static final int PAGE_SIZE = 100;
 
     private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
 
     @Value("${supabase.url:}")
@@ -46,6 +45,7 @@ public class SupabaseAdminService {
 
     public record SyncResult(int fetched, int upserted, int deleted) {}
 
+    @SuppressWarnings("null")
     public SyncResult syncAllUsersFromSupabase() {
         List<Map<String, Object>> supabaseUsers = fetchAllSupabaseUsers();
         if (supabaseUsers.isEmpty()) {
@@ -76,6 +76,7 @@ public class SupabaseAdminService {
         return new SyncResult(supabaseUsers.size(), upserted, deleted);
     }
 
+    @SuppressWarnings("null")
     private List<Map<String, Object>> fetchAllSupabaseUsers() {
         if (supabaseUrl == null || supabaseUrl.isBlank()) {
             throw new IllegalStateException("supabase.url is not configured");
@@ -93,8 +94,13 @@ public class SupabaseAdminService {
             headers.set("apikey", supabaseServiceRoleKey);
             HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
-            Map<?, ?> body = response.getBody();
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                new ParameterizedTypeReference<>() {}
+            );
+            Map<String, Object> body = response.getBody();
             if (body == null || !body.containsKey("users")) {
                 break;
             }
@@ -107,8 +113,9 @@ public class SupabaseAdminService {
             int before = allUsers.size();
             for (Object item : usersList) {
                 if (item instanceof Map<?, ?> map) {
-                    //noinspection unchecked
-                    allUsers.add((Map<String, Object>) map);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> typed = (Map<String, Object>) map;
+                    allUsers.add(typed);
                 }
             }
 
@@ -132,18 +139,8 @@ public class SupabaseAdminService {
         }
         user.setEmail(email);
 
-        user.setSupabasePhone(Optional.ofNullable(userMap.get("phone")).map(Object::toString).orElse(null));
+        // Keep created_at from Supabase and always refresh synced_at on each login sync
         user.setSupabaseCreatedAt(parseOffsetDate(userMap.get("created_at")));
-        user.setSupabaseUpdatedAt(parseOffsetDate(userMap.get("updated_at")));
-        user.setSupabaseLastSignInAt(parseOffsetDate(userMap.get("last_sign_in_at")));
-        user.setSupabaseEmailConfirmedAt(parseOffsetDate(userMap.get("email_confirmed_at")));
-        user.setSupabasePhoneConfirmedAt(parseOffsetDate(userMap.get("phone_confirmed_at")));
-
-        try {
-            user.setSupabaseRawJson(objectMapper.writeValueAsString(userMap));
-        } catch (Exception e) {
-            log.warn("Failed to serialize Supabase user payload for {}", supabaseUserId, e);
-        }
         user.setSupabaseSyncedAt(OffsetDateTime.now());
     }
 

@@ -6,13 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     supabase_user_id VARCHAR(255) UNIQUE,
-    supabase_phone VARCHAR(255),
     supabase_created_at TIMESTAMPTZ,
-    supabase_updated_at TIMESTAMPTZ,
-    supabase_last_sign_in_at TIMESTAMPTZ,
-    supabase_email_confirmed_at TIMESTAMPTZ,
-    supabase_phone_confirmed_at TIMESTAMPTZ,
-    supabase_raw_json TEXT,
     supabase_synced_at TIMESTAMPTZ,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

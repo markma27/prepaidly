@@ -30,33 +30,9 @@ public class User {
     @Column(name = "supabase_user_id", unique = true)
     private String supabaseUserId;
 
-    /** Supabase phone number (optional) */
-    @Column(name = "supabase_phone")
-    private String supabasePhone;
-
     /** Supabase created timestamp (optional) */
     @Column(name = "supabase_created_at")
     private OffsetDateTime supabaseCreatedAt;
-
-    /** Supabase updated timestamp (optional) */
-    @Column(name = "supabase_updated_at")
-    private OffsetDateTime supabaseUpdatedAt;
-
-    /** Supabase last sign-in timestamp (optional) */
-    @Column(name = "supabase_last_sign_in_at")
-    private OffsetDateTime supabaseLastSignInAt;
-
-    /** Supabase email confirmed timestamp (optional) */
-    @Column(name = "supabase_email_confirmed_at")
-    private OffsetDateTime supabaseEmailConfirmedAt;
-
-    /** Supabase phone confirmed timestamp (optional) */
-    @Column(name = "supabase_phone_confirmed_at")
-    private OffsetDateTime supabasePhoneConfirmedAt;
-
-    /** Full Supabase user payload for complete sync */
-    @Column(name = "supabase_raw_json", columnDefinition = "TEXT")
-    private String supabaseRawJson;
 
     /** When this record was last synced from Supabase */
     @Column(name = "supabase_synced_at")
