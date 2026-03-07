@@ -30,6 +30,13 @@ function ScheduleDetailContent() {
   const [voidError, setVoidError] = useState<string | null>(null);
   const [voidWarning, setVoidWarning] = useState<string | null>(null);
   const [voidSuccessMessage, setVoidSuccessMessage] = useState<string | null>(null);
+  const [showWriteOffModal, setShowWriteOffModal] = useState(false);
+  const [writeOffDate, setWriteOffDate] = useState(() => {
+    const d = new Date();
+    return d.toISOString().slice(0, 10);
+  });
+  const [writeOffSubmitting, setWriteOffSubmitting] = useState(false);
+  const [writeOffError, setWriteOffError] = useState<string | null>(null);
 
   const scheduleId = params?.id ? parseInt(params.id as string) : null;
   
@@ -120,16 +127,15 @@ function ScheduleDetailContent() {
         return dateA - dateB;
       })
       .forEach(entry => {
-        // Use postedAt if available (explicit posting time)
-        // Otherwise use updatedAt (automatically tracks when entry was last modified/posted)
-        // Fallback to createdAt only if neither is available
         const postDate = entry.postedAt || entry.updatedAt || entry.createdAt;
         trail.push({
           id: `journal-posted-${entry.id}`,
           date: postDate,
-          action: 'Journal Posted',
-          description: `Journal entry for ${formatDateOnly(entry.periodDate)} posted to Xero`,
-          userName: currentUserName || undefined, // Show current user name if available
+          action: entry.writeOff ? 'Write-off posted' : 'Journal Posted',
+          description: entry.writeOff
+            ? `Write-off (full recognition) for ${formatDateOnly(entry.periodDate)} posted to Xero`
+            : `Journal entry for ${formatDateOnly(entry.periodDate)} posted to Xero`,
+          userName: currentUserName || undefined,
           userId: currentUserId || undefined,
           details: `Amount: ${formatCurrency(entry.amount, orgCurrency)}, Xero Journal ID: ${entry.xeroManualJournalId}`
         });
@@ -147,6 +153,35 @@ function ScheduleDetailContent() {
     });
     return map;
   }, [accounts]);
+
+  // Journal entries: period-only list and write-off entry (must run before any early return)
+  const journalEntries = schedule?.journalEntries ?? [];
+  const periodEntries = useMemo(() =>
+    [...journalEntries].filter((e) => !e.writeOff).sort((a, b) =>
+      new Date(a.periodDate).getTime() - new Date(b.periodDate).getTime()
+    ),
+    [journalEntries]
+  );
+  const writeOffEntry = useMemo(
+    () => journalEntries.find((e) => e.writeOff),
+    [journalEntries]
+  );
+  const isCompleted = Boolean(
+    schedule && !schedule.voided && schedule.remainingBalance != null && schedule.remainingBalance <= 0
+  );
+
+  // Minimum write-off date: day after the most recently posted (period) journal date
+  const minWriteOffDate = useMemo(() => {
+    const postedPeriodEntries = journalEntries.filter((e) => !e.writeOff && e.posted);
+    if (postedPeriodEntries.length === 0) return undefined;
+    const maxDate = postedPeriodEntries.reduce((max, e) => {
+      const d = new Date(e.periodDate);
+      return d > max ? d : max;
+    }, new Date(0));
+    const next = new Date(maxDate);
+    next.setDate(next.getDate() + 1);
+    return next.toISOString().slice(0, 10);
+  }, [journalEntries]);
 
   const getAccountDisplay = (code: string | undefined, typeLabel: string): string => {
     if (!code) return '—';
@@ -266,11 +301,14 @@ function ScheduleDetailContent() {
     wsDetails['!cols'] = [{ wch: 22 }, { wch: 40 }];
     XLSX.utils.book_append_sheet(wb, wsDetails, 'Schedule Details');
 
-    // Sheet 2: Journal Entries
+    // Sheet 2: Journal Entries (period entries + write-off, sorted by date)
+    const entriesForExport = [...(schedule.journalEntries || [])].sort(
+      (a, b) => new Date(a.periodDate).getTime() - new Date(b.periodDate).getTime()
+    );
     const journalData: (string | number)[][] = [
       ['Period Date', 'Amount', 'Status', 'Xero Journal #'],
-      ...sortedEntries.map((entry) => [
-        formatDateOnly(entry.periodDate),
+      ...entriesForExport.map((entry: JournalEntry) => [
+        formatDateOnly(entry.periodDate) + (entry.writeOff ? ' (Write-off)' : ''),
         formatCurrency(entry.amount, orgCurrency),
         entry.posted ? 'Posted' : 'Pending',
         entry.xeroManualJournalId ? `#${entry.xeroJournalNumber || entry.id}` : '-',
@@ -348,6 +386,23 @@ function ScheduleDetailContent() {
     }
   };
 
+  const handleWriteOffConfirm = async () => {
+    if (!scheduleId || !tenantId || !writeOffDate) return;
+    setWriteOffError(null);
+    try {
+      setWriteOffSubmitting(true);
+      const updated = await scheduleApi.fullyRecognise(scheduleId, tenantId, writeOffDate);
+      setSchedule(updated);
+      setShowWriteOffModal(false);
+    } catch (err: any) {
+      console.error('Error fully recognising schedule:', err);
+      const msg = err?.data?.error ?? err?.message ?? 'Failed to post write-off to Xero';
+      setWriteOffError(msg);
+    } finally {
+      setWriteOffSubmitting(false);
+    }
+  };
+
   if (loading && !tenantId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -384,11 +439,6 @@ function ScheduleDetailContent() {
     );
   }
 
-  const journalEntries = schedule?.journalEntries || [];
-  const sortedEntries = [...journalEntries].sort((a, b) => 
-    new Date(a.periodDate).getTime() - new Date(b.periodDate).getTime()
-  );
-
   return (
     <DashboardLayout tenantId={tenantId}>
       <>
@@ -404,19 +454,36 @@ function ScheduleDetailContent() {
           </button>
           <div className="flex items-center gap-2">
             {!schedule.voided && (
-              <button
-                type="button"
-                onClick={() => setShowVoidModal(true)}
-                disabled={voiding}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
-              >
-                {voiding ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Ban className="w-4 h-4" />
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowVoidModal(true)}
+                  disabled={voiding}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                >
+                  {voiding ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Ban className="w-4 h-4" />
+                  )}
+                  Void schedule
+                </button>
+                {!isCompleted && schedule.remainingBalance != null && schedule.remainingBalance > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWriteOffError(null);
+                      const today = new Date().toISOString().slice(0, 10);
+                      const min = minWriteOffDate;
+                      setWriteOffDate(min && today < min ? min : today);
+                      setShowWriteOffModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-900 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors"
+                  >
+                    Fully Recognise (write off)
+                  </button>
                 )}
-                Void schedule
-              </button>
+              </>
             )}
             <button
               type="button"
@@ -488,6 +555,10 @@ function ScheduleDetailContent() {
                 {schedule.voided ? (
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-100 text-red-700">
                     Voided
+                  </span>
+                ) : isCompleted ? (
+                  <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
+                    Completed
                   </span>
                 ) : schedule.postedPeriods === schedule.totalPeriods && schedule.totalPeriods ? (
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
@@ -566,7 +637,7 @@ function ScheduleDetailContent() {
           <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
             <h3 className="text-base font-bold text-gray-900">Journal Entries</h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              {sortedEntries.length} {sortedEntries.length === 1 ? 'entry' : 'entries'} total
+              {periodEntries.length + (writeOffEntry ? 1 : 0)} {periodEntries.length + (writeOffEntry ? 1 : 0) === 1 ? 'entry' : 'entries'} total
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -581,7 +652,7 @@ function ScheduleDetailContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {sortedEntries.map((entry) => (
+                {periodEntries.map((entry) => (
                   <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3">
                       <div className="text-sm font-medium text-gray-900">{formatDateOnly(entry.periodDate)}</div>
@@ -630,9 +701,9 @@ function ScheduleDetailContent() {
                       ) : (
                         <button
                           onClick={(e) => handlePostJournal(entry, e)}
-                          disabled={posting.has(entry.id) || schedule.voided}
+                          disabled={posting.has(entry.id) || schedule.voided || isCompleted}
                           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                            schedule.voided
+                            schedule.voided || isCompleted
                               ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                               : 'text-white bg-[#6d69ff] hover:bg-[#5a56e6]'
                           }`}
@@ -653,7 +724,58 @@ function ScheduleDetailContent() {
                     </td>
                   </tr>
                 ))}
-                {sortedEntries.length === 0 && (
+                {writeOffEntry && (
+                  <>
+                    <tr className="bg-gray-50" aria-hidden>
+                      <td colSpan={5} className="px-5 py-0 h-0 border-t border-gray-200" />
+                    </tr>
+                    <tr className="hover:bg-gray-50 transition-colors bg-amber-50/30">
+                      <td className="px-5 py-3">
+                        <div className="text-sm font-medium text-gray-900">{formatDateOnly(writeOffEntry.periodDate)}</div>
+                        <div className="text-[10px] text-amber-700 font-medium mt-0.5">Write-off</div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="text-sm font-bold text-gray-900">{formatCurrency(writeOffEntry.amount, orgCurrency)}</div>
+                      </td>
+                      <td className="px-5 py-3">
+                        {writeOffEntry.posted ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
+                            <CheckCircle className="w-3 h-3" />
+                            Posted
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-700">
+                            <XCircle className="w-3 h-3" />
+                            Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3">
+                        {writeOffEntry.xeroManualJournalId ? (
+                          <a
+                            href={`https://go.xero.com/Journal/View.aspx?invoiceID=${writeOffEntry.xeroManualJournalId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-[#6d69ff] hover:text-[#5a56e6] transition-colors hover:underline"
+                            title="Open in Xero"
+                          >
+                            Posted Manual Journal #{writeOffEntry.xeroJournalNumber || writeOffEntry.id}
+                          </a>
+                        ) : (
+                          <div className="text-xs text-gray-400">-</div>
+                        )}
+                      </td>
+                      <td className="px-5 py-3">
+                        {writeOffEntry.posted ? (
+                          <span className="text-xs text-gray-400">Already posted</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  </>
+                )}
+                {periodEntries.length === 0 && !writeOffEntry && (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                       <div className="flex flex-col items-center gap-2">
@@ -826,6 +948,75 @@ function ScheduleDetailContent() {
                     </div>
                   </>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fully Recognise (write off) modal */}
+      {showWriteOffModal && schedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !writeOffSubmitting && setShowWriteOffModal(false)}
+            aria-hidden
+          />
+          <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-gray-200">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-[#6d69ff]/10 flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-[#6d69ff]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-gray-900">Fully Recognise (write off)</h3>
+                <p className="mt-2 text-sm text-gray-600">
+                  Post the remaining {formatCurrency(schedule.remainingBalance ?? 0, orgCurrency)} to Xero in one journal entry on the date you choose. The schedule will be marked as Completed and pending Post to Xero buttons will be disabled.
+                </p>
+                {writeOffError && (
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">{writeOffError}</p>
+                  </div>
+                )}
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Write-off date</label>
+                  <input
+                    type="date"
+                    value={writeOffDate}
+                    min={minWriteOffDate}
+                    onChange={(e) => setWriteOffDate(e.target.value)}
+                    className="w-full h-10 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
+                  />
+                  {minWriteOffDate && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Must be after the most recently posted journal date.
+                    </p>
+                  )}
+                </div>
+                <div className="mt-6 flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowWriteOffModal(false)}
+                    disabled={writeOffSubmitting}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleWriteOffConfirm}
+                    disabled={writeOffSubmitting}
+                    className="px-4 py-2 text-sm font-medium text-white bg-[#6d69ff] rounded-lg hover:bg-[#5a56e6] transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {writeOffSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Posting...
+                      </>
+                    ) : (
+                      'Post write-off to Xero'
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -571,7 +571,7 @@ function NewSchedulePageContent() {
             </div>
             {/* Right: Summary - match loaded (rows + divider + buttons + info) */}
             <div className="space-y-5 w-full">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden w-full">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden w-full transition-all duration-200 hover:shadow-md hover:border-gray-300">
                 <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
                   <h3 className="text-base font-bold text-gray-900">Summary</h3>
                   <p className="text-xs text-gray-500 mt-0.5">Preview schedule totals and period breakdown</p>
@@ -635,7 +635,7 @@ function NewSchedulePageContent() {
               {/* Left Column - Schedule Details */}
               <div className="lg:col-span-2 space-y-5">
                 {/* Card 1: Schedule type & invoice - overflow-visible so contact dropdown is not clipped */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible transition-all duration-200 hover:shadow-md hover:border-gray-300">
                   <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
                     <h3 className="text-base font-bold text-gray-900">Schedule Type & Invoice</h3>
                     <p className="text-xs text-gray-500 mt-0.5">Type, contact and invoice details</p>
@@ -865,11 +865,50 @@ function NewSchedulePageContent() {
                           </div>
                         </div>
                       </div>
+
+                    {/* Invoice Upload */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Invoice
+                      </label>
+                      {!invoiceFile ? (
+                        <label className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#6d69ff] hover:bg-[#6d69ff]/5 transition-colors">
+                          <Upload className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm text-gray-500">
+                            Click to upload invoice (PDF, JPG, PNG)
+                          </span>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                          />
+                        </label>
+                      ) : (
+                        <div className="flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-lg bg-gray-50">
+                          <FileText className="w-4 h-4 text-[#6d69ff] flex-shrink-0" />
+                          <span className="text-sm text-gray-700 truncate flex-1">
+                            {invoiceFile.name}
+                          </span>
+                          {uploadingInvoice && (
+                            <div className="w-4 h-4 border-2 border-[#6d69ff] border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleRemoveInvoice}
+                            className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     </div>
                 </div>
 
                 {/* Card 2: Schedule period & posting */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
                   <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
                     <h3 className="text-base font-bold text-gray-900">Schedule Period & Posting</h3>
                     <p className="text-xs text-gray-500 mt-0.5">Dates, accounts and amortisation</p>
@@ -1105,51 +1144,12 @@ function NewSchedulePageContent() {
                         />
                       </div>
                     </div>
-
-                    {/* Invoice Upload */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Invoice
-                      </label>
-                      {!invoiceFile ? (
-                        <label className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#6d69ff] hover:bg-[#6d69ff]/5 transition-colors">
-                          <Upload className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm text-gray-500">
-                            Click to upload invoice (PDF, JPG, PNG)
-                          </span>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            onChange={handleFileSelect}
-                            className="hidden"
-                          />
-                        </label>
-                      ) : (
-                        <div className="flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-lg bg-gray-50">
-                          <FileText className="w-4 h-4 text-[#6d69ff] flex-shrink-0" />
-                          <span className="text-sm text-gray-700 truncate flex-1">
-                            {invoiceFile.name}
-                          </span>
-                          {uploadingInvoice && (
-                            <div className="w-4 h-4 border-2 border-[#6d69ff] border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
-                          )}
-                          <button
-                            type="button"
-                            onClick={handleRemoveInvoice}
-                            className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
 
                 {/* Invoice Preview Card */}
                 {invoiceFile && invoicePreviewUrl && (
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
                     <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
                       <div>
                         <h3 className="text-base font-bold text-gray-900">Invoice Preview</h3>
@@ -1185,7 +1185,7 @@ function NewSchedulePageContent() {
               {/* Right Column - Summary & Actions */}
               <div className="space-y-5">
                 {/* Summary Card */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
                   <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
                     <h3 className="text-base font-bold text-gray-900">Summary</h3>
                     <p className="text-xs text-gray-500 mt-0.5">Preview schedule totals and period breakdown</p>
@@ -1338,7 +1338,7 @@ function NewSchedulePageContent() {
 
                 {/* Schedule Preview */}
                 {showPreview && previewEntries.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200">
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
                     <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
                       <h3 className="text-base font-bold text-gray-900">
                         Schedule Preview

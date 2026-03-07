@@ -146,5 +146,83 @@ public class JournalService {
         
         return lines;
     }
+
+    /**
+     * Post a write-off (full recognition) journal entry to Xero.
+     * The entry must have writeOff=true and amount = remaining balance to be written off.
+     */
+    @Transactional
+    public JournalEntry postWriteOffJournal(Long journalEntryId, String tenantId) {
+        JournalEntry entry = Objects.requireNonNull(
+            journalEntryRepository.findById(Objects.requireNonNull(journalEntryId, "Journal entry ID cannot be null"))
+                .orElseThrow(() -> new RuntimeException("Journal entry not found: " + journalEntryId)),
+            "Journal entry cannot be null"
+        );
+        if (!Boolean.TRUE.equals(entry.getWriteOff())) {
+            throw new RuntimeException("Journal entry is not a write-off entry");
+        }
+        Schedule schedule = entry.getSchedule();
+        if (!schedule.getTenantId().equals(tenantId)) {
+            throw new RuntimeException("Journal entry does not belong to tenant: " + tenantId);
+        }
+        if (Boolean.TRUE.equals(schedule.getVoided())) {
+            throw new RuntimeException("Cannot post write-off: schedule has been voided");
+        }
+        if (entry.getPosted()) {
+            throw new RuntimeException("Write-off journal entry already posted");
+        }
+        List<JournalLine> journalLines = buildWriteOffJournalLines(schedule, entry);
+        String narration = (schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepayment" : "Unearned Revenue")
+            + " - Full recognition (write-off)"
+            + (schedule.getContactName() != null && !schedule.getContactName().isEmpty() ? " - " + schedule.getContactName() : "")
+            + " | Schedule: " + schedule.getStartDate() + " to " + schedule.getEndDate();
+        try {
+            com.prepaidly.service.XeroApiService.ManualJournalResult result = xeroApiService.createManualJournal(
+                tenantId,
+                narration,
+                entry.getPeriodDate(),
+                journalLines
+            );
+            entry.setXeroManualJournalId(result.getJournalId());
+            if (result.getJournalNumber() != null) {
+                entry.setXeroJournalNumber(result.getJournalNumber());
+            }
+            entry.setPosted(true);
+            entry.setPostedAt(java.time.LocalDateTime.now());
+            return journalEntryRepository.save(entry);
+        } catch (Exception e) {
+            log.error("Error posting write-off journal entry {} to Xero", journalEntryId, e);
+            throw new RuntimeException("Failed to post write-off to Xero: " + e.getMessage(), e);
+        }
+    }
+
+    private List<JournalLine> buildWriteOffJournalLines(Schedule schedule, JournalEntry entry) {
+        List<JournalLine> lines = new ArrayList<>();
+        String lineDescription = "Fully recognised (write-off) | " + (schedule.getDescription() != null && !schedule.getDescription().isEmpty() ? schedule.getDescription() : (schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepayment" : "Unearned revenue"));
+        if (schedule.getType() == Schedule.ScheduleType.PREPAID) {
+            JournalLine expenseLine = new JournalLine();
+            expenseLine.setAccountCode(schedule.getExpenseAcctCode());
+            expenseLine.setDescription(lineDescription);
+            expenseLine.setLineAmount(entry.getAmount());
+            lines.add(expenseLine);
+            JournalLine deferralLine = new JournalLine();
+            deferralLine.setAccountCode(schedule.getDeferralAcctCode());
+            deferralLine.setDescription(lineDescription);
+            deferralLine.setLineAmount(entry.getAmount().negate());
+            lines.add(deferralLine);
+        } else {
+            JournalLine deferralLine = new JournalLine();
+            deferralLine.setAccountCode(schedule.getDeferralAcctCode());
+            deferralLine.setDescription(lineDescription);
+            deferralLine.setLineAmount(entry.getAmount().negate());
+            lines.add(deferralLine);
+            JournalLine revenueLine = new JournalLine();
+            revenueLine.setAccountCode(schedule.getRevenueAcctCode());
+            revenueLine.setDescription(lineDescription);
+            revenueLine.setLineAmount(entry.getAmount());
+            lines.add(revenueLine);
+        }
+        return lines;
+    }
 }
 

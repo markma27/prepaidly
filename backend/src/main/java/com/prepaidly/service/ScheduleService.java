@@ -33,6 +33,7 @@ public class ScheduleService {
     private final JournalEntryRepository journalEntryRepository;
     private final UserRepository userRepository;
     private final XeroApiService xeroApiService;
+    private final JournalService journalService;
     
     /**
      * Create a new schedule and generate journal entries
@@ -247,6 +248,50 @@ public class ScheduleService {
             .orElseThrow(() -> new RuntimeException("Schedule not found: " + scheduleId));
         schedule.setVoided(true);
         schedule = scheduleRepository.save(schedule);
+        return toScheduleResponse(schedule);
+    }
+    
+    /**
+     * Fully recognise (write off) the remaining balance in one go.
+     * Creates a write-off journal entry, posts it to Xero, and returns the updated schedule.
+     */
+    @Transactional
+    public ScheduleResponse fullyRecognise(Long scheduleId, String tenantId, LocalDate writeOffDate) {
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+            .orElseThrow(() -> new RuntimeException("Schedule not found: " + scheduleId));
+        if (!schedule.getTenantId().equals(tenantId)) {
+            throw new RuntimeException("Schedule does not belong to tenant: " + tenantId);
+        }
+        if (Boolean.TRUE.equals(schedule.getVoided())) {
+            throw new RuntimeException("Cannot fully recognise: schedule has been voided");
+        }
+        List<JournalEntry> entries = journalEntryRepository.findByScheduleId(scheduleId);
+        // Write-off date must be after the most recently posted (period) journal date
+        java.util.Optional<LocalDate> maxPostedPeriodDate = entries.stream()
+            .filter(e -> Boolean.TRUE.equals(e.getPosted()) && !Boolean.TRUE.equals(e.getWriteOff()))
+            .map(JournalEntry::getPeriodDate)
+            .max(LocalDate::compareTo);
+        if (maxPostedPeriodDate.isPresent() && !writeOffDate.isAfter(maxPostedPeriodDate.get())) {
+            throw new RuntimeException("Write-off date must be after the most recently posted journal date ("
+                + maxPostedPeriodDate.get() + ").");
+        }
+        BigDecimal postedAmount = entries.stream()
+            .filter(JournalEntry::getPosted)
+            .map(JournalEntry::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal remainingBalance = schedule.getTotalAmount().subtract(postedAmount);
+        if (remainingBalance.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("No remaining amount to write off. Schedule is already fully recognised.");
+        }
+        JournalEntry writeOffEntry = new JournalEntry();
+        writeOffEntry.setSchedule(schedule);
+        writeOffEntry.setPeriodDate(writeOffDate);
+        writeOffEntry.setAmount(remainingBalance);
+        writeOffEntry.setWriteOff(true);
+        writeOffEntry.setPosted(false);
+        writeOffEntry = journalEntryRepository.save(writeOffEntry);
+        journalService.postWriteOffJournal(writeOffEntry.getId(), tenantId);
+        schedule = scheduleRepository.findById(scheduleId).orElse(schedule);
         return toScheduleResponse(schedule);
     }
     
@@ -604,13 +649,16 @@ public class ScheduleService {
                 .collect(Collectors.toList());
             response.setJournalEntries(entryResponses);
             
-            // Calculate statistics
-            response.setTotalPeriods(entries.size());
-            response.setPostedPeriods((int) entries.stream()
+            // Exclude write-off entries from period counts; include all in remaining balance
+            List<JournalEntry> periodEntries = entries.stream()
+                .filter(e -> !Boolean.TRUE.equals(e.getWriteOff()))
+                .collect(Collectors.toList());
+            response.setTotalPeriods(periodEntries.size());
+            response.setPostedPeriods((int) periodEntries.stream()
                 .filter(JournalEntry::getPosted)
                 .count());
             
-            // Calculate remaining balance
+            // Remaining balance = total minus all posted amounts (including write-off)
             BigDecimal postedAmount = entries.stream()
                 .filter(JournalEntry::getPosted)
                 .map(JournalEntry::getAmount)
@@ -689,6 +737,7 @@ public class ScheduleService {
         response.setCreatedAt(entry.getCreatedAt());
         response.setPostedAt(entry.getPostedAt());
         response.setUpdatedAt(entry.getUpdatedAt());
+        response.setWriteOff(Boolean.TRUE.equals(entry.getWriteOff()));
         return response;
     }
 }

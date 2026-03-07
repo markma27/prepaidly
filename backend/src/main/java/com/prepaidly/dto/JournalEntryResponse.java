@@ -111,5 +111,10 @@ public class JournalEntryResponse {
      * Example: "2025-01-20T14:30:00"
      */
     private LocalDateTime updatedAt;
+
+    /**
+     * True when this entry is a full recognition (write-off) of remaining balance.
+     */
+    private Boolean writeOff;
 }
 

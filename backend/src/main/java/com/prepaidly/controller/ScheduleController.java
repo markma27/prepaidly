@@ -7,9 +7,11 @@ import com.prepaidly.service.ScheduleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -333,6 +335,31 @@ public class ScheduleController {
             }
             return ResponseEntity.status(500).body(Map.of(
                 "error", "Failed to void schedule: " + e.getMessage(),
+                "success", false
+            ));
+        }
+    }
+
+    /**
+     * Fully recognise (write off) remaining balance in one journal entry on the given date.
+     * Posts the write-off to Xero and returns the updated schedule.
+     */
+    @PostMapping("/{id}/fully-recognise")
+    public ResponseEntity<?> fullyRecognise(
+            @PathVariable Long id,
+            @RequestParam String tenantId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate writeOffDate) {
+        try {
+            log.info("Fully recognise schedule {} for tenant {}, write-off date {}", id, tenantId, writeOffDate);
+            ScheduleResponse schedule = scheduleService.fullyRecognise(id, tenantId, writeOffDate);
+            return ResponseEntity.ok(schedule);
+        } catch (RuntimeException e) {
+            log.error("Error fully recognising schedule {}", id, e);
+            if (e.getMessage() != null && e.getMessage().contains("not found")) {
+                return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+            }
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", e.getMessage(),
                 "success", false
             ));
         }

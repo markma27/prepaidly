@@ -51,6 +51,8 @@ export interface JournalEntry {
   createdAt: string;
   postedAt?: string;
   updatedAt?: string;
+  /** True when this entry is a full recognition (write-off) of remaining balance */
+  writeOff?: boolean;
 }
 
 export interface Schedule {

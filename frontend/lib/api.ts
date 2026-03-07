@@ -315,6 +315,22 @@ export const scheduleApi = {
   getSchedule: async (id: number): Promise<Schedule> => {
     return fetchApi<Schedule>(`/api/schedules/${id}`);
   },
+
+  /**
+   * Fully recognise (write off) remaining balance in one journal entry on the given date.
+   * Posts to Xero and returns the updated schedule.
+   */
+  fullyRecognise: async (scheduleId: number, tenantId: string, writeOffDate: string): Promise<Schedule> => {
+    const result = await fetchApi<Schedule>(
+      `/api/schedules/${scheduleId}/fully-recognise?tenantId=${encodeURIComponent(tenantId)}&writeOffDate=${encodeURIComponent(writeOffDate)}`,
+      { method: 'POST' }
+    );
+    if (result.tenantId) {
+      clearCachedData(getCacheKey('schedules', result.tenantId));
+      clearCachedData(getCacheKey('schedules', result.tenantId) + ':voided');
+    }
+    return result;
+  },
 };
 
 // Journal API

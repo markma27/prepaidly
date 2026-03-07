@@ -61,6 +61,10 @@ public class JournalEntry {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    /** True when this entry is a full recognition (write-off) of remaining balance */
+    @Column(name = "is_write_off", nullable = false)
+    private Boolean writeOff = false;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
