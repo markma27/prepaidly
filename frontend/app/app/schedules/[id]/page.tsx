@@ -10,7 +10,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import ScheduleDetailSkeleton from '@/components/ScheduleDetailSkeleton';
-import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink, Clock, User, FileText, FileDown, Ban, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink, Clock, User, FileText, FileDown, Ban, AlertTriangle, Pencil } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 
@@ -37,6 +37,12 @@ function ScheduleDetailContent() {
   });
   const [writeOffSubmitting, setWriteOffSubmitting] = useState(false);
   const [writeOffError, setWriteOffError] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editContactName, setEditContactName] = useState('');
+  const [editInvoiceReference, setEditInvoiceReference] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const scheduleId = params?.id ? parseInt(params.id as string) : null;
   
@@ -403,6 +409,34 @@ function ScheduleDetailContent() {
     }
   };
 
+  const handleEditPartialSubmit = async () => {
+    if (!scheduleId || !tenantId) return;
+    if (!editContactName.trim()) {
+      setEditError('Contact is required');
+      return;
+    }
+    if (!editInvoiceReference.trim()) {
+      setEditError('Invoice reference is required');
+      return;
+    }
+    setEditError(null);
+    try {
+      setEditSubmitting(true);
+      const updated = await scheduleApi.updateSchedulePartial(scheduleId, tenantId, {
+        contactName: editContactName.trim(),
+        invoiceReference: editInvoiceReference.trim(),
+        description: editDescription.trim() || undefined,
+      });
+      setSchedule(updated);
+      setShowEditModal(false);
+    } catch (err: any) {
+      console.error('Error updating schedule:', err);
+      setEditError(err?.data?.error ?? err?.message ?? 'Failed to update schedule');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   if (loading && !tenantId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -455,6 +489,25 @@ function ScheduleDetailContent() {
           <div className="flex items-center gap-2">
             {!schedule.voided && (
               <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const hasAnyPosted = (schedule.postedPeriods ?? 0) > 0;
+                    if (!hasAnyPosted) {
+                      router.push(`/app/schedules/${schedule.id}/edit?tenantId=${tenantId}`);
+                    } else {
+                      setEditContactName(schedule.contactName ?? '');
+                      setEditInvoiceReference(schedule.invoiceReference ?? '');
+                      setEditDescription(schedule.description ?? '');
+                      setEditError(null);
+                      setShowEditModal(true);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit Schedule
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowVoidModal(true)}
@@ -1014,6 +1067,92 @@ function ScheduleDetailContent() {
                       </>
                     ) : (
                       'Post write-off to Xero'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Schedule (partial) modal - Contact, Invoice Reference, Description only */}
+      {showEditModal && schedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !editSubmitting && setShowEditModal(false)}
+            aria-hidden
+          />
+          <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 border border-gray-200">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <Pencil className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-gray-900">Edit Schedule</h3>
+                <p className="mt-2 text-sm text-gray-600">
+                  Some journals have been posted. You can only update Contact, Invoice Reference, and Description.
+                </p>
+                {editError && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800">{editError}</p>
+                  </div>
+                )}
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Contact</label>
+                    <input
+                      type="text"
+                      value={editContactName}
+                      onChange={(e) => setEditContactName(e.target.value)}
+                      className="w-full h-10 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
+                      placeholder="Contact name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Invoice Reference</label>
+                    <input
+                      type="text"
+                      value={editInvoiceReference}
+                      onChange={(e) => setEditInvoiceReference(e.target.value)}
+                      className="w-full h-10 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
+                      placeholder="Invoice reference"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Description (optional)</label>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 placeholder:text-gray-400"
+                      placeholder="Description or notes"
+                    />
+                  </div>
+                </div>
+                <div className="mt-6 flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    disabled={editSubmitting}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleEditPartialSubmit}
+                    disabled={editSubmitting}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {editSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save'
                     )}
                   </button>
                 </div>

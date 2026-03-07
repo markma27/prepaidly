@@ -27,9 +27,11 @@ import Skeleton from '@/components/Skeleton';
 interface DashboardLayoutProps {
   children: React.ReactNode;
   tenantId: string;
+  /** Optional page title; when set, overrides the default title from navigation */
+  pageTitle?: string;
 }
 
-export default function DashboardLayout({ children, tenantId }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, tenantId, pageTitle }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   // Cache duration: 5 minutes
@@ -518,7 +520,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
                   <PageIcon className="w-6 h-6 text-[#6d69ff]" />
                 </div>
                 <div className="flex flex-col justify-center">
-                  <h1 className="text-xl font-bold text-gray-900 leading-tight">{getPageTitle()}</h1>
+                  <h1 className="text-xl font-bold text-gray-900 leading-tight">{pageTitle ?? getPageTitle()}</h1>
                   <div className="flex items-center gap-1.5 text-[9px] text-gray-500 mt-0.5">
                     <Calendar className="w-3 h-3" />
                     <span>{getCurrentDate()}</span>

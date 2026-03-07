@@ -2,6 +2,7 @@ package com.prepaidly.controller;
 
 import com.prepaidly.dto.CreateScheduleRequest;
 import com.prepaidly.dto.ScheduleResponse;
+import com.prepaidly.dto.UpdateSchedulePartialRequest;
 import com.prepaidly.dto.VoidScheduleResponse;
 import com.prepaidly.service.ScheduleService;
 import jakarta.validation.Valid;
@@ -375,6 +376,51 @@ public class ScheduleController {
             return ResponseEntity.status(500).body(Map.of(
                 "error", "Failed to fetch schedule: " + e.getMessage()
             ));
+        }
+    }
+
+    /**
+     * Partial update: only contact name, invoice reference, and description.
+     * Use when at least one journal has been posted.
+     */
+    @PatchMapping("/{id}")
+    public ResponseEntity<?> updateSchedulePartial(
+            @PathVariable Long id,
+            @RequestParam String tenantId,
+            @RequestBody UpdateSchedulePartialRequest request) {
+        try {
+            ScheduleResponse schedule = scheduleService.updateSchedulePartial(id, tenantId, request);
+            return ResponseEntity.ok(schedule);
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("not found")) {
+                return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+            }
+            if (e.getMessage() != null && e.getMessage().contains("voided")) {
+                return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Full update: replace schedule with request data and regenerate journal entries.
+     * Only allowed when no journal has been posted.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateScheduleFull(
+            @PathVariable Long id,
+            @RequestParam String tenantId,
+            @Valid @RequestBody CreateScheduleRequest request) {
+        try {
+            ScheduleResponse schedule = scheduleService.updateScheduleFull(id, tenantId, request);
+            return ResponseEntity.ok(schedule);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("not found")) {
+                return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+            }
+            throw e;
         }
     }
 }

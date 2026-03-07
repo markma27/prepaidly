@@ -16,7 +16,7 @@ public class WebConfig implements WebMvcConfigurer {
                     "https://*.vercel.app",  // All Vercel deployments (production and preview)
                     "https://prepaidly.vercel.app"  // Explicit production domain
                 )
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true);
     }

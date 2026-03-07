@@ -4,6 +4,7 @@ import {
   XeroConnectionStatusResponse,
   Schedule,
   CreateScheduleRequest,
+  UpdateSchedulePartialRequest,
   PostJournalRequest,
   PostJournalResponse,
   VoidScheduleResponse,
@@ -324,6 +325,38 @@ export const scheduleApi = {
     const result = await fetchApi<Schedule>(
       `/api/schedules/${scheduleId}/fully-recognise?tenantId=${encodeURIComponent(tenantId)}&writeOffDate=${encodeURIComponent(writeOffDate)}`,
       { method: 'POST' }
+    );
+    if (result.tenantId) {
+      clearCachedData(getCacheKey('schedules', result.tenantId));
+      clearCachedData(getCacheKey('schedules', result.tenantId) + ':voided');
+    }
+    return result;
+  },
+
+  /**
+   * Partial update: only contact, invoice reference, and description.
+   * Use when at least one journal has been posted.
+   */
+  updateSchedulePartial: async (scheduleId: number, tenantId: string, request: UpdateSchedulePartialRequest): Promise<Schedule> => {
+    const result = await fetchApi<Schedule>(
+      `/api/schedules/${scheduleId}?tenantId=${encodeURIComponent(tenantId)}`,
+      { method: 'PATCH', body: JSON.stringify(request) }
+    );
+    if (result.tenantId) {
+      clearCachedData(getCacheKey('schedules', result.tenantId));
+      clearCachedData(getCacheKey('schedules', result.tenantId) + ':voided');
+    }
+    return result;
+  },
+
+  /**
+   * Full update: replace schedule and regenerate journal entries.
+   * Only allowed when no journal has been posted.
+   */
+  updateScheduleFull: async (scheduleId: number, tenantId: string, request: CreateScheduleRequest): Promise<Schedule> => {
+    const result = await fetchApi<Schedule>(
+      `/api/schedules/${scheduleId}?tenantId=${encodeURIComponent(tenantId)}`,
+      { method: 'PUT', body: JSON.stringify(request) }
     );
     if (result.tenantId) {
       clearCachedData(getCacheKey('schedules', result.tenantId));

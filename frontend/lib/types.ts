@@ -115,6 +115,13 @@ export interface PostJournalResponse {
   message: string;
 }
 
+/** Request for partial schedule update (contact, invoice reference, description only). */
+export interface UpdateSchedulePartialRequest {
+  contactName?: string;
+  invoiceReference?: string;
+  description?: string;
+}
+
 export interface VoidScheduleResponse {
   success: boolean;
   message: string;

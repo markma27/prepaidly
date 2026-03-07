@@ -3,6 +3,7 @@ package com.prepaidly.service;
 import com.prepaidly.dto.CreateScheduleRequest;
 import com.prepaidly.dto.JournalEntryResponse;
 import com.prepaidly.dto.ScheduleResponse;
+import com.prepaidly.dto.UpdateSchedulePartialRequest;
 import com.prepaidly.dto.VoidScheduleResponse;
 import com.prepaidly.model.JournalEntry;
 import com.prepaidly.model.Schedule;
@@ -74,6 +75,84 @@ public class ScheduleService {
             generateJournalEntries(schedule);
         }
         
+        return toScheduleResponse(schedule);
+    }
+
+    /**
+     * Partial update: only contact name, invoice reference, and description.
+     * Allowed when any journal entries exist (including when some are posted).
+     */
+    @Transactional
+    public ScheduleResponse updateSchedulePartial(Long scheduleId, String tenantId, UpdateSchedulePartialRequest request) {
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+            .orElseThrow(() -> new RuntimeException("Schedule not found: " + scheduleId));
+        if (!Objects.equals(schedule.getTenantId(), tenantId)) {
+            throw new RuntimeException("Schedule not found or access denied");
+        }
+        if (Boolean.TRUE.equals(schedule.getVoided())) {
+            throw new IllegalArgumentException("Cannot update a voided schedule");
+        }
+        if (request.getContactName() != null) {
+            schedule.setContactName(request.getContactName().trim().isEmpty() ? null : request.getContactName().trim());
+        }
+        if (request.getInvoiceReference() != null) {
+            schedule.setInvoiceReference(request.getInvoiceReference().trim().isEmpty() ? null : request.getInvoiceReference().trim());
+        }
+        if (request.getDescription() != null) {
+            schedule.setDescription(request.getDescription().trim().isEmpty() ? null : request.getDescription().trim());
+        }
+        schedule = scheduleRepository.save(schedule);
+        return toScheduleResponse(schedule);
+    }
+
+    /**
+     * Full update: replace schedule with request data and regenerate journal entries.
+     * Only allowed when no journal entry has been posted.
+     */
+    @Transactional
+    public ScheduleResponse updateScheduleFull(Long scheduleId, String tenantId, CreateScheduleRequest request) {
+        if (!Objects.equals(tenantId, request.getTenantId())) {
+            throw new IllegalArgumentException("Tenant ID in URL must match request body");
+        }
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+            .orElseThrow(() -> new RuntimeException("Schedule not found: " + scheduleId));
+        if (!Objects.equals(schedule.getTenantId(), tenantId)) {
+            throw new RuntimeException("Schedule not found or access denied");
+        }
+        if (Boolean.TRUE.equals(schedule.getVoided())) {
+            throw new IllegalArgumentException("Cannot update a voided schedule");
+        }
+        List<JournalEntry> entries = journalEntryRepository.findByScheduleId(scheduleId);
+        boolean anyPosted = entries.stream().anyMatch(JournalEntry::getPosted);
+        if (anyPosted) {
+            throw new IllegalArgumentException("Cannot fully edit schedule once any journal has been posted. Use partial edit to update Contact, Invoice Reference, and Description only.");
+        }
+        if (request.getStartDate().isAfter(request.getEndDate())) {
+            throw new IllegalArgumentException("Start date must be before end date");
+        }
+        // Update schedule fields (keep id, tenantId, createdBy, createdAt)
+        schedule.setXeroInvoiceId(request.getXeroInvoiceId());
+        schedule.setType(request.getType());
+        schedule.setStartDate(request.getStartDate());
+        schedule.setEndDate(request.getEndDate());
+        schedule.setTotalAmount(request.getTotalAmount());
+        schedule.setExpenseAcctCode(request.getExpenseAcctCode());
+        schedule.setRevenueAcctCode(request.getRevenueAcctCode());
+        schedule.setDeferralAcctCode(request.getDeferralAcctCode());
+        schedule.setContactName(request.getContactName());
+        schedule.setInvoiceReference(request.getInvoiceReference());
+        schedule.setDescription(request.getDescription());
+        schedule.setInvoiceDate(request.getInvoiceDate());
+        schedule.setInvoiceUrl(request.getInvoiceUrl());
+        schedule.setInvoiceFilename(request.getInvoiceFilename());
+        schedule = scheduleRepository.save(schedule);
+        journalEntryRepository.deleteAll(entries);
+        boolean useEqualMonthly = "equal".equalsIgnoreCase(request.getAllocationMethod());
+        if (useEqualMonthly) {
+            generateEqualMonthlyJournalEntries(schedule);
+        } else {
+            generateJournalEntries(schedule);
+        }
         return toScheduleResponse(schedule);
     }
     
