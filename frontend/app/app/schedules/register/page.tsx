@@ -23,7 +23,8 @@ function ScheduleRegisterContent() {
   const [tenantId, setTenantId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showVoided, setShowVoided] = useState(false);
-  
+  const [showCompleted, setShowCompleted] = useState(true);
+
   // Get org currency for formatting
   const orgCurrency = getOrgCurrency(tenantId) || 'USD';
 
@@ -97,12 +98,14 @@ function ScheduleRegisterContent() {
     return accountMap.get(code) || '';
   };
 
-  // Filter schedules: first by showVoided, then by search query
+  // Filter schedules: showVoided, showCompleted, then search query
   const filteredSchedules = useMemo(() => {
-    // Filter by voided visibility (no API call - instant toggle)
     let result = schedules;
     if (!showVoided) {
-      result = schedules.filter(s => !s.voided);
+      result = result.filter(s => !s.voided);
+    }
+    if (!showCompleted) {
+      result = result.filter(s => !(s.remainingBalance != null && s.remainingBalance <= 0));
     }
 
     if (!searchQuery.trim()) {
@@ -147,7 +150,7 @@ function ScheduleRegisterContent() {
       
       return typeMatch || accountCodeMatch || accountNameMatch || amountMatch || contactMatch || dateMatch;
     });
-  }, [schedules, showVoided, searchQuery, accountMap]);
+  }, [schedules, showVoided, showCompleted, searchQuery, accountMap]);
 
   // Sort filtered schedules (default: created date, newest first)
   const sortedSchedules = useMemo(() => {
@@ -306,6 +309,15 @@ function ScheduleRegisterContent() {
                   />
                   Show voided
                 </label>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={showCompleted}
+                    onChange={(e) => setShowCompleted(e.target.checked)}
+                    className="rounded border-gray-300 text-[#6d69ff] focus:ring-[#6d69ff]"
+                  />
+                  Show completed
+                </label>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -340,6 +352,7 @@ function ScheduleRegisterContent() {
                     const postedCount = schedule.postedPeriods || 0;
                     const totalCount = schedule.totalPeriods || 0;
                     const isComplete = postedCount === totalCount && totalCount > 0;
+                    const isCompleted = schedule.remainingBalance != null && schedule.remainingBalance <= 0;
                     
                     return (
                       <tr
@@ -394,6 +407,13 @@ function ScheduleRegisterContent() {
                               return (
                                 <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-100 text-red-700">
                                   Voided
+                                </span>
+                              );
+                            }
+                            if (isCompleted) {
+                              return (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
+                                  Completed
                                 </span>
                               );
                             }

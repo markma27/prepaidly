@@ -730,11 +730,25 @@ function DashboardPageContent() {
                     </td>
                     <td className="px-5 py-3">
                       {(() => {
+                        if (schedule.voided) {
+                          return (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-100 text-red-700">
+                              Voided
+                            </span>
+                          );
+                        }
+                        const isCompleted = schedule.remainingBalance != null && schedule.remainingBalance <= 0;
+                        if (isCompleted) {
+                          return (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
+                              Completed
+                            </span>
+                          );
+                        }
                         const postedCount = schedule.postedPeriods || 0;
                         const totalCount = schedule.totalPeriods || 0;
                         const isComplete = postedCount === totalCount && totalCount > 0;
                         const isNotPosted = postedCount === 0 && totalCount > 0;
-                        
                         if (isComplete) {
                           return (
                             <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-100 text-purple-700">
