@@ -87,6 +87,7 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
   const [userName, setUserName] = useState<string>('User');
   const [userInitial, setUserInitial] = useState<string>('P');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Memoize current connection lookup to avoid recalculation
@@ -484,7 +485,7 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
                     <button
                       onClick={() => {
                         setIsUserMenuOpen(false);
-                        // TODO: Navigate to profile page when implemented
+                        setIsProfileSettingsOpen(true);
                       }}
                       className="w-full flex items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                     >
@@ -601,6 +602,31 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
           {children}
         </main>
       </div>
+
+      {/* Profile Settings Floating Window */}
+      {isProfileSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setIsProfileSettingsOpen(false)}
+            aria-hidden="true"
+          />
+          {/* Floating window */}
+          <div className="relative bg-white rounded-lg shadow-xl border border-gray-200 p-6 min-w-[320px] max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Settings</h3>
+            <p className="text-sm text-gray-600 mb-6">Profile settings will be available here.</p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setIsProfileSettingsOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
