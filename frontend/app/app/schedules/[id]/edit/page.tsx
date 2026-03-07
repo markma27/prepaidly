@@ -343,7 +343,7 @@ function EditScheduleContent() {
 
   if (error && !schedule) {
     return (
-      <DashboardLayout tenantId={tenantId || undefined}>
+      <DashboardLayout tenantId={tenantId || ''}>
         <div className="max-w-[1800px] mx-auto p-6">
           <ErrorMessage message={error} />
           <button
