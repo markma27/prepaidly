@@ -528,7 +528,11 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
             </div>
 
             {/* Entity Selector */}
-            <div className="relative" ref={entityMenuRef}>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center whitespace-nowrap rounded-full bg-primary/55 px-2 py-0.5 text-[13px] font-medium text-white">
+                Current Entity
+              </span>
+              <div className="relative" ref={entityMenuRef}>
               <button 
                 onClick={() => setIsEntityMenuOpen(!isEntityMenuOpen)}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors group"
@@ -585,6 +589,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
                     )}
                   </div>
                 )}
+              </div>
             </div>
           </div>
         </header>
