@@ -670,15 +670,6 @@ function ScheduleDetailContent() {
                       {schedule.invoiceFilename || 'View Invoice'}
                     </a>
                   </div>
-                  {schedule.invoiceUrl.match(/\.(jpg|jpeg|png)$/i) && (
-                    <div className="mt-2 rounded-lg overflow-hidden border border-gray-200 max-w-xs">
-                      <img
-                        src={schedule.invoiceUrl}
-                        alt="Invoice"
-                        className="w-full h-auto max-h-48 object-contain bg-gray-50"
-                      />
-                    </div>
-                  )}
                 </div>
               )}
             </div>

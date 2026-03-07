@@ -148,14 +148,25 @@ function AnalyticsPageContent() {
     return entries.find((je) => je.periodDate && je.periodDate.slice(0, 7) === monthPrefix);
   };
 
-  // Build amount-by-month map for a schedule from journal entries
+  // Build amount-by-month map for a schedule from journal entries.
+  // When a schedule is fully written off: show only the write-off amount in the write-off month; do not show any amounts in later months.
   const getAmountByMonth = (schedule: Schedule): Map<string, number> => {
     const map = new Map<string, number>();
-    if (!schedule.journalEntries) return map;
-    schedule.journalEntries.forEach((je) => {
+    const entries = schedule.journalEntries ?? [];
+    const writeOffEntry = entries.find((je) => je.writeOff);
+    const writeOffYearMonth = writeOffEntry?.periodDate ? `${writeOffEntry.periodDate.slice(0, 7)}-01` : null;
+
+    entries.forEach((je) => {
       const d = new Date(je.periodDate);
       const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-      map.set(yearMonth, je.amount);
+      if (writeOffYearMonth) {
+        if (je.writeOff) {
+          map.set(yearMonth, je.amount ?? 0);
+          return;
+        }
+        if (yearMonth >= writeOffYearMonth) return;
+      }
+      map.set(yearMonth, je.amount ?? 0);
     });
     return map;
   };
@@ -377,17 +388,26 @@ function AnalyticsPageContent() {
     return totals;
   }, [filteredSchedules, monthColumns]);
 
-  // Remaining unamortised balance based on invoice date: show from invoice-date month, full total until amortisation starts, then end-of-month balance
+  // Remaining unamortised balance based on invoice date: show from invoice-date month, full total until amortisation starts, then end-of-month balance.
+  // Once a schedule is fully written off, remaining balance is 0 from the write-off month onward (do not show remaining unposted in later months).
   const getRemainingBalanceByMonth = (schedule: Schedule): Map<string, number> => {
     const map = new Map<string, number>();
     const total = schedule.totalAmount ?? 0;
     const entries = schedule.journalEntries ?? [];
+    const writeOffEntry = entries.find((je) => je.writeOff);
+    const writeOffYearMonth = writeOffEntry?.periodDate ? `${writeOffEntry.periodDate.slice(0, 7)}-01` : null;
+
     // First month to show balance = month of invoice date, or start date if no invoice date
     const fromDate = schedule.invoiceDate || schedule.startDate;
     const firstMonthKey = fromDate ? `${fromDate.slice(0, 7)}-01` : '';
     const startDate = schedule.startDate; // amortisation starts on this date
 
     monthColumns.forEach((col) => {
+      // After write-off month: remaining balance is 0 (schedule fully written off; do not show remaining unposted)
+      if (writeOffYearMonth && col.yearMonth >= writeOffYearMonth) {
+        map.set(col.yearMonth, 0);
+        return;
+      }
       // Before invoice (or start) month: no balance to show
       if (firstMonthKey && col.yearMonth < firstMonthKey) {
         map.set(col.yearMonth, 0);

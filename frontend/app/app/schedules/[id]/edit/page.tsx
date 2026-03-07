@@ -18,6 +18,7 @@ import type { Schedule, ScheduleType, XeroAccount } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
+import EditScheduleSkeleton from '@/components/EditScheduleSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { ArrowLeft, DollarSign, FileText, Pencil, Loader2, User, Calendar, ChevronDown, Upload, Info, Eye, X } from 'lucide-react';
 
@@ -334,9 +335,9 @@ function EditScheduleContent() {
 
   if (loading && !schedule) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <LoadingSpinner message="Loading schedule..." />
-      </div>
+      <DashboardLayout tenantId={tenantId || ''} pageTitle="Edit Schedule">
+        <EditScheduleSkeleton />
+      </DashboardLayout>
     );
   }
 
