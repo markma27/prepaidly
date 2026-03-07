@@ -28,9 +28,9 @@ function ScheduleRegisterContent() {
   // Get org currency for formatting
   const orgCurrency = getOrgCurrency(tenantId) || 'USD';
 
-  /** Table sort: default created date, most recent first */
-  type RegisterSortKey = 'type' | 'contact' | 'account' | 'amount' | 'period' | 'status' | 'createdAt';
-  const [registerSortKey, setRegisterSortKey] = useState<RegisterSortKey>('createdAt');
+  /** Table sort: default period, most recent first */
+  type RegisterSortKey = 'type' | 'contact' | 'invoiceReference' | 'account' | 'amount' | 'period' | 'status';
+  const [registerSortKey, setRegisterSortKey] = useState<RegisterSortKey>('period');
   const [registerSortDir, setRegisterSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
@@ -142,13 +142,16 @@ function ScheduleRegisterContent() {
       const contactNameStr = schedule.contactName?.toLowerCase() || '';
       const contactMatch = contactNameStr.includes(query);
 
+      // Search by invoice reference
+      const invoiceRefStr = (schedule.invoiceReference ?? '').toLowerCase();
+      const invoiceRefMatch = invoiceRefStr.includes(query);
+
       // Search by dates
       const startDate = formatDateOnly(schedule.startDate).toLowerCase();
       const endDate = formatDateOnly(schedule.endDate).toLowerCase();
-      const createdDate = formatDateInTimezone(schedule.createdAt, getOrgTimezone(tenantId)).toLowerCase();
-      const dateMatch = startDate.includes(query) || endDate.includes(query) || createdDate.includes(query);
-      
-      return typeMatch || accountCodeMatch || accountNameMatch || amountMatch || contactMatch || dateMatch;
+      const dateMatch = startDate.includes(query) || endDate.includes(query);
+
+      return typeMatch || accountCodeMatch || accountNameMatch || amountMatch || contactMatch || invoiceRefMatch || dateMatch;
     });
   }, [schedules, showVoided, showCompleted, searchQuery, accountMap]);
 
@@ -168,6 +171,10 @@ function ScheduleRegisterContent() {
           aVal = (a.contactName || '').toLowerCase();
           bVal = (b.contactName || '').toLowerCase();
           break;
+        case 'invoiceReference':
+          aVal = (a.invoiceReference ?? '').toLowerCase();
+          bVal = (b.invoiceReference ?? '').toLowerCase();
+          break;
         case 'account':
           aVal = (a.type === 'PREPAID' ? a.expenseAcctCode : a.revenueAcctCode) || '';
           bVal = (b.type === 'PREPAID' ? b.expenseAcctCode : b.revenueAcctCode) || '';
@@ -184,10 +191,9 @@ function ScheduleRegisterContent() {
           aVal = (a.postedPeriods ?? 0) / Math.max(1, a.totalPeriods ?? 1);
           bVal = (b.postedPeriods ?? 0) / Math.max(1, b.totalPeriods ?? 1);
           break;
-        case 'createdAt':
         default:
-          aVal = a.createdAt;
-          bVal = b.createdAt;
+          aVal = a.startDate;
+          bVal = b.startDate;
           break;
       }
       if (aVal === bVal) return 0;
@@ -199,8 +205,8 @@ function ScheduleRegisterContent() {
     if (registerSortKey === column) {
       setRegisterSortDir(d => d === 'asc' ? 'desc' : 'asc');
     } else {
-      setRegisterSortKey(column);
-      setRegisterSortDir(column === 'contact' || column === 'account' || column === 'type' ? 'asc' : 'desc');
+    setRegisterSortKey(column);
+    setRegisterSortDir(column === 'contact' || column === 'account' || column === 'type' || column === 'invoiceReference' ? 'asc' : 'desc');
     }
   };
 
@@ -237,7 +243,7 @@ function ScheduleRegisterContent() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search schedules by type, account code, account name, amount, or date..."
+                  placeholder="Search schedules by type, contact, invoice reference, account code, account name, amount, or date..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
@@ -294,7 +300,7 @@ function ScheduleRegisterContent() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search schedules by type, account code, account name, amount, or date..."
+                    placeholder="Search schedules by type, contact, invoice reference, account code, account name, amount, or date..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
@@ -331,6 +337,9 @@ function ScheduleRegisterContent() {
                       <button type="button" onClick={() => handleRegisterSort('contact')} className="hover:text-gray-700 transition-colors" title="Sort by contact">Contact</button>
                     </th>
                     <th className="px-5 py-3">
+                      <button type="button" onClick={() => handleRegisterSort('invoiceReference')} className="hover:text-gray-700 transition-colors" title="Sort by invoice reference">Invoice Reference</button>
+                    </th>
+                    <th className="px-5 py-3">
                       <button type="button" onClick={() => handleRegisterSort('account')} className="hover:text-gray-700 transition-colors" title="Sort by account">Account Code & Name</button>
                     </th>
                     <th className="px-5 py-3">
@@ -341,9 +350,6 @@ function ScheduleRegisterContent() {
                     </th>
                     <th className="px-5 py-3">
                       <button type="button" onClick={() => handleRegisterSort('status')} className="hover:text-gray-700 transition-colors" title="Sort by status">Status</button>
-                    </th>
-                    <th className="px-5 py-3">
-                      <button type="button" onClick={() => handleRegisterSort('createdAt')} className="hover:text-gray-700 transition-colors" title="Sort by created date">Created Date</button>
                     </th>
                   </tr>
                 </thead>
@@ -372,6 +378,7 @@ function ScheduleRegisterContent() {
                           </span>
                         </td>
                         <td className="px-5 py-3 text-sm font-medium text-gray-900">{schedule.contactName || '—'}</td>
+                        <td className="px-5 py-3 text-sm text-gray-900">{schedule.invoiceReference || '-'}</td>
                         <td className="px-5 py-3">
                           <div className="text-sm text-gray-900">{schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode}</div>
                           {accountsLoaded && (
@@ -439,7 +446,6 @@ function ScheduleRegisterContent() {
                             }
                           })()}
                         </td>
-                        <td className="px-5 py-3 text-sm text-gray-500">{formatDateInTimezone(schedule.createdAt, getOrgTimezone(tenantId))}</td>
                       </tr>
                     );
                   })}
