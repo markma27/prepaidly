@@ -158,6 +158,13 @@ public class CreateScheduleRequest {
     private String contactName;
 
     /**
+     * Invoice reference or number for the schedule. Required.
+     * Example: "INV-2025-001"
+     */
+    @NotBlank(message = "Invoice reference is required")
+    private String invoiceReference;
+
+    /**
      * Optional description or notes for this schedule
      */
     private String description;

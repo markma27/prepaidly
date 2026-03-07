@@ -155,11 +155,13 @@ export function resolveEndDate(startDate: string, endDateInput: string): string 
     return formatDateForInput(end);
   }
 
-  // Parse as date — only accept complete dd/mm/yyyy or yyyy-mm-dd (avoid parsing "1" etc.)
-  const ddmmyyyy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (ddmmyyyy) {
-    const [, d, m, y] = ddmmyyyy;
-    const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  // Parse as date — dd/mm/yyyy, dd/mm/yy, or yyyy-mm-dd
+  const ddmmyy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (ddmmyy) {
+    const [, d, m, y] = ddmmyy;
+    let year = parseInt(y, 10);
+    if (year < 100) year = year >= 50 ? 1900 + year : 2000 + year;
+    const date = new Date(year, parseInt(m, 10) - 1, parseInt(d, 10));
     if (!isNaN(date.getTime())) return formatDateForInput(date);
   }
   const yyyymmdd = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -167,6 +169,52 @@ export function resolveEndDate(startDate: string, endDateInput: string): string 
     const [, y, m, d] = yyyymmdd;
     const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
     if (!isNaN(date.getTime())) return formatDateForInput(date);
+  }
+  return null;
+}
+
+/**
+ * Parse a date string (dd/mm/yyyy, dd/mm/yy, or yyyy-mm-dd) to YYYY-MM-DD.
+ * Supports 2-digit years: 25 → 2025, 99 → 1999.
+ * Returns null if the input is not a valid date.
+ */
+export function parseDateToYYYYMMDD(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  // dd/mm/yyyy or dd/mm/yy
+  const ddmmyy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (ddmmyy) {
+    const [, d, m, y] = ddmmyy;
+    let year = parseInt(y, 10);
+    if (year < 100) year = year >= 50 ? 1900 + year : 2000 + year;
+    const day = parseInt(d, 10);
+    const month = parseInt(m, 10);
+    const date = new Date(year, month - 1, day);
+    if (
+      !isNaN(date.getTime()) &&
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    ) {
+      return formatDateForInput(date);
+    }
+  }
+  // yyyy-mm-dd
+  const yyyymmdd = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (yyyymmdd) {
+    const [, y, m, d] = yyyymmdd;
+    const year = parseInt(y, 10);
+    const month = parseInt(m, 10);
+    const day = parseInt(d, 10);
+    const date = new Date(year, month - 1, day);
+    if (
+      !isNaN(date.getTime()) &&
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    ) {
+      return formatDateForInput(date);
+    }
   }
   return null;
 }

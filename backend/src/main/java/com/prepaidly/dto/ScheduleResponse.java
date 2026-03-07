@@ -118,6 +118,12 @@ public class ScheduleResponse {
     private String contactName;
 
     /**
+     * Invoice reference or number for the schedule.
+     * Example: "INV-2025-001"
+     */
+    private String invoiceReference;
+
+    /**
      * Optional description or notes
      */
     private String description;

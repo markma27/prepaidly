@@ -56,6 +56,7 @@ public class ScheduleService {
         schedule.setRevenueAcctCode(request.getRevenueAcctCode());
         schedule.setDeferralAcctCode(request.getDeferralAcctCode());
         schedule.setContactName(request.getContactName());
+        schedule.setInvoiceReference(request.getInvoiceReference());
         schedule.setDescription(request.getDescription());
         schedule.setInvoiceDate(request.getInvoiceDate());
         schedule.setInvoiceUrl(request.getInvoiceUrl());
@@ -569,6 +570,7 @@ public class ScheduleService {
         response.setRevenueAcctCode(schedule.getRevenueAcctCode());
         response.setDeferralAcctCode(schedule.getDeferralAcctCode());
         response.setContactName(schedule.getContactName());
+        response.setInvoiceReference(schedule.getInvoiceReference());
         response.setDescription(schedule.getDescription());
         response.setInvoiceDate(schedule.getInvoiceDate());
         response.setInvoiceUrl(schedule.getInvoiceUrl());
@@ -657,6 +659,7 @@ public class ScheduleService {
         response.setRevenueAcctCode(schedule.getRevenueAcctCode());
         response.setDeferralAcctCode(schedule.getDeferralAcctCode());
         response.setContactName(schedule.getContactName());
+        response.setInvoiceReference(schedule.getInvoiceReference());
         response.setDescription(schedule.getDescription());
         response.setInvoiceDate(schedule.getInvoiceDate());
         response.setInvoiceUrl(schedule.getInvoiceUrl());

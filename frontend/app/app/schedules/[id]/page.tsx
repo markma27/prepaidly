@@ -259,7 +259,7 @@ function ScheduleDetailContent() {
       ['Status', schedule.postedPeriods === schedule.totalPeriods && schedule.totalPeriods ? 'Complete' : 'In Progress'],
       [schedule.type === 'PREPAID' ? 'Expense Account' : 'Revenue Account', getAccountDisplay(schedule.type === 'PREPAID' ? schedule.expenseAcctCode : schedule.revenueAcctCode, schedule.type === 'PREPAID' ? 'Expense' : 'Revenue')],
       ['Invoice Date', schedule.invoiceDate ? formatDateOnly(schedule.invoiceDate) : ''],
-      ['Created', formatDateInTimezone(schedule.createdAt, getOrgTimezone(tenantId))],
+      ['Invoice Reference', schedule.invoiceReference || ''],
       ['Description', schedule.description || ''],
     ];
     const wsDetails = XLSX.utils.aoa_to_sheet(detailsData);
@@ -524,8 +524,8 @@ function ScheduleDetailContent() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">Created</div>
-                  <div className="text-sm text-gray-900">{formatDateInTimezone(schedule.createdAt, getOrgTimezone(tenantId))}</div>
+                  <div className="text-xs text-gray-500 mb-1">Invoice reference</div>
+                  <div className="text-sm text-gray-900">{schedule.invoiceReference || '—'}</div>
                 </div>
                 <div className="md:col-span-4">
                   <div className="text-xs text-gray-500 mb-1">Description</div>

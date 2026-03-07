@@ -3,14 +3,14 @@
 import { Suspense, useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { scheduleApi, xeroApi, settingsApi } from '@/lib/api';
-import { validateDateRange, formatCurrency, formatDateOnly, formatDateToDDMMYYYY, generateProRataSchedule, generateEqualMonthlySchedule, countProRataPeriods, getCurrencySymbol, resolveEndDate } from '@/lib/utils';
+import { validateDateRange, formatCurrency, formatDateOnly, formatDateToDDMMYYYY, parseDateToYYYYMMDD, generateProRataSchedule, generateEqualMonthlySchedule, countProRataPeriods, getCurrencySymbol, resolveEndDate } from '@/lib/utils';
 import { getOrgCurrency } from '@/lib/OrgContext';
 import type { XeroAccount, ScheduleType } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import Skeleton from '@/components/Skeleton';
-import { User, Eye, DollarSign, FileText, AlertTriangle, Info, Upload, X, Calendar } from 'lucide-react';
+import { User, Eye, DollarSign, FileText, AlertTriangle, Info, Upload, X, Calendar, ChevronDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 interface PreviewEntry {
@@ -43,6 +43,7 @@ function NewSchedulePageContent() {
   // Contact state (plain text, not linked to Xero)
   const [contactName, setContactName] = useState('');
   const [invoiceDate, setInvoiceDate] = useState('');
+  const [invoiceReference, setInvoiceReference] = useState('');
   const [existingContacts, setExistingContacts] = useState<string[]>([]);
   const [showContactDropdown, setShowContactDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -315,7 +316,11 @@ function NewSchedulePageContent() {
   const generatePreview = () => {
     setError(null);
 
-    const dateValidation = validateDateRange(startDate, resolvedEndDate);
+    if (!normalizedStartDate) {
+      setError('Please enter a valid start date (dd/mm/yyyy)');
+      return;
+    }
+    const dateValidation = validateDateRange(normalizedStartDate, resolvedEndDate);
     if (!dateValidation.valid) {
       setError(dateValidation.error || 'Invalid date range');
       return;
@@ -327,8 +332,8 @@ function NewSchedulePageContent() {
     }
 
     const scheduleEntries = allocationMethod === 'actual'
-      ? generateProRataSchedule(startDate, resolvedEndDate, parseFloat(totalAmount))
-      : generateEqualMonthlySchedule(startDate, resolvedEndDate, parseFloat(totalAmount));
+      ? generateProRataSchedule(normalizedStartDate, resolvedEndDate, parseFloat(totalAmount))
+      : generateEqualMonthlySchedule(normalizedStartDate, resolvedEndDate, parseFloat(totalAmount));
 
     const entries: PreviewEntry[] = scheduleEntries.map((entry) => ({
       period: entry.period,
@@ -348,12 +353,12 @@ function NewSchedulePageContent() {
   // Regenerate preview when allocation method changes (if preview is visible)
   const handleAllocationMethodChange = (method: 'actual' | 'equal') => {
     setAllocationMethod(method);
-    if (showPreview && startDate && resolvedEndDate && totalAmount && parseFloat(totalAmount) > 0) {
-      const dateValidation = validateDateRange(startDate, resolvedEndDate);
+    if (showPreview && normalizedStartDate && resolvedEndDate && totalAmount && parseFloat(totalAmount) > 0) {
+      const dateValidation = validateDateRange(normalizedStartDate, resolvedEndDate);
       if (dateValidation.valid) {
         const scheduleEntries = method === 'actual'
-          ? generateProRataSchedule(startDate, resolvedEndDate, parseFloat(totalAmount))
-          : generateEqualMonthlySchedule(startDate, resolvedEndDate, parseFloat(totalAmount));
+          ? generateProRataSchedule(normalizedStartDate, resolvedEndDate, parseFloat(totalAmount))
+          : generateEqualMonthlySchedule(normalizedStartDate, resolvedEndDate, parseFloat(totalAmount));
         setPreviewEntries(scheduleEntries.map((entry) => ({
           period: entry.period,
           date: entry.periodEnd.toLocaleDateString('en-GB', {
@@ -376,7 +381,19 @@ function NewSchedulePageContent() {
       return;
     }
 
-    const dateValidation = validateDateRange(startDate, resolvedEndDate);
+    const normalizedInvoiceDate = /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate)
+      ? invoiceDate
+      : parseDateToYYYYMMDD(invoiceDate.trim());
+    if (!normalizedInvoiceDate) {
+      setError('Please enter a valid invoice date (dd/mm/yyyy)');
+      return;
+    }
+    if (!normalizedStartDate) {
+      setError('Please enter a valid start date (dd/mm/yyyy)');
+      return;
+    }
+
+    const dateValidation = validateDateRange(normalizedStartDate, resolvedEndDate);
     if (!dateValidation.valid) {
       setError(dateValidation.error || 'Invalid date range');
       return;
@@ -411,8 +428,8 @@ function NewSchedulePageContent() {
       setError('Contact is required');
       return;
     }
-    if (!invoiceDate.trim()) {
-      setError('Invoice date is required');
+    if (!invoiceReference.trim()) {
+      setError('Invoice reference is required');
       return;
     }
 
@@ -423,15 +440,16 @@ function NewSchedulePageContent() {
       const request = {
         tenantId,
         type,
-        startDate,
+        startDate: normalizedStartDate,
         endDate: resolvedEndDate,
         totalAmount: parseFloat(totalAmount),
         expenseAcctCode: type === 'PREPAID' ? expenseAcctCode : undefined,
         revenueAcctCode: type === 'UNEARNED' ? revenueAcctCode : undefined,
         deferralAcctCode,
         contactName: contactName.trim(),
+        invoiceReference: invoiceReference.trim(),
         description: description.trim() || undefined,
-        invoiceDate: invoiceDate.trim(),
+        invoiceDate: normalizedInvoiceDate,
         invoiceUrl: invoiceStorageUrl || undefined,
         invoiceFilename: invoiceFile?.name || undefined,
         allocationMethod,
@@ -448,21 +466,30 @@ function NewSchedulePageContent() {
     }
   };
 
+  // Normalised start date (YYYY-MM-DD) for +1/+2 and date picker min
+  const normalizedStartDate = useMemo(() =>
+    /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : (parseDateToYYYYMMDD(startDate.trim()) ?? ''),
+    [startDate]
+  );
+
   // Resolve End Date: supports "+1", "+2" (months from start) or explicit date
   const resolvedEndDate = useMemo(() => {
-    return resolveEndDate(startDate, endDate) ?? '';
-  }, [startDate, endDate]);
+    return (normalizedStartDate ? resolveEndDate(normalizedStartDate, endDate) : null) ?? '';
+  }, [normalizedStartDate, endDate]);
+
+  const fieldClassName =
+    'w-full h-10 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900 placeholder:text-gray-400';
 
   // Calculate period count for display (using pro-rata logic)
   const periodCount = useMemo(() => {
-    if (startDate && resolvedEndDate) {
-      const validation = validateDateRange(startDate, resolvedEndDate);
+    if (normalizedStartDate && resolvedEndDate) {
+      const validation = validateDateRange(normalizedStartDate, resolvedEndDate);
       if (validation.valid) {
-        return countProRataPeriods(startDate, resolvedEndDate);
+        return countProRataPeriods(normalizedStartDate, resolvedEndDate);
       }
     }
     return 0;
-  }, [startDate, resolvedEndDate]);
+  }, [normalizedStartDate, resolvedEndDate]);
 
   if (!tenantId) {
     return (
@@ -607,168 +634,290 @@ function NewSchedulePageContent() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               {/* Left Column - Schedule Details */}
               <div className="lg:col-span-2 space-y-5">
-                {/* New Schedule card */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                {/* Card 1: Schedule type & invoice - overflow-visible so contact dropdown is not clipped */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-visible">
                   <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-                    <h3 className="text-base font-bold text-gray-900">New Schedule</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">Create a new prepayment or unearned revenue schedule</p>
+                    <h3 className="text-base font-bold text-gray-900">Schedule Type & Invoice</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Type, contact and invoice details</p>
                   </div>
                   <div className="p-5 space-y-5">
-                    {/* Schedule Type */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Schedule Type
-                      </label>
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setType('PREPAID');
-                            setShowPreview(false);
-                          }}
-                          className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 ${
-                            type === 'PREPAID'
-                              ? 'border-blue-500 bg-blue-50 text-blue-600'
-                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-center gap-2">
-                            <DollarSign className="w-4 h-4" />
-                            Prepayment
-                          </div>
-                          <p className="text-[10px] font-normal mt-1 opacity-70">
-                            Expense paid upfront, recognised monthly
-                          </p>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setType('UNEARNED');
-                            setShowPreview(false);
-                          }}
-                          className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 ${
-                            type === 'UNEARNED'
-                              ? 'border-green-500 bg-green-50 text-green-600'
-                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-center gap-2">
-                            <FileText className="w-4 h-4" />
-                            Unearned Revenue
-                          </div>
-                          <p className="text-[10px] font-normal mt-1 opacity-70">
-                            Revenue received upfront, recognised monthly
-                          </p>
-                        </button>
-                      </div>
-                    </div>
-                    {/* Contact and Invoice Date - same row */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="relative">
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Contact <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            ref={contactInputRef}
-                            type="text"
-                            value={contactName}
-                            onChange={(e) => {
-                              setContactName(e.target.value);
-                              setShowContactDropdown(true);
-                              setHighlightedIndex(-1);
-                            }}
-                            onFocus={() => {
-                              if (filteredContacts.length > 0) {
-                                setShowContactDropdown(true);
-                              }
-                            }}
-                            onKeyDown={handleContactKeyDown}
-                            placeholder="Enter contact / customer / supplier name"
-                            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
-                            autoComplete="off"
-                          />
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Included in the journal narration when posting to Xero
-                        </p>
-
-                        {/* Contact suggestions dropdown */}
-                        {showContactDropdown && filteredContacts.length > 0 && (
-                          <div
-                            ref={contactDropdownRef}
-                            className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                          >
-                            {filteredContacts.map((name, index) => {
-                              // Highlight matching text
-                              const query = contactName.toLowerCase().trim();
-                              const matchIndex = name.toLowerCase().indexOf(query);
-                              
-                              return (
-                                <button
-                                  key={name}
-                                  type="button"
-                                  onClick={() => {
-                                    setContactName(name);
-                                    setShowContactDropdown(false);
-                                    setHighlightedIndex(-1);
-                                  }}
-                                  onMouseEnter={() => setHighlightedIndex(index)}
-                                  className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center gap-3 ${
-                                    index === highlightedIndex
-                                      ? 'bg-[#6d69ff]/5 text-gray-900'
-                                      : 'hover:bg-gray-50 text-gray-700'
-                                  }`}
-                                >
-                                  <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                  <span>
-                                    {query && matchIndex >= 0 ? (
-                                      <>
-                                        {name.slice(0, matchIndex)}
-                                        <span className="font-semibold text-[#6d69ff]">
-                                          {name.slice(matchIndex, matchIndex + query.length)}
-                                        </span>
-                                        {name.slice(matchIndex + query.length)}
-                                      </>
-                                    ) : (
-                                      name
-                                    )}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Invoice Date <span className="text-red-500">*</span>
+                          Schedule Type
                         </label>
-                        <div className="relative">
-                          <input
-                            ref={invoiceDatePickerRef}
-                            type="date"
-                            value={invoiceDate}
-                            onChange={(e) => setInvoiceDate(e.target.value)}
-                            className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900 [&::-webkit-calendar-picker-indicator]:opacity-0"
-                          />
+                        <div className="flex gap-3">
                           <button
                             type="button"
-                            onClick={() => invoiceDatePickerRef.current?.showPicker?.()}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
-                            aria-label="Open date picker"
+                            onClick={() => {
+                              setType('PREPAID');
+                              setShowPreview(false);
+                            }}
+                            className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 ${
+                              type === 'PREPAID'
+                                ? 'border-blue-500 bg-blue-50 text-blue-600'
+                                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
                           >
-                            <Calendar className="w-4 h-4" />
+                            <div className="flex items-center justify-center gap-2">
+                              <DollarSign className="w-4 h-4" />
+                              Prepayment
+                            </div>
+                            <p className="text-[10px] font-normal mt-1 opacity-70">
+                              Expense paid upfront, recognised monthly
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setType('UNEARNED');
+                              setShowPreview(false);
+                            }}
+                            className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 ${
+                              type === 'UNEARNED'
+                                ? 'border-green-500 bg-green-50 text-green-600'
+                                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-center gap-2">
+                              <FileText className="w-4 h-4" />
+                              Unearned Revenue
+                            </div>
+                            <p className="text-[10px] font-normal mt-1 opacity-70">
+                              Revenue received upfront, recognised monthly
+                            </p>
                           </button>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Date on the related invoice
-                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="relative">
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                            Contact <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              ref={contactInputRef}
+                              type="text"
+                              value={contactName}
+                              onChange={(e) => {
+                                setContactName(e.target.value);
+                                setShowContactDropdown(true);
+                                setHighlightedIndex(-1);
+                              }}
+                              onFocus={() => {
+                                if (filteredContacts.length > 0) {
+                                  setShowContactDropdown(true);
+                                }
+                              }}
+                              onKeyDown={handleContactKeyDown}
+                              placeholder="Enter contact / customer / supplier name"
+                              className={`${fieldClassName} pl-10 pr-3`}
+                              autoComplete="off"
+                            />
+                          </div>
+                          {showContactDropdown && filteredContacts.length > 0 && (
+                            <div
+                              ref={contactDropdownRef}
+                              className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                            >
+                              {filteredContacts.map((name, index) => {
+                                const query = contactName.toLowerCase().trim();
+                                const matchIndex = name.toLowerCase().indexOf(query);
+                                return (
+                                  <button
+                                    key={name}
+                                    type="button"
+                                    onClick={() => {
+                                      setContactName(name);
+                                      setShowContactDropdown(false);
+                                      setHighlightedIndex(-1);
+                                    }}
+                                    onMouseEnter={() => setHighlightedIndex(index)}
+                                    className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center gap-3 ${
+                                      index === highlightedIndex
+                                        ? 'bg-[#6d69ff]/5 text-gray-900'
+                                        : 'hover:bg-gray-50 text-gray-700'
+                                    }`}
+                                  >
+                                    <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                    <span>
+                                      {query && matchIndex >= 0 ? (
+                                        <>
+                                          {name.slice(0, matchIndex)}
+                                          <span className="font-semibold text-[#6d69ff]">
+                                            {name.slice(matchIndex, matchIndex + query.length)}
+                                          </span>
+                                          {name.slice(matchIndex + query.length)}
+                                        </>
+                                      ) : (
+                                        name
+                                      )}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                            Invoice Reference <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={invoiceReference}
+                            onChange={(e) => setInvoiceReference(e.target.value)}
+                            required
+                            placeholder="Enter invoice reference"
+                            className={fieldClassName}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                            Invoice Date <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={
+                                /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate)
+                                  ? formatDateToDDMMYYYY(invoiceDate)
+                                  : invoiceDate
+                              }
+                              onChange={(e) => setInvoiceDate(e.target.value)}
+                              onBlur={(e) => {
+                                const raw = e.currentTarget.value.trim();
+                                if (/^\+\d+$/.test(raw)) {
+                                  setError('+1 and +2 only work in the End date field. Enter a date (dd/mm/yyyy) for Invoice date.');
+                                  setInvoiceDate('');
+                                  return;
+                                }
+                                const parsed = parseDateToYYYYMMDD(raw);
+                                if (parsed) {
+                                  setInvoiceDate(parsed);
+                                  setError(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const raw = (e.target as HTMLInputElement).value.trim();
+                                  if (/^\+\d+$/.test(raw)) {
+                                    setError('+1 and +2 only work in the End date field. Enter a date (dd/mm/yyyy) for Invoice date.');
+                                    setInvoiceDate('');
+                                    e.preventDefault();
+                                    return;
+                                  }
+                                  const parsed = parseDateToYYYYMMDD(raw);
+                                  if (parsed) {
+                                    setInvoiceDate(parsed);
+                                    setError(null);
+                                    e.preventDefault();
+                                  }
+                                }
+                              }}
+                              placeholder="dd/mm/yyyy"
+                              className={`${fieldClassName} pr-10`}
+                              autoComplete="off"
+                              aria-label="Invoice date"
+                            />
+                            <input
+                              ref={invoiceDatePickerRef}
+                              type="date"
+                              value={/^\d{4}-\d{2}-\d{2}$/.test(invoiceDate) ? invoiceDate : ''}
+                              onChange={(e) => setInvoiceDate(e.target.value)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 opacity-0 pointer-events-none"
+                              aria-hidden
+                              tabIndex={-1}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => invoiceDatePickerRef.current?.showPicker?.()}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 pointer-events-auto"
+                              aria-label="Open date picker"
+                            >
+                              <Calendar className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                            Total Amount <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
+                              {getCurrencySymbol(orgCurrency)}
+                            </span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={totalAmount}
+                              onChange={(e) => {
+                                setTotalAmount(e.target.value);
+                                setShowPreview(false);
+                              }}
+                              required
+                              placeholder="0.00"
+                              className={`${fieldClassName} pl-7 pr-3`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                </div>
+
+                {/* Card 2: Schedule period & posting */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+                    <h3 className="text-base font-bold text-gray-900">Schedule Period & Posting</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Dates, accounts and amortisation</p>
+                  </div>
+                  <div className="p-5 space-y-5">
+                    {/* Amortisation Method */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Amortisation Method
+                      </label>
+                      <div className="flex gap-3" role="group" aria-label="Allocation method">
+                        <button
+                          type="button"
+                          onClick={() => handleAllocationMethodChange('actual')}
+                          className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 ${
+                            allocationMethod === 'actual'
+                              ? 'border-[#6d69ff] bg-[#6d69ff]/10 text-[#6d69ff]'
+                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                          aria-pressed={allocationMethod === 'actual'}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            Actual Days
+                          </div>
+                          <p className="text-[10px] font-normal mt-1 opacity-70">
+                            Pro-rata by days in each period
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAllocationMethodChange('equal')}
+                          className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 ${
+                            allocationMethod === 'equal'
+                              ? 'border-[#6d69ff] bg-[#6d69ff]/10 text-[#6d69ff]'
+                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                          aria-pressed={allocationMethod === 'equal'}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            Equal Monthly
+                          </div>
+                          <p className="text-[10px] font-normal mt-1 opacity-70">
+                            Same amount each period
+                          </p>
+                        </button>
                       </div>
                     </div>
 
-                    {/* Dates */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -776,20 +925,73 @@ function NewSchedulePageContent() {
                         </label>
                         <div className="relative">
                           <input
+                            type="text"
+                            value={
+                              /^\d{4}-\d{2}-\d{2}$/.test(startDate)
+                                ? formatDateToDDMMYYYY(startDate)
+                                : startDate
+                            }
+                            onChange={(e) => {
+                              setStartDate(e.target.value);
+                              setShowPreview(false);
+                            }}
+                            onBlur={(e) => {
+                              const raw = e.currentTarget.value.trim();
+                              if (/^\+\d+$/.test(raw)) {
+                                setError('+1 and +2 only work in the End date field. Enter a date (dd/mm/yyyy) for Start date.');
+                                setStartDate('');
+                                setShowPreview(false);
+                                return;
+                              }
+                              const parsed = parseDateToYYYYMMDD(raw);
+                              if (parsed) {
+                                setStartDate(parsed);
+                                setShowPreview(false);
+                                setError(null);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const raw = (e.target as HTMLInputElement).value.trim();
+                                if (/^\+\d+$/.test(raw)) {
+                                  setError('+1 and +2 only work in the End date field. Enter a date (dd/mm/yyyy) for Start date.');
+                                  setStartDate('');
+                                  setShowPreview(false);
+                                  e.preventDefault();
+                                  return;
+                                }
+                                const parsed = parseDateToYYYYMMDD(raw);
+                                if (parsed) {
+                                  setStartDate(parsed);
+                                  setShowPreview(false);
+                                  setError(null);
+                                  e.preventDefault();
+                                }
+                              }
+                            }}
+                            placeholder="dd/mm/yyyy"
+                            required
+                            className={`${fieldClassName} pr-10`}
+                            autoComplete="off"
+                            aria-label="Start date"
+                          />
+                          <input
                             ref={startDatePickerRef}
                             type="date"
-                            value={startDate}
+                            value={/^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : ''}
                             onChange={(e) => {
                               setStartDate(e.target.value);
                               setShowPreview(false);
                             }}
                             required
-                            className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900 [&::-webkit-calendar-picker-indicator]:opacity-0"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 opacity-0 pointer-events-none"
+                            aria-hidden
+                            tabIndex={-1}
                           />
                           <button
                             type="button"
                             onClick={() => startDatePickerRef.current?.showPicker?.()}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 pointer-events-auto"
                             aria-label="Open date picker"
                           >
                             <Calendar className="w-4 h-4" />
@@ -814,14 +1016,14 @@ function NewSchedulePageContent() {
                             }}
                             onBlur={(e) => {
                               const raw = e.currentTarget.value.trim();
-                              const resolved = resolveEndDate(startDate, raw);
+                              const resolved = resolveEndDate(normalizedStartDate, raw);
                               if (resolved) setEndDate(resolved);
                               setShowPreview(false);
                             }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 const raw = (e.target as HTMLInputElement).value.trim();
-                                const resolved = resolveEndDate(startDate, raw);
+                                const resolved = resolveEndDate(normalizedStartDate, raw);
                                 if (resolved) {
                                   setEndDate(resolved);
                                   e.preventDefault();
@@ -830,7 +1032,7 @@ function NewSchedulePageContent() {
                               }
                             }}
                             placeholder="dd/mm/yyyy or +1, +2"
-                            className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
+                            className={`${fieldClassName} pr-10`}
                             autoComplete="off"
                           />
                           <input
@@ -841,7 +1043,7 @@ function NewSchedulePageContent() {
                               setEndDate(e.target.value);
                               setShowPreview(false);
                             }}
-                            min={startDate}
+                            min={normalizedStartDate || undefined}
                             className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 opacity-0 pointer-events-none"
                             aria-hidden
                           />
@@ -854,55 +1056,31 @@ function NewSchedulePageContent() {
                             <Calendar className="w-4 h-4" />
                           </button>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Enter a date, or +1 / +2 etc. to add months from start date
-                        </p>
                       </div>
                     </div>
 
-                    {/* Total Amount & Account Selection */}
+                    {/* Expense Account and Description */}
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Total Amount <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
-                            {getCurrencySymbol(orgCurrency)}
-                          </span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={totalAmount}
-                            onChange={(e) => {
-                              setTotalAmount(e.target.value);
-                              setShowPreview(false);
-                            }}
-                            required
-                            placeholder="0.00"
-                            className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
-                          />
-                        </div>
-                      </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
                           {type === 'PREPAID' ? 'Expense Account' : 'Revenue Account'}{' '}
                           <span className="text-red-500">*</span>
                         </label>
-                        <select
-                          value={type === 'PREPAID' ? expenseAcctCode : revenueAcctCode}
-                          onChange={(e) => {
-                            if (type === 'PREPAID') {
-                              setExpenseAcctCode(e.target.value);
-                            } else {
-                              setRevenueAcctCode(e.target.value);
-                            }
-                          }}
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900 appearance-none bg-white"
-                        >
-                          <option value="">Please select an account</option>
+                        <div className="relative">
+                          <select
+                            value={type === 'PREPAID' ? expenseAcctCode : revenueAcctCode}
+                            onChange={(e) => {
+                              if (type === 'PREPAID') {
+                                setExpenseAcctCode(e.target.value);
+                              } else {
+                                setRevenueAcctCode(e.target.value);
+                              }
+                            }}
+                            required
+                            data-placeholder={!(type === 'PREPAID' ? expenseAcctCode : revenueAcctCode) ? 'true' : undefined}
+                            className={`${fieldClassName} appearance-none bg-white pr-10`}
+                          >
+                            <option value="">Please select an account</option>
                           {getFilteredAccounts(type === 'PREPAID' ? 'EXPENSE' : 'REVENUE').map(
                             (account) => (
                               <option key={account.accountID} value={account.code}>
@@ -910,22 +1088,22 @@ function NewSchedulePageContent() {
                               </option>
                             )
                           )}
-                        </select>
+                          </select>
+                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden />
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Description */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Description
-                      </label>
-                      <textarea
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Optional notes or description for this schedule"
-                        rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900 resize-none"
-                      />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Description
+                        </label>
+                        <input
+                          type="text"
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          placeholder="Optional notes or description for this schedule"
+                          className={fieldClassName}
+                        />
+                      </div>
                     </div>
 
                     {/* Invoice Upload */}
@@ -965,9 +1143,6 @@ function NewSchedulePageContent() {
                           </button>
                         </div>
                       )}
-                      <p className="text-xs text-gray-500 mt-1">
-                        Optional — attach the related invoice for reference
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -1045,6 +1220,14 @@ function NewSchedulePageContent() {
                         <span className="text-sm text-gray-500">Invoice date</span>
                         <span className="text-sm font-medium text-gray-900 truncate ml-2 max-w-[150px]">
                           {formatDateOnly(invoiceDate)}
+                        </span>
+                      </div>
+                    )}
+                    {invoiceReference && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">Invoice ref</span>
+                        <span className="text-sm font-medium text-gray-900 truncate ml-2 max-w-[150px]">
+                          {invoiceReference}
                         </span>
                       </div>
                     )}
@@ -1157,42 +1340,15 @@ function NewSchedulePageContent() {
                 {showPreview && previewEntries.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200">
                     <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-                      <div className="flex items-center justify-between flex-wrap gap-3">
-                        <div>
-                          <h3 className="text-base font-bold text-gray-900">
-                            Schedule Preview
-                          </h3>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {previewEntries.length}{' '}
-                            {previewEntries.length === 1 ? 'period' : 'periods'} — Total:{' '}
-                            {formatCurrency(parseFloat(totalAmount), orgCurrency)}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleAllocationMethodChange('actual')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                              allocationMethod === 'actual'
-                                ? 'bg-[#6d69ff] text-white'
-                                : 'bg-white/80 text-gray-600 hover:bg-white border border-gray-300'
-                            }`}
-                          >
-                            Actual days
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleAllocationMethodChange('equal')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                              allocationMethod === 'equal'
-                                ? 'bg-[#6d69ff] text-white'
-                                : 'bg-white/80 text-gray-600 hover:bg-white border border-gray-300'
-                            }`}
-                          >
-                            Equal monthly
-                          </button>
-                        </div>
-                      </div>
+                      <h3 className="text-base font-bold text-gray-900">
+                        Schedule Preview
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {previewEntries.length}{' '}
+                        {previewEntries.length === 1 ? 'period' : 'periods'} — Total:{' '}
+                        {formatCurrency(parseFloat(totalAmount), orgCurrency)}
+                        {allocationMethod === 'actual' ? ' (actual days)' : ' (equal monthly)'}
+                      </p>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left">

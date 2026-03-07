@@ -46,29 +46,41 @@ textarea::placeholder {
   opacity: 1;
 }
 
-/* Fix date input styling for macOS Safari/Chrome */
-input[type="date"],
-input[type="time"],
-input[type="datetime-local"] {
+/* Fix date input styling for macOS Safari/Chrome - only when they have a value */
+input[type="date"]:not([value=""]),
+input[type="time"]:not([value=""]),
+input[type="datetime-local"]:not([value=""]) {
   color: #111827 !important;
   -webkit-text-fill-color: #111827 !important;
 }
 
-/* Ensure date picker placeholder text is visible */
-input[type="date"]::-webkit-datetime-edit,
-input[type="time"]::-webkit-datetime-edit,
-input[type="datetime-local"]::-webkit-datetime-edit {
-  color: #111827;
-  -webkit-text-fill-color: #111827;
+/* Empty date/time inputs: show placeholder hint in grey */
+input[type="date"][value=""],
+input[type="time"][value=""],
+input[type="datetime-local"][value=""] {
+  color: #9ca3af !important;
+  -webkit-text-fill-color: #9ca3af !important;
+}
+input[type="date"][value=""]::-webkit-datetime-edit,
+input[type="date"][value=""]::-webkit-datetime-edit-fields-wrapper,
+input[type="date"][value=""]::-webkit-datetime-edit-text,
+input[type="date"][value=""]::-webkit-datetime-edit-month-field,
+input[type="date"][value=""]::-webkit-datetime-edit-day-field,
+input[type="date"][value=""]::-webkit-datetime-edit-year-field {
+  color: #9ca3af !important;
+  -webkit-text-fill-color: #9ca3af !important;
 }
 
-/* Style the placeholder state of date inputs (when empty) */
-input[type="date"]::-webkit-datetime-edit-text,
-input[type="date"]::-webkit-datetime-edit-month-field,
-input[type="date"]::-webkit-datetime-edit-day-field,
-input[type="date"]::-webkit-datetime-edit-year-field {
-  color: #111827;
-  -webkit-text-fill-color: #111827;
+/* Select: placeholder text grey when closed, options black when dropdown open */
+select[data-placeholder="true"] {
+  color: #9ca3af !important;
+  -webkit-text-fill-color: #9ca3af !important;
+}
+/* Dropdown list options always black (consistent with Contact suggestions) */
+select option {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  background: #fff;
 }
 
 /* Handle disabled state */

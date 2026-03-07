@@ -48,6 +48,9 @@ class ScheduleServiceTest {
         createRequest.setTotalAmount(new BigDecimal("3000.00"));
         createRequest.setExpenseAcctCode("6000");
         createRequest.setDeferralAcctCode("2000");
+        createRequest.setContactName("Test Contact");
+        createRequest.setInvoiceReference("INV-TEST-001");
+        createRequest.setInvoiceDate(LocalDate.of(2025, 1, 15));
         createRequest.setCreatedBy(1L);
     }
 

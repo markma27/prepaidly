@@ -65,6 +65,10 @@ public class Schedule {
     @Column(name = "contact_name")
     private String contactName;
 
+    /** Invoice reference or number for the schedule */
+    @Column(name = "invoice_reference")
+    private String invoiceReference;
+
     /** Optional description or notes for this schedule */
     @Column(name = "description")
     private String description;
