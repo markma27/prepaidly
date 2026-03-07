@@ -75,9 +75,13 @@ function LoginContent() {
         }))
       }
 
-      // Sync users from Supabase to backend on each login (best effort)
+      // Sync users from Supabase to backend on each login (best effort).
+      // Pass session user so backend can set display_name and last_login if Admin API returns null.
       try {
-        await usersApi.syncSupabase()
+        await usersApi.syncSupabase({
+          id: data.user.id,
+          user_metadata: data.user.user_metadata,
+        })
       } catch (syncErr) {
         console.warn('Supabase user sync failed:', syncErr)
       }

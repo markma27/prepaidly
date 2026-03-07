@@ -46,8 +46,13 @@ public class SupabaseAdminService {
 
     public record SyncResult(int fetched, int upserted, int deleted) {}
 
+    /**
+     * Optional body from frontend: { supabaseUserId, displayName }.
+     * When provided, enriches the synced user with session data (e.g., display name, last login = now).
+     * Use when Supabase Admin API returns null for these fields (timing/API quirks).
+     */
     @SuppressWarnings("null")
-    public SyncResult syncAllUsersFromSupabase() {
+    public SyncResult syncAllUsersFromSupabase(java.util.Map<String, Object> enrichBody) {
         List<Map<String, Object>> supabaseUsers = fetchAllSupabaseUsers();
         if (supabaseUsers.isEmpty()) {
             throw new IllegalStateException("Supabase returned no users. Sync aborted to avoid deleting local data.");
@@ -67,6 +72,13 @@ public class SupabaseAdminService {
             User user = userRepository.findBySupabaseUserId(supabaseUserId)
                 .orElseGet(User::new);
             applySupabaseUser(user, userMap);
+            // Enrich with session data if frontend passed it (e.g. right after login)
+            if (enrichBody != null) {
+                String enrichId = Optional.ofNullable(enrichBody.get("supabaseUserId")).map(Object::toString).orElse(null);
+                if (supabaseUserId.equals(enrichId)) {
+                    enrichFromSession(user, enrichBody);
+                }
+            }
             userRepository.save(user);
             upserted++;
         }
@@ -140,14 +152,14 @@ public class SupabaseAdminService {
         }
         user.setEmail(email);
 
-        // Display name from user_metadata.full_name or user_metadata.name
+        // Display name from user_metadata or raw_user_meta_data (GoTrue uses both)
         user.setDisplayName(extractDisplayName(userMap));
 
-        // Role from user_metadata or default "USER"
+        // Role from user_metadata or raw_user_meta_data or default "USER"
         user.setRole(extractRole(userMap));
 
-        // Last login from Supabase last_sign_in_at
-        user.setLastLogin(parseLocalDateTime(userMap.get("last_sign_in_at")));
+        // Last login: user-level last_sign_in_at, or fallback to first identity's last_sign_in_at
+        user.setLastLogin(parseLocalDateTime(extractLastSignInAt(userMap)));
 
         // Keep created_at from Supabase and always refresh synced_at on each sync
         user.setSupabaseCreatedAt(parseOffsetDate(userMap.get("created_at")));
@@ -155,27 +167,57 @@ public class SupabaseAdminService {
     }
 
     private String extractDisplayName(Map<String, Object> userMap) {
-        Object metadata = userMap.get("user_metadata");
-        if (metadata instanceof Map<?, ?> meta) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> metaMap = (Map<String, Object>) meta;
-            String fullName = Optional.ofNullable(metaMap.get("full_name")).map(Object::toString).orElse(null);
+        Map<String, Object> meta = getMetadataMap(userMap);
+        if (meta != null) {
+            String fullName = Optional.ofNullable(meta.get("full_name")).map(Object::toString).orElse(null);
             if (fullName != null && !fullName.isBlank()) return fullName;
-            String name = Optional.ofNullable(metaMap.get("name")).map(Object::toString).orElse(null);
+            String name = Optional.ofNullable(meta.get("name")).map(Object::toString).orElse(null);
             if (name != null && !name.isBlank()) return name;
         }
         return null;
     }
 
     private String extractRole(Map<String, Object> userMap) {
-        Object metadata = userMap.get("user_metadata");
-        if (metadata instanceof Map<?, ?> meta) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> metaMap = (Map<String, Object>) meta;
-            String role = Optional.ofNullable(metaMap.get("role")).map(Object::toString).orElse(null);
+        Map<String, Object> meta = getMetadataMap(userMap);
+        if (meta != null) {
+            String role = Optional.ofNullable(meta.get("role")).map(Object::toString).orElse(null);
             if (role != null && !role.isBlank()) return role.toUpperCase();
         }
         return "USER";
+    }
+
+    /** Get user metadata from user_metadata or raw_user_meta_data (GoTrue uses both across versions). */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getMetadataMap(Map<String, Object> userMap) {
+        Object meta = userMap.get("user_metadata");
+        if (meta instanceof Map<?, ?>) return (Map<String, Object>) meta;
+        meta = userMap.get("raw_user_meta_data");
+        if (meta instanceof Map<?, ?>) return (Map<String, Object>) meta;
+        return null;
+    }
+
+    private void enrichFromSession(User user, Map<String, Object> body) {
+        // Display name from session (Supabase session has user_metadata)
+        if (user.getDisplayName() == null || user.getDisplayName().isBlank()) {
+            String dn = Optional.ofNullable(body.get("displayName")).map(Object::toString).orElse(null);
+            if (dn != null && !dn.isBlank()) user.setDisplayName(dn);
+        }
+        // Always update last login on login flow (session = just signed in)
+        user.setLastLogin(java.time.LocalDateTime.now());
+    }
+
+    /** Get last_sign_in_at from user or first identity (Supabase may nest it in identities). */
+    private Object extractLastSignInAt(Map<String, Object> userMap) {
+        Object at = userMap.get("last_sign_in_at");
+        if (at != null) return at;
+        Object identities = userMap.get("identities");
+        if (identities instanceof List<?> list && !list.isEmpty()) {
+            Object first = list.get(0);
+            if (first instanceof Map<?, ?> idMap) {
+                return ((Map<?, ?>) first).get("last_sign_in_at");
+            }
+        }
+        return null;
     }
 
     private LocalDateTime parseLocalDateTime(Object value) {

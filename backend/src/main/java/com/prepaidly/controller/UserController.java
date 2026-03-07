@@ -171,9 +171,9 @@ public class UserController {
      * @return Sync statistics: fetched, upserted, deleted
      */
     @PostMapping("/sync-supabase")
-    public ResponseEntity<?> syncSupabaseUsers() {
+    public ResponseEntity<?> syncSupabaseUsers(@RequestBody(required = false) Map<String, Object> body) {
         try {
-            SupabaseAdminService.SyncResult result = supabaseAdminService.syncAllUsersFromSupabase();
+            SupabaseAdminService.SyncResult result = supabaseAdminService.syncAllUsersFromSupabase(body);
             return ResponseEntity.ok(Map.of(
                 "fetched", result.fetched(),
                 "upserted", result.upserted(),

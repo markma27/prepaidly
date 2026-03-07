@@ -461,12 +461,18 @@ export const usersApi = {
 
   /**
    * Sync users from Supabase Auth into the backend users table.
-   * This overwrites local user data to match Supabase as source of truth.
+   * Pass session user to enrich display_name and last_login when Admin API returns null.
    */
-  syncSupabase: async () => {
+  syncSupabase: async (sessionUser?: { id?: string; user_metadata?: { full_name?: string; name?: string } }) => {
+    const body = sessionUser?.id
+      ? {
+          supabaseUserId: sessionUser.id,
+          displayName: sessionUser.user_metadata?.full_name ?? sessionUser.user_metadata?.name ?? null,
+        }
+      : undefined;
     return fetchApi<{ fetched: number; upserted: number; deleted: number }>(
       '/api/users/sync-supabase',
-      { method: 'POST' }
+      { method: 'POST', body: body ? JSON.stringify(body) : '{}' }
     );
   },
 
