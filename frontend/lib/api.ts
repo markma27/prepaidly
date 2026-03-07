@@ -427,8 +427,38 @@ export const authApi = {
   },
 };
 
+export type UserProfile = {
+  id: number;
+  email: string;
+  displayName?: string | null;
+  role?: string | null;
+  lastLogin?: string | null;
+  createdAt: string;
+};
+
 // Users API
 export const usersApi = {
+  /**
+   * Get current user profile (display name, email, role, last login).
+   * Uses sessionStorage cache (5 min) to reduce latency.
+   */
+  getProfile: async (): Promise<UserProfile | null> => {
+    const supabaseUser = getSupabaseUser();
+    if (!supabaseUser.id) return null;
+    const cacheKey = getCacheKey('userProfile', supabaseUser.id);
+    const cached = getCachedData<UserProfile>(cacheKey, DEFAULT_CACHE_TTL_MS);
+    if (cached) return cached;
+    try {
+      const data = await fetchApi<UserProfile>(
+        `/api/users/profile?supabaseUserId=${encodeURIComponent(supabaseUser.id)}`
+      );
+      setCachedData(cacheKey, data);
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
   /**
    * Sync users from Supabase Auth into the backend users table.
    * This overwrites local user data to match Supabase as source of truth.

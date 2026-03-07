@@ -39,6 +39,11 @@ public class UserResponse {
      * Example: "user@example.com"
      */
     private String email;
+
+    /**
+     * User's display name (from Supabase user_metadata.full_name)
+     */
+    private String displayName;
     
     /**
      * User's role in the system

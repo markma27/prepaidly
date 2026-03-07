@@ -26,6 +26,10 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    /** User's display name (from Supabase user_metadata.full_name) */
+    @Column(name = "display_name")
+    private String displayName;
+
     /** Supabase user UUID (unique, optional) */
     @Column(name = "supabase_user_id", unique = true)
     private String supabaseUserId;

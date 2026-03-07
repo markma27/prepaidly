@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.core.ParameterizedTypeReference;
 
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -139,9 +140,54 @@ public class SupabaseAdminService {
         }
         user.setEmail(email);
 
-        // Keep created_at from Supabase and always refresh synced_at on each login sync
+        // Display name from user_metadata.full_name or user_metadata.name
+        user.setDisplayName(extractDisplayName(userMap));
+
+        // Role from user_metadata or default "USER"
+        user.setRole(extractRole(userMap));
+
+        // Last login from Supabase last_sign_in_at
+        user.setLastLogin(parseLocalDateTime(userMap.get("last_sign_in_at")));
+
+        // Keep created_at from Supabase and always refresh synced_at on each sync
         user.setSupabaseCreatedAt(parseOffsetDate(userMap.get("created_at")));
         user.setSupabaseSyncedAt(OffsetDateTime.now());
+    }
+
+    private String extractDisplayName(Map<String, Object> userMap) {
+        Object metadata = userMap.get("user_metadata");
+        if (metadata instanceof Map<?, ?> meta) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metaMap = (Map<String, Object>) meta;
+            String fullName = Optional.ofNullable(metaMap.get("full_name")).map(Object::toString).orElse(null);
+            if (fullName != null && !fullName.isBlank()) return fullName;
+            String name = Optional.ofNullable(metaMap.get("name")).map(Object::toString).orElse(null);
+            if (name != null && !name.isBlank()) return name;
+        }
+        return null;
+    }
+
+    private String extractRole(Map<String, Object> userMap) {
+        Object metadata = userMap.get("user_metadata");
+        if (metadata instanceof Map<?, ?> meta) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metaMap = (Map<String, Object>) meta;
+            String role = Optional.ofNullable(metaMap.get("role")).map(Object::toString).orElse(null);
+            if (role != null && !role.isBlank()) return role.toUpperCase();
+        }
+        return "USER";
+    }
+
+    private LocalDateTime parseLocalDateTime(Object value) {
+        if (value == null) return null;
+        String raw = value.toString();
+        if (raw.isBlank()) return null;
+        try {
+            OffsetDateTime odt = OffsetDateTime.parse(raw);
+            return odt.toLocalDateTime();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private OffsetDateTime parseOffsetDate(Object value) {

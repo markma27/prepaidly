@@ -8,6 +8,7 @@ import com.prepaidly.model.XeroConnection;
 import com.prepaidly.repository.UserRepository;
 import com.prepaidly.repository.XeroConnectionRepository;
 import com.prepaidly.service.SupabaseAdminService;
+import com.prepaidly.service.UserProfileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +60,7 @@ public class UserController {
     private final UserRepository userRepository;
     private final XeroConnectionRepository xeroConnectionRepository;
     private final SupabaseAdminService supabaseAdminService;
+    private final UserProfileService userProfileService;
 
     /**
      * Create a New User
@@ -355,6 +357,29 @@ public class UserController {
     }
 
     /**
+     * Get current user profile by Supabase user ID.
+     * Returns display name, email, role, last login. Uses cache (5 min) to reduce latency.
+     *
+     * @param supabaseUserId Supabase user UUID (required, from auth session)
+     * @return ResponseEntity with UserResponse or 404 if not found
+     */
+    @GetMapping("/profile")
+    public ResponseEntity<?> getProfile(@RequestParam String supabaseUserId) {
+        try {
+            var profile = userProfileService.getProfileBySupabaseUserId(supabaseUserId);
+            if (profile.isPresent()) {
+                return ResponseEntity.ok(profile.get());
+            }
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "User not found"));
+        } catch (Exception e) {
+            log.error("Error fetching profile", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch profile: " + e.getMessage()));
+        }
+    }
+
+    /**
      * Get User by Email
      * 
      * Retrieves a user by their email address. Since email addresses are unique
@@ -607,6 +632,7 @@ public class UserController {
         UserResponse response = new UserResponse();
         response.setId(user.getId());
         response.setEmail(user.getEmail());
+        response.setDisplayName(user.getDisplayName());
         response.setRole(user.getRole());
         response.setLastLogin(user.getLastLogin());
         response.setCreatedAt(user.getCreatedAt());

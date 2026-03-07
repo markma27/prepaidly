@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { xeroAuthApi } from '@/lib/api';
+import { xeroAuthApi, usersApi, type UserProfile } from '@/lib/api';
 import useTokenAutoRefresh from '@/lib/useTokenAutoRefresh';
 import { XeroConnection } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
@@ -88,6 +88,8 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
   const [userInitial, setUserInitial] = useState<string>('P');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Memoize current connection lookup to avoid recalculation
@@ -331,6 +333,20 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
     setIsEntityMenuOpen(false);
     router.push(`/app/dashboard?tenantId=${newTenantId}`);
   };
+
+  // Fetch profile when Profile Settings modal opens
+  useEffect(() => {
+    if (!isProfileSettingsOpen) return;
+    let cancelled = false;
+    setIsProfileLoading(true);
+    setProfile(null);
+    usersApi.getProfile().then((p) => {
+      if (!cancelled && p) setProfile(p);
+    }).finally(() => {
+      if (!cancelled) setIsProfileLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [isProfileSettingsOpen]);
 
   const handleSignOut = async () => {
     try {
@@ -615,7 +631,41 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
           {/* Floating window */}
           <div className="relative bg-white rounded-lg shadow-xl border border-gray-200 p-6 min-w-[320px] max-w-md mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Settings</h3>
-            <p className="text-sm text-gray-600 mb-6">Profile settings will be available here.</p>
+            {isProfileLoading ? (
+              <div className="space-y-3 py-4">
+                <Skeleton className="w-full" variant="text" />
+                <Skeleton className="w-3/4" variant="text" />
+                <Skeleton className="w-1/2" variant="text" />
+              </div>
+            ) : profile ? (
+              <div className="space-y-3 text-sm mb-6">
+                <div>
+                  <span className="text-gray-500 font-medium">Display Name</span>
+                  <p className="text-gray-900 mt-0.5">{profile.displayName || '—'}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500 font-medium">Email</span>
+                  <p className="text-gray-900 mt-0.5">{profile.email || '—'}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500 font-medium">Role</span>
+                  <p className="text-gray-900 mt-0.5">{profile.role || 'USER'}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500 font-medium">Last Login</span>
+                  <p className="text-gray-900 mt-0.5">
+                    {profile.lastLogin
+                      ? new Date(profile.lastLogin).toLocaleString(undefined, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })
+                      : '—'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 mb-6">Could not load profile.</p>
+            )}
             <div className="flex justify-end">
               <button
                 onClick={() => setIsProfileSettingsOpen(false)}
