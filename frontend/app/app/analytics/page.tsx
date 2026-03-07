@@ -233,6 +233,13 @@ function AnalyticsPageContent() {
         const cmp = va.localeCompare(vb);
         return sortDir === 'asc' ? cmp : -cmp;
       });
+    } else if (sortKey === 'invoiceReference') {
+      list.sort((a, b) => {
+        const va = (a.invoiceReference ?? '').toLowerCase();
+        const vb = (b.invoiceReference ?? '').toLowerCase();
+        const cmp = va.localeCompare(vb);
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
     } else if (sortKey === 'account') {
       list.sort((a, b) => {
         const va = getAccountCodeAndName(a).toLowerCase();
@@ -266,6 +273,7 @@ function AnalyticsPageContent() {
     amountsData.push(['Monthly Amounts to Post']);
     amountsData.push([
       'Contact Name',
+      'Invoice Reference',
       'Account Code and Name',
       ...monthColumns.map((col) => col.label),
     ]);
@@ -274,6 +282,7 @@ function AnalyticsPageContent() {
       const amountByMonth = getAmountByMonth(schedule);
       const row: (string | number)[] = [
         schedule.contactName || '-',
+        schedule.invoiceReference ?? '-',
         getAccountCodeAndName(schedule),
         ...monthColumns.map((col) => {
           const amount = amountByMonth.get(col.yearMonth);
@@ -287,6 +296,7 @@ function AnalyticsPageContent() {
     // Add totals row for amounts
     amountsData.push([
       'Total',
+      '',
       '',
       ...monthColumns.map((col) => {
         const total = monthTotals.get(col.yearMonth) ?? 0;
@@ -303,6 +313,7 @@ function AnalyticsPageContent() {
     amountsData.push(['Remaining Balance at Month End']);
     amountsData.push([
       'Contact Name',
+      'Invoice Reference',
       'Account Code and Name',
       ...monthColumns.map((col) => col.label),
     ]);
@@ -311,6 +322,7 @@ function AnalyticsPageContent() {
       const balanceByMonth = getRemainingBalanceByMonth(schedule);
       const row: (string | number)[] = [
         schedule.contactName || '-',
+        schedule.invoiceReference ?? '-',
         getAccountCodeAndName(schedule),
         ...monthColumns.map((col) => {
           const balance = balanceByMonth.get(col.yearMonth);
@@ -324,6 +336,7 @@ function AnalyticsPageContent() {
     // Add totals row for balance
     amountsData.push([
       'Total',
+      '',
       '',
       ...monthColumns.map((col) => {
         const total = balanceTotalsByMonth.get(col.yearMonth) ?? 0;
@@ -339,6 +352,7 @@ function AnalyticsPageContent() {
     // Set column widths
     ws['!cols'] = [
       { wch: 20 }, // Contact Name
+      { wch: 18 }, // Invoice Reference
       { wch: 30 }, // Account Code and Name
       ...monthColumns.map(() => ({ wch: 12 })), // Month columns
     ];
@@ -560,6 +574,9 @@ function AnalyticsPageContent() {
                           Contact Name
                         </th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
+                          Invoice Reference
+                        </th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
                           Account Code and Name
                         </th>
                         {monthColumns.map((col) => (
@@ -579,6 +596,9 @@ function AnalyticsPageContent() {
                             <Skeleton className="h-4 w-28" variant="text" />
                           </td>
                           <td className="py-2.5 px-4">
+                            <Skeleton className="h-4 w-24" variant="text" />
+                          </td>
+                          <td className="py-2.5 px-4">
                             <Skeleton className="h-4 w-36" variant="text" />
                           </td>
                           {monthColumns.map((col) => (
@@ -591,7 +611,7 @@ function AnalyticsPageContent() {
                     </tbody>
                     <tfoot>
                       <tr className="bg-gray-100 border-t-2 border-gray-200">
-                        <td className="py-3 px-4" colSpan={2}>
+                        <td className="py-3 px-4" colSpan={3}>
                           <Skeleton className="h-4 w-12" variant="text" />
                         </td>
                         {monthColumns.map((col) => (
@@ -615,6 +635,9 @@ function AnalyticsPageContent() {
                             Contact Name
                           </th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
+                            Invoice Reference
+                          </th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
                             Account Code and Name
                           </th>
                           {monthColumns.map((col) => (
@@ -634,6 +657,9 @@ function AnalyticsPageContent() {
                               <Skeleton className="h-4 w-28" variant="text" />
                             </td>
                             <td className="py-2.5 px-4">
+                              <Skeleton className="h-4 w-24" variant="text" />
+                            </td>
+                            <td className="py-2.5 px-4">
                               <Skeleton className="h-4 w-36" variant="text" />
                             </td>
                             {monthColumns.map((col) => (
@@ -646,7 +672,7 @@ function AnalyticsPageContent() {
                       </tbody>
                       <tfoot>
                         <tr className="bg-gray-100 border-t-2 border-gray-200">
-                          <td className="py-3 px-4" colSpan={2}>
+                          <td className="py-3 px-4" colSpan={3}>
                             <Skeleton className="h-4 w-12" variant="text" />
                           </td>
                           {monthColumns.map((col) => (
@@ -685,6 +711,18 @@ function AnalyticsPageContent() {
                       <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
                         <button
                           type="button"
+                          onClick={() => handleSort('invoiceReference')}
+                          className="flex items-center gap-1 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                          title="Sort by Invoice Reference"
+                          aria-label={sortKey === 'invoiceReference' ? `Sort by Invoice Reference ${sortDir === 'asc' ? 'descending' : 'ascending'}` : 'Sort by Invoice Reference'}
+                        >
+                          Invoice Reference
+                          {sortKey === 'invoiceReference' ? (sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />) : null}
+                        </button>
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
+                        <button
+                          type="button"
                           onClick={() => handleSort('account')}
                           className="flex items-center gap-1 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
                           title="Sort by Account"
@@ -717,7 +755,7 @@ function AnalyticsPageContent() {
                     {sortedSchedules.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={2 + monthColumns.length}
+                          colSpan={3 + monthColumns.length}
                           className="py-8 text-center text-gray-500"
                         >
                           No {activeTab === 'prepayment' ? 'prepayment' : 'unearned revenue'}{' '}
@@ -743,6 +781,9 @@ function AnalyticsPageContent() {
                           >
                             <td className="py-2.5 px-4 text-gray-900 whitespace-nowrap">
                               {schedule.contactName || '-'}
+                            </td>
+                            <td className="py-2.5 px-4 text-gray-700 whitespace-nowrap">
+                              {schedule.invoiceReference ?? '-'}
                             </td>
                             <td className="py-2.5 px-4 text-gray-700 whitespace-nowrap">
                               {getAccountCodeAndName(schedule)}
@@ -774,7 +815,7 @@ function AnalyticsPageContent() {
                   {sortedSchedules.length > 0 && (
                     <tfoot>
                       <tr className="bg-gray-100 border-t-2 border-gray-200 font-semibold">
-                        <td className="py-3 px-4 text-gray-900 whitespace-nowrap" colSpan={2}>
+                        <td className="py-3 px-4 text-gray-900 whitespace-nowrap" colSpan={3}>
                           Total
                         </td>
                         {monthColumns.map((col) => {
@@ -818,6 +859,18 @@ function AnalyticsPageContent() {
                         <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
                           <button
                             type="button"
+                            onClick={() => handleSort('invoiceReference')}
+                            className="flex items-center gap-1 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                            title="Sort by Invoice Reference"
+                            aria-label={sortKey === 'invoiceReference' ? `Sort by Invoice Reference ${sortDir === 'asc' ? 'descending' : 'ascending'}` : 'Sort by Invoice Reference'}
+                          >
+                            Invoice Reference
+                            {sortKey === 'invoiceReference' ? (sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />) : null}
+                          </button>
+                        </th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700 whitespace-nowrap">
+                          <button
+                            type="button"
                             onClick={() => handleSort('account')}
                             className="flex items-center gap-1 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
                             title="Sort by Account"
@@ -850,7 +903,7 @@ function AnalyticsPageContent() {
                       {sortedSchedules.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={2 + monthColumns.length}
+                            colSpan={3 + monthColumns.length}
                             className="py-8 text-center text-gray-500"
                           >
                             No {activeTab === 'prepayment' ? 'prepayment' : 'unearned revenue'}{' '}
@@ -876,6 +929,9 @@ function AnalyticsPageContent() {
                             >
                               <td className="py-2.5 px-4 text-gray-900 whitespace-nowrap">
                                 {schedule.contactName || '-'}
+                              </td>
+                              <td className="py-2.5 px-4 text-gray-700 whitespace-nowrap">
+                                {schedule.invoiceReference ?? '-'}
                               </td>
                               <td className="py-2.5 px-4 text-gray-700 whitespace-nowrap">
                                 {getAccountCodeAndName(schedule)}
@@ -905,7 +961,7 @@ function AnalyticsPageContent() {
                     {sortedSchedules.length > 0 && (
                       <tfoot>
                         <tr className="bg-gray-100 border-t-2 border-gray-200 font-semibold">
-                          <td className="py-3 px-4 text-gray-900 whitespace-nowrap" colSpan={2}>
+                          <td className="py-3 px-4 text-gray-900 whitespace-nowrap" colSpan={3}>
                             Total
                           </td>
                           {monthColumns.map((col) => {

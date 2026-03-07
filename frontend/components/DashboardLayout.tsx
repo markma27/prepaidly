@@ -529,7 +529,7 @@ export default function DashboardLayout({ children, tenantId }: DashboardLayoutP
 
             {/* Entity Selector */}
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center whitespace-nowrap rounded-full bg-primary/35 px-2 py-0.5 text-[12px] font-medium text-white">
+              <span className="inline-flex items-center whitespace-nowrap rounded-full bg-primary/60 px-2 py-0.5 text-[11px] font-light text-white">
                 Current Entity
               </span>
               <div className="relative" ref={entityMenuRef}>
