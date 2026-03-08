@@ -45,6 +45,12 @@ public class DataSourceConfig {
             log.debug("JDBC URL already contains prepareThreshold parameter");
         }
         
+        // Allow implicit casts from varchar to PostgreSQL enum types (e.g. user_role)
+        if (jdbcUrl != null && !jdbcUrl.contains("stringtype")) {
+            jdbcUrl += "&stringtype=unspecified";
+            log.info("Added stringtype=unspecified to JDBC URL for PostgreSQL enum compatibility");
+        }
+        
         // Create a new HikariConfig based on the configured one, but with modified URL
         HikariConfig config = new HikariConfig();
         // Copy all properties from the configured HikariConfig
