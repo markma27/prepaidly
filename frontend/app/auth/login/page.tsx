@@ -75,8 +75,17 @@ function LoginContent() {
         }))
       }
 
-      // Sync users from Supabase to backend on each login (best effort).
-      // Pass session user so backend can set display_name and last_login if Admin API returns null.
+      // Record activity (last_login, display_name) - direct DB update, no Admin API dependency
+      try {
+        await usersApi.recordActivity({
+          id: data.user.id,
+          email: data.user.email,
+          user_metadata: data.user.user_metadata,
+        })
+      } catch (err) {
+        console.warn('Record activity failed:', err)
+      }
+      // Sync users from Supabase (best effort)
       try {
         await usersApi.syncSupabase({
           id: data.user.id,

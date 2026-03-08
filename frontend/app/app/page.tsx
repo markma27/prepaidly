@@ -52,6 +52,18 @@ export default function AppPage() {
         }));
       }
 
+      // Record activity (last_login, display_name) on session load - covers OAuth callback, refresh
+      try {
+        const { usersApi } = await import('@/lib/api');
+        await usersApi.recordActivity({
+          id: session.user.id,
+          email: session.user.email ?? undefined,
+          user_metadata: session.user.user_metadata ?? undefined,
+        });
+      } catch (err) {
+        console.warn('Record activity failed:', err);
+      }
+
       checkConnectionStatus();
     } catch (err) {
       console.error('Error checking auth:', err);

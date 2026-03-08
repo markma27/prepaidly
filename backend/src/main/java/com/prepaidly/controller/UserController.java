@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -353,6 +354,45 @@ public class UserController {
             log.error("Error fetching user {}", id, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Failed to fetch user: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Record user activity (login). Updates last_login and optionally display_name.
+     * Call this on every login to propagate session data to the DB without relying on Supabase Admin API.
+     *
+     * @param body { supabaseUserId (required), email (optional), displayName (optional) }
+     */
+    @PostMapping("/activity")
+    public ResponseEntity<?> recordActivity(@RequestBody(required = false) Map<String, Object> body) {
+        try {
+            if (body == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Request body is required"));
+            }
+            String supabaseUserId = Optional.ofNullable(body.get("supabaseUserId")).map(Object::toString).orElse(null);
+            if (supabaseUserId == null || supabaseUserId.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "supabaseUserId is required"));
+            }
+            String email = Optional.ofNullable(body.get("email")).map(Object::toString).orElse(null);
+            String displayName = Optional.ofNullable(body.get("displayName")).map(Object::toString).orElse(null);
+            if (displayName != null) displayName = displayName.isBlank() ? null : displayName;
+
+            User user = userRepository.findBySupabaseUserId(supabaseUserId).orElseGet(() -> {
+                User u = new User();
+                u.setSupabaseUserId(supabaseUserId);
+                u.setEmail(email != null && !email.isBlank() ? email : "supabase-" + supabaseUserId + "@prepaidly.local");
+                u.setRole("USER");
+                return u;
+            });
+            user.setLastLogin(java.time.LocalDateTime.now());
+            if (displayName != null) user.setDisplayName(displayName);
+            if (email != null && !email.isBlank()) user.setEmail(email);
+            userRepository.save(user);
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (Exception e) {
+            log.error("Error recording activity", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to record activity: " + e.getMessage()));
         }
     }
 

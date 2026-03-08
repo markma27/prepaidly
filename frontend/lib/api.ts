@@ -460,6 +460,27 @@ export const usersApi = {
   },
 
   /**
+   * Record user activity (login). Updates last_login and display_name in DB.
+   * Call on every login/session load - does not depend on Supabase Admin API.
+   */
+  recordActivity: async (sessionUser: {
+    id: string;
+    email?: string | null;
+    user_metadata?: { full_name?: string; name?: string } | null;
+  }) => {
+    const displayName =
+      sessionUser.user_metadata?.full_name ?? sessionUser.user_metadata?.name ?? null;
+    return fetchApi<{ ok: boolean }>('/api/users/activity', {
+      method: 'POST',
+      body: JSON.stringify({
+        supabaseUserId: sessionUser.id,
+        email: sessionUser.email ?? null,
+        displayName,
+      }),
+    });
+  },
+
+  /**
    * Sync users from Supabase Auth into the backend users table.
    * Pass session user to enrich display_name and last_login when Admin API returns null.
    */
