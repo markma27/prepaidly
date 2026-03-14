@@ -10,7 +10,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import Skeleton from '@/components/Skeleton';
-import { Calendar, DollarSign, Search } from 'lucide-react';
+import { Calendar, DollarSign, Search, Upload } from 'lucide-react';
 
 function ScheduleRegisterContent() {
   const router = useRouter();
@@ -290,9 +290,18 @@ function ScheduleRegisterContent() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
-            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-              <h3 className="text-base font-bold text-gray-900">Schedules</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Search and view all prepayment and unearned revenue schedules</p>
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Schedules</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Search and view all prepayment and unearned revenue schedules</p>
+              </div>
+              <button
+                onClick={() => router.push(`/app/schedules/import?tenantId=${tenantId}`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#6d69ff] bg-white border border-[#6d69ff]/30 rounded-lg hover:bg-[#6d69ff]/5 hover:border-[#6d69ff]/50 transition-all duration-200"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Import CSV
+              </button>
             </div>
             <div className="p-4 border-b border-gray-100">
               <div className="flex items-center gap-4">

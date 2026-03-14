@@ -1,5 +1,7 @@
 package com.prepaidly.controller;
 
+import com.prepaidly.dto.BulkImportScheduleRequest;
+import com.prepaidly.dto.BulkImportScheduleResponse;
 import com.prepaidly.dto.CreateScheduleRequest;
 import com.prepaidly.dto.ScheduleResponse;
 import com.prepaidly.dto.UpdateSchedulePartialRequest;
@@ -13,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -283,6 +286,57 @@ public class ScheduleController {
             log.error("Error fetching contact names for tenant {}", tenantId, e);
             return ResponseEntity.status(500).body(Map.of(
                 "error", "Failed to fetch contact names: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Bulk import schedules from CSV data.
+     * Each schedule in the list is validated and created independently.
+     * Partial success is allowed: successfully created schedules are committed
+     * even if some rows fail validation.
+     *
+     * Declared before /{id} so that POST /api/schedules/import matches this handler
+     * instead of being interpreted as path variable id="import".
+     */
+    @PostMapping("/import")
+    public ResponseEntity<?> importSchedules(@RequestBody BulkImportScheduleRequest request) {
+        try {
+            if (request.getTenantId() == null || request.getTenantId().isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Tenant ID is required"));
+            }
+            if (request.getSchedules() == null || request.getSchedules().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "No schedules provided"));
+            }
+
+            List<ScheduleResponse> created = new ArrayList<>();
+            List<BulkImportScheduleResponse.ImportError> errors = new ArrayList<>();
+
+            for (int i = 0; i < request.getSchedules().size(); i++) {
+                CreateScheduleRequest scheduleReq = request.getSchedules().get(i);
+                scheduleReq.setTenantId(request.getTenantId());
+                try {
+                    ScheduleResponse schedule = scheduleService.createSchedule(scheduleReq);
+                    created.add(schedule);
+                } catch (Exception e) {
+                    log.warn("Import row {} failed: {}", i + 1, e.getMessage());
+                    errors.add(new BulkImportScheduleResponse.ImportError(i + 1, e.getMessage()));
+                }
+            }
+
+            BulkImportScheduleResponse response = new BulkImportScheduleResponse(
+                errors.isEmpty(),
+                request.getSchedules().size(),
+                created.size(),
+                errors.size(),
+                created,
+                errors
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error importing schedules", e);
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Failed to import schedules: " + e.getMessage()
             ));
         }
     }

@@ -141,3 +141,17 @@ export interface VoidScheduleResponse {
   failedJournalIds?: string[];
 }
 
+export interface BulkImportScheduleRequest {
+  tenantId: string;
+  schedules: CreateScheduleRequest[];
+}
+
+export interface BulkImportScheduleResponse {
+  success: boolean;
+  totalRequested: number;
+  totalCreated: number;
+  totalFailed: number;
+  createdSchedules: Schedule[];
+  errors: { rowNumber: number; message: string }[];
+}
+

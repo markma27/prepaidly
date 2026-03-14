@@ -8,6 +8,8 @@ import {
   PostJournalRequest,
   PostJournalResponse,
   VoidScheduleResponse,
+  BulkImportScheduleRequest,
+  BulkImportScheduleResponse,
 } from './types';
 
 // API base URL - must be set in Vercel env for production; localhost always uses :8080
@@ -369,6 +371,22 @@ export const scheduleApi = {
     if (result.tenantId) {
       clearCachedData(getCacheKey('schedules', result.tenantId));
       clearCachedData(getCacheKey('schedules', result.tenantId) + ':voided');
+    }
+    return result;
+  },
+
+  /**
+   * Bulk import schedules from parsed CSV data
+   */
+  importSchedules: async (request: BulkImportScheduleRequest): Promise<BulkImportScheduleResponse> => {
+    const result = await fetchApi<BulkImportScheduleResponse>('/api/schedules/import', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    if (request.tenantId) {
+      clearCachedData(getCacheKey('schedules', request.tenantId));
+      clearCachedData(getCacheKey('schedules', request.tenantId) + ':voided');
+      clearCachedData(getCacheKey('scheduleContacts', request.tenantId));
     }
     return result;
   },
