@@ -67,6 +67,8 @@ public class XeroAuthController {
     private final UserRepository userRepository;
     private final TokenRefreshScheduler tokenRefreshScheduler;
     private final XeroConfig xeroConfig;
+    private final com.prepaidly.service.JwtAuthService jwtAuthService;
+    private final com.prepaidly.service.OAuthStateCache oAuthStateCache;
     
     @Value("${frontend.url:http://localhost:3000}")
     private String frontendUrl;
@@ -120,6 +122,25 @@ public class XeroAuthController {
      * 
      * @see XeroAuthController#callback(String, String, Long) for handling the OAuth callback
      */
+    /**
+     * Login via Xero OAuth. No prior authentication required.
+     * Redirects to Xero consent screen with OpenID + accounting scopes.
+     */
+    @GetMapping("/login")
+    public ResponseEntity<?> login() {
+        try {
+            // For login flow, use userId=0 as a placeholder (user doesn't exist yet)
+            String authUrl = xeroOAuthService.getLoginAuthorizationUrl();
+            HttpHeaders headers = new HttpHeaders();
+            headers.add("Location", authUrl);
+            return ResponseEntity.status(HttpStatus.FOUND).headers(headers).build();
+        } catch (Exception e) {
+            log.error("Error generating login authorization URL", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to generate login URL: " + e.getMessage()));
+        }
+    }
+
     @GetMapping("/connect")
     public ResponseEntity<?> connect(
             @RequestParam(required = false) String supabaseUserId,
@@ -249,71 +270,83 @@ public class XeroAuthController {
     public ResponseEntity<?> callback(
             @RequestParam String code,
             @RequestParam(required = false) String state) {
+        if (state == null || state.isEmpty()) {
+            log.error("OAuth callback missing state parameter");
+            String errorRedirectUrl = frontendUrl + "/app/connected?success=false&error=" + 
+                java.net.URLEncoder.encode("Missing state parameter. This may indicate a security issue.", java.nio.charset.StandardCharsets.UTF_8);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .header("Location", errorRedirectUrl)
+                .body(Map.of(
+                    "success", false,
+                    "error", "Missing state parameter. Please try connecting again."
+                ));
+        }
+
+        String flowType = oAuthStateCache.getFlowType(state);
+        if ("login".equals(flowType)) {
+            return handleLoginCallback(code, state);
+        }
+        return handleConnectCallback(code, state);
+    }
+
+    private ResponseEntity<?> handleLoginCallback(String code, String state) {
         try {
-            // Validate state parameter is present
-            if (state == null || state.isEmpty()) {
-                log.error("OAuth callback missing state parameter");
-                String errorRedirectUrl = frontendUrl + "/app/connected?success=false&error=" + 
-                    java.net.URLEncoder.encode("Missing state parameter. This may indicate a security issue.", java.nio.charset.StandardCharsets.UTF_8);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .header("Location", errorRedirectUrl)
-                    .body(Map.of(
-                        "success", false,
-                        "error", "Missing state parameter. Please try connecting again."
-                    ));
+            XeroOAuthService.LoginResult result = xeroOAuthService.exchangeCodeForLoginTokens(code, state);
+            User user = result.getUser();
+
+            if (result.isFirstTimeUser() && result.getFirstConnection() != null) {
+                try {
+                    XeroConnection freshConn = xeroConnectionRepository
+                        .findFirstByTenantIdOrderByIdDesc(result.getFirstConnection().getTenantId())
+                        .orElse(result.getFirstConnection());
+                    xeroOAuthService.updateOrganizationInfo(freshConn);
+                } catch (Exception e) {
+                    log.warn("Could not fetch org info for first-time user: {}", e.getMessage());
+                }
             }
-            
+
+            String jwt = jwtAuthService.generateToken(user.getId(), user.getEmail(), user.getDisplayName());
+            String redirectUrl = frontendUrl + "/app?token=" +
+                java.net.URLEncoder.encode(jwt, java.nio.charset.StandardCharsets.UTF_8);
+            log.info("Login successful for user id={}, email={}, firstTime={}", user.getId(), user.getEmail(), result.isFirstTimeUser());
+            return ResponseEntity.status(HttpStatus.FOUND)
+                .header("Location", redirectUrl)
+                .build();
+        } catch (Exception e) {
+            log.error("Error handling login callback", e);
+            String errorRedirectUrl = frontendUrl + "/auth/login?error=" +
+                java.net.URLEncoder.encode(e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+            return ResponseEntity.status(HttpStatus.FOUND)
+                .header("Location", errorRedirectUrl)
+                .build();
+        }
+    }
+
+    private ResponseEntity<?> handleConnectCallback(String code, String state) {
+        try {
             XeroConnection connection = xeroOAuthService.exchangeCodeForTokens(code, state);
-            
-            // Log all connections that were created/updated
-            // Note: exchangeCodeForTokens now processes ALL connections from the OAuth response
-            // but returns the first one for backward compatibility
+
             log.info("OAuth callback completed. First connection tenantId: {}, tenantName: {}", 
                 connection.getTenantId(), connection.getTenantName());
-            
-            // Get all connections to verify all were saved
-            List<XeroConnection> allConnections = xeroConnectionRepository.findAll();
-            log.info("Total Xero connections in database after OAuth callback: {}", allConnections.size());
-            for (XeroConnection conn : allConnections) {
-                log.info("  - Connection: tenantId={}, tenantName={}, userId={}", 
-                    conn.getTenantId(), conn.getTenantName(), conn.getUser().getId());
-            }
-            
-            // Immediately fetch and store organization info (timezone, country, currency)
-            // This must happen right after connection creation while tokens are fresh
+
             try {
-                log.info("Fetching organization info for newly connected tenant: {}", connection.getTenantId());
-                // Fetch the connection fresh from database to ensure we have the managed entity
                 XeroConnection freshConnection = xeroConnectionRepository.findFirstByTenantIdOrderByIdDesc(connection.getTenantId())
                     .orElse(connection);
                 xeroOAuthService.updateOrganizationInfo(freshConnection);
-                log.info("Successfully fetched organization info for new connection");
             } catch (Exception e) {
-                log.warn("Could not fetch organization info for new connection (will be retried by scheduler): {}", e.getMessage());
+                log.warn("Could not fetch organization info for new connection: {}", e.getMessage());
             }
-            
-            // Optionally trigger a token refresh to verify the connection is active
+
             try {
-                log.info("Triggering token refresh for newly connected tenant: {}", connection.getTenantId());
                 tokenRefreshScheduler.refreshConnectionById(connection.getTenantId());
-                log.info("Successfully refreshed tokens for new connection");
             } catch (Exception e) {
-                // Don't fail the connection if refresh fails - it will be retried by scheduler
-                log.warn("Could not refresh tokens for new connection (will be retried by scheduler): {}", e.getMessage());
+                log.warn("Could not refresh tokens for new connection: {}", e.getMessage());
             }
-            
-            // Redirect to /app page to show all connections instead of just the first one
-            // This allows users to see all connected organizations
+
             String redirectUrl = frontendUrl + "/app";
-            log.info("Redirecting to frontend /app page to show all {} connection(s): {}", 
-                allConnections.size(), redirectUrl);
             return ResponseEntity.status(HttpStatus.FOUND)
                 .header("Location", redirectUrl)
-                .body(Map.of(
-                    "success", true,
-                    "totalConnections", allConnections.size(),
-                    "message", "Successfully connected to Xero"
-                ));
+                .build();
         } catch (Exception e) {
             log.error("Error handling OAuth callback", e);
             String errorRedirectUrl = frontendUrl + "/app/connected?success=false&error=" + 

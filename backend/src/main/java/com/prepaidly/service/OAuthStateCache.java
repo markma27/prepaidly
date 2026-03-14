@@ -38,20 +38,18 @@ public class OAuthStateCache {
      */
     private static class StateEntry {
         private final Long userId;
+        private final String flowType;
         private final LocalDateTime expiresAt;
         
-        public StateEntry(Long userId, LocalDateTime expiresAt) {
+        public StateEntry(Long userId, String flowType, LocalDateTime expiresAt) {
             this.userId = userId;
+            this.flowType = flowType;
             this.expiresAt = expiresAt;
         }
         
-        public Long getUserId() {
-            return userId;
-        }
-        
-        public boolean isExpired() {
-            return LocalDateTime.now().isAfter(expiresAt);
-        }
+        public Long getUserId() { return userId; }
+        public String getFlowType() { return flowType; }
+        public boolean isExpired() { return LocalDateTime.now().isAfter(expiresAt); }
     }
     
     // Store state -> StateEntry mapping
@@ -87,12 +85,14 @@ public class OAuthStateCache {
      * @return A unique state string that should be included in the OAuth authorization URL
      */
     public String storeState(Long userId) {
+        return storeState(userId, "connect");
+    }
+    
+    public String storeState(Long userId, String flowType) {
         String state = UUID.randomUUID().toString();
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(STATE_EXPIRATION_MINUTES);
-        
-        stateCache.put(state, new StateEntry(userId, expiresAt));
-        log.debug("Stored OAuth state for user {}: {} (expires at {})", userId, state, expiresAt);
-        
+        stateCache.put(state, new StateEntry(userId, flowType, expiresAt));
+        log.debug("Stored OAuth state for user {} (flow: {}): {} (expires at {})", userId, flowType, state, expiresAt);
         return state;
     }
     
@@ -139,6 +139,12 @@ public class OAuthStateCache {
      * @param state The state parameter received from OAuth callback
      * @return userId if state is valid, null otherwise
      */
+    public String getFlowType(String state) {
+        StateEntry entry = stateCache.get(state);
+        if (entry == null || entry.isExpired()) return null;
+        return entry.getFlowType();
+    }
+
     public Long consumeState(String state) {
         if (state == null || state.isEmpty()) {
             log.warn("State validation failed: state is null or empty");

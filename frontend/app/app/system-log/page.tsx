@@ -1,12 +1,12 @@
 'use client';
 
 import { Suspense, useEffect, useState, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { scheduleApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { getOrgCurrency } from '@/lib/OrgContext';
 import type { Schedule } from '@/lib/types';
-import { createClient } from '@/lib/supabase/client';
+import { isAuthenticated, getUser } from '@/lib/auth';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -163,6 +163,7 @@ function formatTimestamp(ts: string): string {
 }
 
 function SystemLogPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -176,23 +177,15 @@ function SystemLogPageContent() {
   const orgCurrency = getOrgCurrency(tenantId) || 'USD';
 
   useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError || !session?.user) return;
-        const name =
-          session.user.user_metadata?.full_name ||
-          session.user.user_metadata?.name ||
-          (session.user.email || '').split('@')[0] ||
-          null;
-        setCurrentUserName(name || null);
-      } catch {
-        // ignore
-      }
-    };
-    fetchUserInfo();
-  }, []);
+    if (!isAuthenticated()) {
+      router.push('/auth/login');
+      return;
+    }
+    const user = getUser();
+    if (user) {
+      setCurrentUserName(user.name || user.email?.split('@')[0] || null);
+    }
+  }, [router]);
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');

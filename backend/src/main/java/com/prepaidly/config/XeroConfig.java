@@ -19,6 +19,9 @@ public class XeroConfig {
     
     // Required scopes for MVP
     public static final String[] REQUIRED_SCOPES = {
+        "openid",
+        "profile",
+        "email",
         "offline_access",
         "accounting.settings.read",
         "accounting.contacts.read",

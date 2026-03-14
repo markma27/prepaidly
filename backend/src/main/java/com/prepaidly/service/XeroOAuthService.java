@@ -70,12 +70,58 @@ public class XeroOAuthService {
         public String getErrorDescription() { return errorDescription; }
     }
     
+    public static class LoginResult {
+        private final User user;
+        private final XeroConnection firstConnection;
+        private final boolean firstTimeUser;
+
+        public LoginResult(User user, XeroConnection firstConnection, boolean firstTimeUser) {
+            this.user = user;
+            this.firstConnection = firstConnection;
+            this.firstTimeUser = firstTimeUser;
+        }
+
+        public User getUser() { return user; }
+        public XeroConnection getFirstConnection() { return firstConnection; }
+        public boolean isFirstTimeUser() { return firstTimeUser; }
+    }
+
     /**
      * Generate the authorization URL for Xero OAuth2 flow.
      * 
      * Includes offline_access scope to receive a refresh token.
      * Scopes are defined in XeroConfig.REQUIRED_SCOPES.
      */
+    public String getLoginAuthorizationUrl() {
+        if (xeroConfig.getClientId() == null || xeroConfig.getClientId().isEmpty()) {
+            throw new IllegalStateException("Xero Client ID is not configured");
+        }
+        if (xeroConfig.getClientSecret() == null || xeroConfig.getClientSecret().isEmpty()) {
+            throw new IllegalStateException("Xero Client Secret is not configured");
+        }
+        if (xeroConfig.getRedirectUri() == null || xeroConfig.getRedirectUri().isEmpty()) {
+            throw new IllegalStateException("Xero Redirect URI is not configured");
+        }
+        
+        String scopes = String.join(" ", XeroConfig.REQUIRED_SCOPES);
+        String state = oAuthStateCache.storeState(0L, "login");
+        
+        String redirectUri = java.net.URLEncoder.encode(xeroConfig.getRedirectUri(), java.nio.charset.StandardCharsets.UTF_8);
+        String encodedScopes = java.net.URLEncoder.encode(scopes, java.nio.charset.StandardCharsets.UTF_8);
+        
+        String authUrl = String.format(
+            "%s?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s",
+            XeroConfig.XERO_AUTH_URL,
+            xeroConfig.getClientId(),
+            redirectUri,
+            encodedScopes,
+            state
+        );
+        
+        log.info("Generated Xero LOGIN authorization URL (scopes: {})", scopes);
+        return authUrl;
+    }
+
     public String getAuthorizationUrl(Long userId) {
         // Validate configuration
         if (xeroConfig.getClientId() == null || xeroConfig.getClientId().isEmpty()) {
@@ -110,13 +156,171 @@ public class XeroOAuthService {
     }
     
     /**
+     * Exchange authorization code for tokens during Xero login flow.
+     * Decodes id_token to extract user info, finds or creates the user,
+     * and saves Xero connections.
+     */
+    @Transactional
+    public LoginResult exchangeCodeForLoginTokens(String code, String state) {
+        Long stateUserId = oAuthStateCache.consumeState(state);
+        if (stateUserId == null) {
+            throw new RuntimeException("Invalid or expired state parameter. Please try logging in again.");
+        }
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            headers.setBasicAuth(
+                Objects.requireNonNull(xeroConfig.getClientId()),
+                Objects.requireNonNull(xeroConfig.getClientSecret())
+            );
+
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("grant_type", "authorization_code");
+            body.add("code", code);
+            body.add("redirect_uri", xeroConfig.getRedirectUri());
+
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                XeroConfig.XERO_TOKEN_URL, HttpMethod.POST, request,
+                new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+
+            Map<String, Object> tokenResponse = response.getBody();
+            if (response.getStatusCode() != HttpStatus.OK || tokenResponse == null) {
+                throw new RuntimeException("Failed to exchange code for tokens");
+            }
+
+            String accessToken = (String) tokenResponse.get("access_token");
+            String refreshToken = (String) tokenResponse.get("refresh_token");
+            String idToken = (String) tokenResponse.get("id_token");
+            String scopeStr = (String) tokenResponse.get("scope");
+            Object expiresInObj = tokenResponse.get("expires_in");
+            Integer expiresIn = expiresInObj instanceof Integer ? (Integer) expiresInObj :
+                expiresInObj instanceof Long ? ((Long) expiresInObj).intValue() : null;
+
+            if (accessToken == null) throw new RuntimeException("Access token not found in token response");
+            if (idToken == null) throw new RuntimeException("id_token not found - ensure openid scope is granted");
+
+            Map<String, Object> idClaims = decodeIdTokenPayload(idToken);
+            String email = (String) idClaims.get("email");
+            String givenName = (String) idClaims.get("given_name");
+            String familyName = (String) idClaims.get("family_name");
+            String xeroUserId = (String) idClaims.get("xero_userid");
+            String displayName = buildDisplayName(givenName, familyName);
+
+            log.info("Login: decoded id_token - email={}, xeroUserId={}, name={}", email, xeroUserId, displayName);
+
+            boolean firstTime = false;
+            User user = null;
+
+            if (xeroUserId != null) {
+                user = userRepository.findByXeroUserId(xeroUserId).orElse(null);
+            }
+            if (user == null && email != null) {
+                user = userRepository.findByEmail(email).orElse(null);
+            }
+
+            if (user == null) {
+                firstTime = true;
+                user = new User();
+                user.setEmail(email != null ? email : "xero-" + xeroUserId + "@prepaidly.local");
+                user.setDisplayName(displayName);
+                user.setXeroUserId(xeroUserId);
+                user.setRole("USER");
+                user.setLastLogin(LocalDateTime.now());
+                user = userRepository.save(user);
+                log.info("Login: created new user id={}, email={}", user.getId(), user.getEmail());
+            } else {
+                if (user.getXeroUserId() == null && xeroUserId != null) {
+                    user.setXeroUserId(xeroUserId);
+                }
+                if (displayName != null && (user.getDisplayName() == null || user.getDisplayName().isBlank())) {
+                    user.setDisplayName(displayName);
+                }
+                user.setLastLogin(LocalDateTime.now());
+                user = userRepository.save(user);
+                log.info("Login: returning user id={}, email={}", user.getId(), user.getEmail());
+            }
+
+            List<Map<String, Object>> connections = getXeroConnections(accessToken);
+            XeroConnection firstConnection = null;
+
+            if (connections != null && !connections.isEmpty()) {
+                int expiresInSeconds = Objects.requireNonNull(expiresIn, "Expires in cannot be null");
+                LocalDateTime now = LocalDateTime.now();
+
+                for (Map<String, Object> connData : connections) {
+                    String tenantId = (String) connData.get("tenantId");
+                    String tenantName = (String) connData.get("tenantName");
+                    String xeroConnId = (String) connData.get("id");
+
+                    Optional<XeroConnection> existing = xeroConnectionRepository.findByUserIdAndTenantId(user.getId(), tenantId);
+                    XeroConnection conn;
+                    if (existing.isPresent()) {
+                        conn = existing.get();
+                    } else {
+                        conn = new XeroConnection();
+                        conn.setUser(user);
+                        conn.setTenantId(tenantId);
+                        boolean isFirstForTenant = xeroConnectionRepository.findByTenantId(tenantId).isEmpty();
+                        conn.setOrgAdmin(isFirstForTenant);
+                    }
+
+                    if (tenantName != null && !tenantName.trim().isEmpty()) {
+                        conn.setTenantName(tenantName);
+                    }
+                    conn.setAccessToken(encryptionService.encrypt(accessToken));
+                    if (refreshToken != null) {
+                        conn.setRefreshToken(encryptionService.encrypt(refreshToken));
+                    }
+                    conn.setExpiresAt(now.plusSeconds(expiresInSeconds));
+                    conn.markConnected();
+                    conn.setScopes(scopeStr);
+                    conn.setXeroConnectionId(xeroConnId);
+                    conn.setLastRefreshedAt(now);
+
+                    XeroConnection saved = xeroConnectionRepository.saveAndFlush(conn);
+                    if (firstConnection == null) firstConnection = saved;
+                }
+            }
+
+            return new LoginResult(user, firstConnection, firstTime);
+        } catch (HttpClientErrorException e) {
+            log.error("HTTP error during login token exchange: {}", e.getStatusCode());
+            throw new RuntimeException("Failed to exchange authorization code: " + e.getStatusCode(), e);
+        } catch (Exception e) {
+            if (e instanceof RuntimeException) throw (RuntimeException) e;
+            throw new RuntimeException("Failed to exchange authorization code: " + e.getMessage(), e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> decodeIdTokenPayload(String idToken) {
+        try {
+            String[] parts = idToken.split("\\.");
+            if (parts.length < 2) throw new RuntimeException("Invalid id_token format");
+            String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]), java.nio.charset.StandardCharsets.UTF_8);
+            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(payload, Map.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to decode id_token: " + e.getMessage(), e);
+        }
+    }
+
+    private String buildDisplayName(String givenName, String familyName) {
+        StringBuilder sb = new StringBuilder();
+        if (givenName != null && !givenName.isBlank()) sb.append(givenName.trim());
+        if (familyName != null && !familyName.isBlank()) {
+            if (!sb.isEmpty()) sb.append(" ");
+            sb.append(familyName.trim());
+        }
+        return sb.isEmpty() ? null : sb.toString();
+    }
+
+    /**
      * Exchange authorization code for access and refresh tokens.
-     * 
-     * On success:
-     * - Stores encrypted access_token + refresh_token per tenant
-     * - Sets connection_status = CONNECTED
-     * - Stores scopes and xero_connection_id
-     * - Sets expires_at and last_refreshed_at
+     * Used for the "connect additional org" flow (existing authenticated user).
      */
     @Transactional
     public XeroConnection exchangeCodeForTokens(String code, String state) {

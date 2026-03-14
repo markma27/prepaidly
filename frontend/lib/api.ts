@@ -11,11 +11,11 @@ import {
   BulkImportScheduleRequest,
   BulkImportScheduleResponse,
 } from './types';
+import { getAuthToken } from './auth';
 
-// API base URL - must be set in Vercel env for production; localhost always uses :8080
 function getApiBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-    return 'http://localhost:8080'; // local dev: always backend on 8080
+    return 'http://localhost:8080';
   }
   return process.env.NEXT_PUBLIC_API_URL || '';
 }
@@ -56,7 +56,7 @@ const setCachedData = <T>(key: string, data: T) => {
     const item: CachedItem<T> = { timestamp: Date.now(), data };
     sessionStorage.setItem(key, JSON.stringify(item));
   } catch {
-    // Ignore cache write errors (e.g., quota)
+    // Ignore cache write errors
   }
 };
 
@@ -72,6 +72,7 @@ const clearTenantCaches = (tenantId: string) => {
   clearCachedData(getCacheKey('settings', tenantId));
 };
 
+/** @deprecated Use getAuthToken() from lib/auth.ts instead */
 const getSupabaseUser = (): { id?: string; email?: string } => {
   if (typeof window === 'undefined') return {};
   try {
@@ -83,6 +84,15 @@ const getSupabaseUser = (): { id?: string; email?: string } => {
     return {};
   }
 };
+
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = getAuthToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
 
 class ApiError extends Error {
   constructor(
@@ -113,7 +123,7 @@ async function fetchApi<T>(
   const response = await fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
       ...options?.headers,
     },
   });
@@ -139,7 +149,6 @@ async function fetchApi<T>(
     if (error instanceof ApiError) {
       throw error;
     }
-    // Network error or other fetch errors
     throw new ApiError(
       `Failed to connect to backend API at ${API_BASE_URL}. Please check if the backend is running and NEXT_PUBLIC_API_URL is correctly configured.`,
       0,
@@ -150,47 +159,36 @@ async function fetchApi<T>(
 
 // Xero Auth API
 export const xeroAuthApi = {
-  /**
-   * Get Xero connection status
-   * @param userId Optional user ID
-   * @param validateTokens If true, validates tokens (slower). If false, returns stored names immediately (faster).
-   */
-  getStatus: async (userId?: number, validateTokens: boolean = false): Promise<XeroConnectionStatusResponse> => {
+  getLoginUrl: (): string => {
+    if (!API_BASE_URL) {
+      throw new ApiError('API base URL is not configured.', 500);
+    }
+    return `${API_BASE_URL}/api/auth/xero/login`;
+  },
+
+  getStatus: async (_userId?: number, validateTokens: boolean = false): Promise<XeroConnectionStatusResponse> => {
     const params = new URLSearchParams();
-    if (userId) params.append('userId', userId.toString());
+    params.append('validateTokens', validateTokens.toString());
+    // Fallback: pass supabaseUserId if JWT not available (transition period)
     const supabaseUser = getSupabaseUser();
     if (supabaseUser.id) params.append('supabaseUserId', supabaseUser.id);
-    params.append('validateTokens', validateTokens.toString());
     return fetchApi<XeroConnectionStatusResponse>(`/api/auth/xero/status?${params.toString()}`);
   },
 
-  /**
-   * Get Xero authorization URL (redirects to Xero login).
-   * Backend uses default user; no query params to avoid 400.
-   */
   getConnectUrl: (_userId?: number): string => {
     if (!API_BASE_URL) {
-      throw new ApiError(
-        'API base URL is not configured. Please set NEXT_PUBLIC_API_URL environment variable.',
-        500
-      );
+      throw new ApiError('API base URL is not configured.', 500);
     }
     const supabaseUser = getSupabaseUser();
     if (!supabaseUser.id) {
-      throw new ApiError('Missing Supabase user session. Please log in first.', 401);
+      throw new ApiError('Not authenticated. Please log in first.', 401);
     }
     const params = new URLSearchParams();
     if (supabaseUser.id) params.append('supabaseUserId', supabaseUser.id);
     if (supabaseUser.email) params.append('email', supabaseUser.email);
-    const query = params.toString();
-    return query
-      ? `${API_BASE_URL}/api/auth/xero/connect?${query}`
-      : `${API_BASE_URL}/api/auth/xero/connect`;
+    return `${API_BASE_URL}/api/auth/xero/connect?${params.toString()}`;
   },
 
-  /**
-   * Disconnect from Xero (delete connection)
-   */
   disconnect: async (tenantId: string): Promise<{ success: boolean; message: string }> => {
     const supabaseUser = getSupabaseUser();
     const params = new URLSearchParams();
@@ -198,9 +196,7 @@ export const xeroAuthApi = {
     if (supabaseUser.id) params.append('supabaseUserId', supabaseUser.id);
     const result = await fetchApi<{ success: boolean; message: string }>(
       `/api/auth/xero/disconnect?${params.toString()}`,
-      {
-        method: 'DELETE',
-      }
+      { method: 'DELETE' }
     );
     clearTenantCaches(tenantId);
     return result;
@@ -470,10 +466,24 @@ export type UserProfile = {
 // Users API
 export const usersApi = {
   /**
-   * Get current user profile (display name, email, role, last login).
-   * Uses sessionStorage cache (5 min) to reduce latency.
+   * Get current user profile. Uses JWT auth (Authorization header is added by fetchApi).
+   * Falls back to supabaseUserId for backward compatibility.
    */
   getProfile: async (): Promise<UserProfile | null> => {
+    const token = getAuthToken();
+    if (token) {
+      const cacheKey = getCacheKey('userProfile', 'jwt');
+      const cached = getCachedData<UserProfile>(cacheKey, DEFAULT_CACHE_TTL_MS);
+      if (cached) return cached;
+      try {
+        const data = await fetchApi<UserProfile>('/api/users/profile');
+        setCachedData(cacheKey, data);
+        return data;
+      } catch {
+        return null;
+      }
+    }
+    // Fallback: legacy supabaseUserId
     const supabaseUser = getSupabaseUser();
     if (!supabaseUser.id) return null;
     const cacheKey = getCacheKey('userProfile', supabaseUser.id);
@@ -490,10 +500,7 @@ export const usersApi = {
     }
   },
 
-  /**
-   * Record user activity (login). Updates last_login and display_name in DB.
-   * Call on every login/session load - does not depend on Supabase Admin API.
-   */
+  /** @deprecated Replaced by Xero-only login flow */
   recordActivity: async (sessionUser: {
     id: string;
     email?: string | null;
@@ -511,10 +518,7 @@ export const usersApi = {
     });
   },
 
-  /**
-   * Sync users from Supabase Auth into the backend users table.
-   * Pass session user to enrich display_name and last_login when Admin API returns null.
-   */
+  /** @deprecated Replaced by Xero-only login flow */
   syncSupabase: async (sessionUser?: { id?: string; user_metadata?: { full_name?: string; name?: string } }) => {
     const body = sessionUser?.id
       ? {

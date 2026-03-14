@@ -26,7 +26,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @param supabaseUserId Supabase user UUID
      * @return Optional containing the user if found, empty otherwise
      */
+    @Deprecated
     Optional<User> findBySupabaseUserId(String supabaseUserId);
+
+    /**
+     * Find a user by Xero user ID.
+     *
+     * @param xeroUserId Xero user ID
+     * @return Optional containing the user if found, empty otherwise
+     */
+    Optional<User> findByXeroUserId(String xeroUserId);
 
     /**
      * Find users whose Supabase UUID is not in the provided set.
@@ -34,6 +43,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @param supabaseUserIds Supabase user UUIDs to keep
      * @return users not in the set
      */
+    @Deprecated
     java.util.List<User> findBySupabaseUserIdNotIn(java.util.Collection<String> supabaseUserIds);
 
     /**
@@ -41,6 +51,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
      *
      * @return users without Supabase UUID
      */
+    @Deprecated
     java.util.List<User> findBySupabaseUserIdIsNull();
 }
 

@@ -6,7 +6,7 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import { xeroAuthApi, usersApi, type UserProfile } from '@/lib/api';
 import useTokenAutoRefresh from '@/lib/useTokenAutoRefresh';
 import { XeroConnection } from '@/lib/types';
-import { createClient } from '@/lib/supabase/client';
+import { getUser, signOut as authSignOut } from '@/lib/auth';
 import { 
   LayoutDashboard, 
   PlusCircle, 
@@ -119,36 +119,14 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
     }
   }, [memoizedCurrentConnection]);
 
-  // Fetch current user info from Supabase
   useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error fetching user session:', error);
-          return;
-        }
-        
-        if (session?.user) {
-          const email = session.user.email || 'user@example.com';
-          const name = session.user.user_metadata?.full_name || 
-                      session.user.user_metadata?.name || 
-                      email.split('@')[0] || 
-                      'User';
-          const initial = name.charAt(0).toUpperCase() || 'P';
-          
-          setUserEmail(email);
-          setUserName(name);
-          setUserInitial(initial);
-        }
-      } catch (err) {
-        console.error('Error loading user info:', err);
-      }
-    };
-    
-    fetchUserInfo();
+    const authUser = getUser();
+    if (authUser) {
+      setUserEmail(authUser.email || 'user@example.com');
+      const name = authUser.name || authUser.email?.split('@')[0] || 'User';
+      setUserName(name);
+      setUserInitial(name.charAt(0).toUpperCase() || 'P');
+    }
   }, []);
 
   useTokenAutoRefresh({ enabled: !!tenantId });
@@ -399,22 +377,8 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
     return () => { cancelled = true; };
   }, [isProfileSettingsOpen]);
 
-  const handleSignOut = async () => {
-    try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      
-      // Clear session storage
-      if (typeof window !== 'undefined') {
-        sessionStorage.clear();
-      }
-      
-      // Redirect to login
-      router.push('/auth/login');
-      router.refresh();
-    } catch (err) {
-      console.error('Error signing out:', err);
-    }
+  const handleSignOut = () => {
+    authSignOut();
   };
 
   // Get page title based on pathname

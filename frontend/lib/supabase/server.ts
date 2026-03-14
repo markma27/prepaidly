@@ -1,3 +1,8 @@
+/**
+ * @deprecated Supabase Auth has been replaced by Xero-only login.
+ * This server client may still be needed for Supabase Storage SSR operations.
+ * Do not use for authentication - use lib/auth.ts instead.
+ */
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -27,4 +32,3 @@ export async function createClient() {
     }
   )
 }
-

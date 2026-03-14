@@ -7,7 +7,7 @@ import useTokenAutoRefresh from '@/lib/useTokenAutoRefresh';
 import type { XeroConnectionStatusResponse } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
-import { createClient } from '@/lib/supabase/client';
+import { extractTokenFromUrl, isAuthenticated } from '@/lib/auth';
 import { 
   Link2, 
   CheckCircle2, 
@@ -28,42 +28,20 @@ export default function AppPage() {
   useTokenAutoRefresh({ enabled: autoRefreshEnabled });
 
   useEffect(() => {
-    // Check if user is logged in using Supabase Auth
     checkAuthAndLoadData();
   }, [router]);
 
   const checkAuthAndLoadData = async () => {
     try {
-      const supabase = createClient();
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      // Extract JWT from URL if redirected from Xero login callback
+      extractTokenFromUrl();
 
-      if (sessionError || !session) {
+      if (!isAuthenticated()) {
         router.push('/auth/login');
         return;
       }
 
       setAutoRefreshEnabled(true);
-
-      // Store user info in sessionStorage for backward compatibility
-      if (typeof window !== 'undefined' && session.user) {
-        sessionStorage.setItem('user', JSON.stringify({
-          id: session.user.id,
-          email: session.user.email,
-        }));
-      }
-
-      // Record activity (last_login, display_name) on session load - covers OAuth callback, refresh
-      try {
-        const { usersApi } = await import('@/lib/api');
-        await usersApi.recordActivity({
-          id: session.user.id,
-          email: session.user.email ?? undefined,
-          user_metadata: session.user.user_metadata ?? undefined,
-        });
-      } catch (err) {
-        console.warn('Record activity failed:', err);
-      }
-
       checkConnectionStatus();
     } catch (err) {
       console.error('Error checking auth:', err);

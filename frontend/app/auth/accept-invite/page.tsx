@@ -1,3 +1,4 @@
+// @deprecated
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -122,7 +123,11 @@ export default function AcceptInvitePage() {
 
   if (initializing) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4 bg-gray-50">
+      <div className="flex min-h-screen flex-col bg-gray-50">
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-sm text-amber-800 font-medium">
+          This page is deprecated and will be removed in a future update.
+        </div>
+        <div className="flex flex-1 items-center justify-center p-4">
         <div className="w-full max-w-[400px] space-y-8">
           <div className="flex justify-center mb-2 scale-110">
             <Link href="/" className="relative w-64 h-24 hover:opacity-90 transition-all active:scale-[0.98]">
@@ -145,13 +150,18 @@ export default function AcceptInvitePage() {
             </CardContent>
           </Card>
         </div>
+        </div>
       </div>
     )
   }
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4 bg-gray-50">
+      <div className="flex min-h-screen flex-col bg-gray-50">
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-sm text-amber-800 font-medium">
+          This page is deprecated and will be removed in a future update.
+        </div>
+        <div className="flex flex-1 items-center justify-center p-4">
         <div className="w-full max-w-[400px] space-y-8">
           <div className="flex justify-center mb-2 scale-110">
             <Link href="/" className="relative w-64 h-24 hover:opacity-90 transition-all active:scale-[0.98]">
@@ -181,12 +191,17 @@ export default function AcceptInvitePage() {
             </CardContent>
           </Card>
         </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 bg-gray-50">
+    <div className="flex min-h-screen flex-col bg-gray-50">
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-sm text-amber-800 font-medium">
+        This page is deprecated and will be removed in a future update.
+      </div>
+      <div className="flex flex-1 items-center justify-center p-4">
       <div className="w-full max-w-[400px] space-y-8">
         <div className="flex justify-center mb-2 scale-110">
           <Link href="/" className="relative w-64 h-24 hover:opacity-90 transition-all active:scale-[0.98]">
@@ -267,6 +282,7 @@ export default function AcceptInvitePage() {
             </div>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   )

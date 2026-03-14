@@ -68,6 +68,7 @@ public class UserController {
     private final XeroConnectionRepository xeroConnectionRepository;
     private final SupabaseAdminService supabaseAdminService;
     private final UserProfileService userProfileService;
+    private final com.prepaidly.service.JwtAuthService jwtAuthService;
 
     /**
      * Create a New User
@@ -177,6 +178,8 @@ public class UserController {
      *
      * @return Sync statistics: fetched, upserted, deleted
      */
+    /** @deprecated Replaced by Xero-only login flow. Will be removed after migration verification. */
+    @Deprecated
     @PostMapping("/sync-supabase")
     public ResponseEntity<?> syncSupabaseUsers(@RequestBody(required = false) Map<String, Object> body) {
         try {
@@ -365,10 +368,10 @@ public class UserController {
 
     /**
      * Record user activity (login). Updates last_login and optionally display_name.
-     * Call this on every login to propagate session data to the DB without relying on Supabase Admin API.
      *
-     * @param body { supabaseUserId (required), email (optional), displayName (optional) }
+     * @deprecated Replaced by Xero-only login flow which updates last_login during callback.
      */
+    @Deprecated
     @PostMapping("/activity")
     public ResponseEntity<?> recordActivity(@RequestBody(required = false) Map<String, Object> body) {
         try {
@@ -404,18 +407,32 @@ public class UserController {
     }
 
     /**
-     * Get current user profile by Supabase user ID.
-     * Returns display name, email, role, last login. Uses cache (5 min) to reduce latency.
-     *
-     * @param supabaseUserId Supabase user UUID (required, from auth session)
-     * @return ResponseEntity with UserResponse or 404 if not found
+     * Get current user profile.
+     * Supports JWT-based auth (Authorization header) or legacy supabaseUserId param.
      */
     @GetMapping("/profile")
-    public ResponseEntity<?> getProfile(@RequestParam String supabaseUserId) {
+    public ResponseEntity<?> getProfile(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(required = false) String supabaseUserId) {
         try {
-            var profile = userProfileService.getProfileBySupabaseUserId(supabaseUserId);
-            if (profile.isPresent()) {
-                return ResponseEntity.ok(profile.get());
+            // Try JWT-based auth first
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                Long userId = jwtAuthService.getUserIdFromToken(token);
+                User user = userRepository.findById(userId).orElse(null);
+                if (user == null) {
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body(Map.of("error", "User not found"));
+                }
+                return ResponseEntity.ok(toUserResponse(user));
+            }
+
+            // Fallback: legacy supabaseUserId param
+            if (supabaseUserId != null && !supabaseUserId.isBlank()) {
+                var profile = userProfileService.getProfileBySupabaseUserId(supabaseUserId);
+                if (profile.isPresent()) {
+                    return ResponseEntity.ok(profile.get());
+                }
             }
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "User not found"));

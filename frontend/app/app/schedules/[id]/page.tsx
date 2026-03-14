@@ -12,7 +12,7 @@ import DashboardLayout from '@/components/DashboardLayout';
 import ScheduleDetailSkeleton from '@/components/ScheduleDetailSkeleton';
 import { ArrowLeft, Calendar, DollarSign, CheckCircle, XCircle, Upload, Loader2, ExternalLink, Clock, User, FileText, FileDown, Ban, AlertTriangle, Pencil } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { createClient } from '@/lib/supabase/client';
+import { isAuthenticated, getUser } from '@/lib/auth';
 
 function ScheduleDetailContent() {
   const router = useRouter();
@@ -50,48 +50,21 @@ function ScheduleDetailContent() {
   // Get org currency for formatting
   const orgCurrency = getOrgCurrency(tenantId) || 'USD';
 
-  // Get current user name from Supabase
+  // Get current user name from JWT auth
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error fetching user session:', error);
-          return;
-        }
-        
-        if (session?.user) {
-          const email = session.user.email || 'user@example.com';
-          const name = session.user.user_metadata?.full_name || 
-                      session.user.user_metadata?.name || 
-                      email.split('@')[0] || 
-                      'User';
-          
-          setCurrentUserName(name);
-          
-          // Also get user ID from sessionStorage for backward compatibility
-          try {
-            const userStr = sessionStorage.getItem('user');
-            if (userStr) {
-              const user = JSON.parse(userStr);
-              setCurrentUserId(user.id || null);
-            }
-          } catch (e) {
-            console.error('Error parsing user from sessionStorage:', e);
-          }
-        }
-      } catch (err) {
-        console.error('Error loading user info:', err);
-      }
-    };
-    
-    fetchUserInfo();
-  }, []);
+    if (!isAuthenticated()) {
+      router.push('/auth/login');
+      return;
+    }
+    const user = getUser();
+    if (user) {
+      setCurrentUserName(user.name || user.email?.split('@')[0] || 'User');
+      setCurrentUserId(user.userId);
+    }
+  }, [router]);
 
   // Build audit trail from available data (must be called before any conditional returns)
   const auditTrail = useMemo(() => {

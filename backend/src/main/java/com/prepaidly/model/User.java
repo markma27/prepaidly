@@ -34,6 +34,10 @@ public class User {
     @Column(name = "supabase_user_id", unique = true)
     private String supabaseUserId;
 
+    /** Xero user ID (from id_token xero_userid claim) */
+    @Column(name = "xero_user_id", unique = true)
+    private String xeroUserId;
+
     /** Supabase created timestamp (optional) */
     @Column(name = "supabase_created_at")
     private OffsetDateTime supabaseCreatedAt;

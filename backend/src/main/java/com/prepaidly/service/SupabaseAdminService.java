@@ -27,7 +27,12 @@ import java.util.stream.Collectors;
  *
  * Uses the Supabase Admin API (service role key) to fetch all auth users,
  * then upserts local users and removes any that no longer exist in Supabase.
+ *
+ * @deprecated Replaced by Xero-only login. User creation/sync now happens
+ *             via XeroOAuthService.exchangeCodeForLoginTokens(). Keep this file
+ *             until the migration is fully verified.
  */
+@Deprecated
 @Slf4j
 @Service
 @RequiredArgsConstructor
