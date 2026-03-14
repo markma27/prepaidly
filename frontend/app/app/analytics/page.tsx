@@ -582,8 +582,12 @@ function AnalyticsPageContent() {
                   <span className="text-gray-600">Pending</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-gray-400"></span>
-                  <span className="text-gray-600">No entry</span>
+                  <span className="w-3 h-3 rounded-full bg-sky-300"></span>
+                  <span className="text-gray-600">Not Started</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-gray-300"></span>
+                  <span className="text-gray-600">Before Conversion Date</span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 text-gray-400">
@@ -831,7 +835,7 @@ function AnalyticsPageContent() {
                                   ? entry.posted
                                     ? 'text-green-600'
                                     : 'text-amber-600'
-                                  : 'text-gray-700';
+                                  : 'text-sky-500';
                               return (
                                 <td
                                   key={col.key}
@@ -980,7 +984,7 @@ function AnalyticsPageContent() {
                                     ? entry.posted
                                       ? 'text-green-600'
                                       : 'text-amber-600'
-                                    : 'text-gray-700';
+                                    : 'text-sky-500';
                                 return (
                                   <td
                                     key={col.key}

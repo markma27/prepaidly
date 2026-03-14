@@ -20,8 +20,8 @@ function SettingsPageContent() {
   const [defaultPrepaymentAccount, setDefaultPrepaymentAccount] = useState<string>('');
   const [defaultUnearnedAccount, setDefaultUnearnedAccount] = useState<string>('');
   const [conversionDate, setConversionDate] = useState<string>('');
-  const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [savingSection, setSavingSection] = useState<'conversionDate' | 'defaultAccounts' | null>(null);
+  const [saveSuccessSection, setSaveSuccessSection] = useState<'conversionDate' | 'defaultAccounts' | null>(null);
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
@@ -136,39 +136,39 @@ function SettingsPageContent() {
   // Handle account selection changes (not saved until button is clicked)
   const handlePrepaymentAccountChange = (accountCode: string) => {
     setDefaultPrepaymentAccount(accountCode);
-    setSaveSuccess(false);
+    setSaveSuccessSection(null);
   };
 
   const handleUnearnedAccountChange = (accountCode: string) => {
     setDefaultUnearnedAccount(accountCode);
-    setSaveSuccess(false);
+    setSaveSuccessSection(null);
   };
 
   const handleConversionDateChange = (value: string) => {
     setConversionDate(value);
-    setSaveSuccess(false);
+    setSaveSuccessSection(null);
   };
 
-  // Save default accounts and conversion date to database
-  const handleSaveDefaults = async () => {
+  // Save settings to database. section indicates which Save button was clicked (for "Saving..." and "Saved!" on that button only).
+  const handleSave = async (section: 'conversionDate' | 'defaultAccounts') => {
     if (!tenantId) return;
-    
-    setSaving(true);
-    setSaveSuccess(false);
-    
+
+    setSavingSection(section);
+    setSaveSuccessSection(null);
+
     try {
       await settingsApi.saveSettings(tenantId, {
         prepaymentAccount: defaultPrepaymentAccount,
         unearnedAccount: defaultUnearnedAccount,
         conversionDate: conversionDate,
       });
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
+      setSaveSuccessSection(section);
+      setTimeout(() => setSaveSuccessSection(null), 2000);
     } catch (err) {
-      console.error('Error saving default accounts:', err);
-      setError('Failed to save default accounts');
+      console.error('Error saving settings:', err);
+      setError('Failed to save settings');
     } finally {
-      setSaving(false);
+      setSavingSection(null);
     }
   };
 
@@ -275,17 +275,17 @@ function SettingsPageContent() {
                 <p className="text-xs text-gray-500 mt-1">Lock date: journals with period date on or before this date cannot be posted to Xero</p>
               </div>
               <button
-                onClick={handleSaveDefaults}
-                disabled={saving}
+                onClick={() => handleSave('conversionDate')}
+                disabled={savingSection === 'conversionDate'}
                 className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  saving
+                  savingSection === 'conversionDate'
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : saveSuccess
+                    : saveSuccessSection === 'conversionDate'
                     ? 'bg-green-500 text-white'
                     : 'bg-[#6d69ff] text-white hover:bg-[#5a56e6]'
                 }`}
               >
-                {saving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}
+                {savingSection === 'conversionDate' ? 'Saving...' : saveSuccessSection === 'conversionDate' ? 'Saved!' : 'Save'}
               </button>
             </div>
           </div>
@@ -314,17 +314,17 @@ function SettingsPageContent() {
                 <p className="text-xs text-gray-500 mt-1">Set default accounts for new schedules</p>
               </div>
               <button
-                onClick={handleSaveDefaults}
-                disabled={saving}
+                onClick={() => handleSave('defaultAccounts')}
+                disabled={savingSection === 'defaultAccounts'}
                 className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  saving
+                  savingSection === 'defaultAccounts'
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : saveSuccess
+                    : saveSuccessSection === 'defaultAccounts'
                     ? 'bg-green-500 text-white'
                     : 'bg-[#6d69ff] text-white hover:bg-[#5a56e6]'
                 }`}
               >
-                {saving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}
+                {savingSection === 'defaultAccounts' ? 'Saving...' : saveSuccessSection === 'defaultAccounts' ? 'Saved!' : 'Save'}
               </button>
             </div>
           </div>

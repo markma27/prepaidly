@@ -23,7 +23,7 @@ function ScheduleRegisterContent() {
   const [tenantId, setTenantId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showVoided, setShowVoided] = useState(false);
-  const [showCompleted, setShowCompleted] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
   const [conversionDate, setConversionDate] = useState<string | null>(null);
 
   // Get org currency for formatting
@@ -118,7 +118,12 @@ function ScheduleRegisterContent() {
       result = result.filter(s => !s.voided);
     }
     if (!showCompleted) {
-      result = result.filter(s => !(s.remainingBalance != null && s.remainingBalance <= 0));
+      result = result.filter(s => {
+        const isCompletedBalance = s.remainingBalance != null && s.remainingBalance <= 0;
+        const { effectiveDone, total } = getEffectiveProgress(s);
+        const isAllPeriodsDone = total > 0 && effectiveDone === total;
+        return !isCompletedBalance && !isAllPeriodsDone;
+      });
     }
 
     if (!searchQuery.trim()) {
@@ -166,7 +171,7 @@ function ScheduleRegisterContent() {
 
       return typeMatch || accountCodeMatch || accountNameMatch || amountMatch || contactMatch || invoiceRefMatch || dateMatch;
     });
-  }, [schedules, showVoided, showCompleted, searchQuery, accountMap]);
+  }, [schedules, showVoided, showCompleted, searchQuery, accountMap, conversionDate]);
 
   // Sort filtered schedules (default: created date, newest first)
   const sortedSchedules = useMemo(() => {
@@ -448,7 +453,7 @@ function ScheduleRegisterContent() {
                             if (isComplete) {
                               return (
                                 <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
-                                  Complete ({effectiveDone}/{totalCount})
+                                  Completed
                                 </span>
                               );
                             }

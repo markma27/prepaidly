@@ -510,7 +510,7 @@ function ScheduleDetailContent() {
         <div className="flex items-center justify-between">
           <button
             onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-violet-700 bg-violet-100 rounded-lg hover:bg-violet-200 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Schedule Register
@@ -644,7 +644,7 @@ function ScheduleDetailContent() {
                   </span>
                 ) : effectiveDonePeriods === totalPeriods && totalPeriods > 0 ? (
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
-                    Complete ({effectiveDonePeriods}/{totalPeriods})
+                    Completed
                   </span>
                 ) : (
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-yellow-100 text-yellow-700">

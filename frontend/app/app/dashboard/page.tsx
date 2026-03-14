@@ -768,7 +768,7 @@ function DashboardPageContent() {
                         if (isComplete) {
                           return (
                             <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
-                              Complete ({effectiveDone}/{totalCount})
+                              Completed
                             </span>
                           );
                         }

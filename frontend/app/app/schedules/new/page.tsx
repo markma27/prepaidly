@@ -960,7 +960,7 @@ function NewSchedulePageContent() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Start Date <span className="text-red-500">*</span>
+                          Period Start Date <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
                           <input
@@ -1039,7 +1039,7 @@ function NewSchedulePageContent() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          End Date <span className="text-red-500">*</span>
+                          Period End Date <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
                           <input
@@ -1285,7 +1285,7 @@ function NewSchedulePageContent() {
                       <button
                         type="button"
                         onClick={generatePreview}
-                        className="w-full flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                        className="w-full flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg hover:bg-amber-100 transition-colors text-sm font-medium"
                       >
                         <Eye className="w-4 h-4" />
                         Preview Schedule

@@ -278,7 +278,7 @@ function ImportScheduleContent() {
           <div>
             <button
               onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-3"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-violet-700 bg-violet-100 rounded-lg hover:bg-violet-200 transition-colors mb-3"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Schedules
