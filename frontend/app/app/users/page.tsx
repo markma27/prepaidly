@@ -1,13 +1,13 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { usersApi, xeroAuthApi } from '@/lib/api';
 import type { UserListItem } from '@/lib/types';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import UsersSkeleton from '@/components/UsersSkeleton';
-import { UserPlus, Shield, ShieldCheck, User, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { UserPlus, Shield, ShieldCheck, User, ArrowUpCircle, ArrowDownCircle, ChevronUp, ChevronDown } from 'lucide-react';
 
 function formatDisplayName(user: UserListItem): string {
   if (user.displayName && user.displayName.trim()) {
@@ -114,6 +114,62 @@ function UsersPageContent() {
   const [currentUserEffectiveRole, setCurrentUserEffectiveRole] = useState<string | null>(null);
   const [promotingId, setPromotingId] = useState<number | null>(null);
   const [demotingId, setDemotingId] = useState<number | null>(null);
+
+  type UserSortKey = 'displayName' | 'email' | 'role' | 'createdAt' | 'lastLogin';
+  const [sortKey, setSortKey] = useState<UserSortKey>('displayName');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const ROLE_ORDER: Record<string, number> = { SUPER_ADMIN: 0, ADMIN: 1, GENERAL_USER: 2 };
+
+  const sortedUsers = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...users].sort((a, b) => {
+      let aVal: string | number;
+      let bVal: string | number;
+      switch (sortKey) {
+        case 'displayName':
+          aVal = formatDisplayName(a).toLowerCase();
+          bVal = formatDisplayName(b).toLowerCase();
+          break;
+        case 'email':
+          aVal = a.email.toLowerCase();
+          bVal = b.email.toLowerCase();
+          break;
+        case 'role':
+          aVal = ROLE_ORDER[getDisplayRole(a)] ?? 99;
+          bVal = ROLE_ORDER[getDisplayRole(b)] ?? 99;
+          break;
+        case 'createdAt':
+          aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          break;
+        case 'lastLogin':
+          aVal = a.lastLogin ? new Date(a.lastLogin).getTime() : 0;
+          bVal = b.lastLogin ? new Date(b.lastLogin).getTime() : 0;
+          break;
+        default:
+          return 0;
+      }
+      if (aVal === bVal) return 0;
+      return dir * (aVal > bVal ? 1 : -1);
+    });
+  }, [users, sortKey, sortDir]);
+
+  const handleSort = (column: UserSortKey) => {
+    if (sortKey === column) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(column);
+      setSortDir(column === 'createdAt' || column === 'lastLogin' ? 'desc' : 'asc');
+    }
+  };
+
+  const SortIcon = ({ column }: { column: UserSortKey }) => {
+    if (sortKey !== column) return null;
+    return sortDir === 'asc'
+      ? <ChevronUp className="w-3 h-3 inline ml-0.5" />
+      : <ChevronDown className="w-3 h-3 inline ml-0.5" />;
+  };
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
@@ -241,18 +297,38 @@ function UsersPageContent() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    <th className="px-5 py-3">Display name</th>
-                    <th className="px-5 py-3">Email</th>
-                    <th className="px-5 py-3">Role</th>
-                    <th className="px-5 py-3">Created</th>
-                    <th className="px-5 py-3">Last login</th>
+                    <th className="px-5 py-3">
+                      <button type="button" onClick={() => handleSort('displayName')} className="hover:text-gray-700 transition-colors">
+                        Display name<SortIcon column="displayName" />
+                      </button>
+                    </th>
+                    <th className="px-5 py-3">
+                      <button type="button" onClick={() => handleSort('email')} className="hover:text-gray-700 transition-colors">
+                        Email<SortIcon column="email" />
+                      </button>
+                    </th>
+                    <th className="px-5 py-3">
+                      <button type="button" onClick={() => handleSort('role')} className="hover:text-gray-700 transition-colors">
+                        Role<SortIcon column="role" />
+                      </button>
+                    </th>
+                    <th className="px-5 py-3">
+                      <button type="button" onClick={() => handleSort('createdAt')} className="hover:text-gray-700 transition-colors">
+                        Created<SortIcon column="createdAt" />
+                      </button>
+                    </th>
+                    <th className="px-5 py-3">
+                      <button type="button" onClick={() => handleSort('lastLogin')} className="hover:text-gray-700 transition-colors">
+                        Last login<SortIcon column="lastLogin" />
+                      </button>
+                    </th>
                     {canManageUsers && (
                       <th className="px-5 py-3">Actions</th>
                     )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {users.length === 0 ? (
+                  {sortedUsers.length === 0 ? (
                     <tr>
                       <td
                         colSpan={canManageUsers ? 6 : 5}
@@ -262,7 +338,7 @@ function UsersPageContent() {
                       </td>
                     </tr>
                   ) : (
-                    users.map((user) => {
+                    sortedUsers.map((user) => {
                       const displayRole = getDisplayRole(user);
                       return (
                         <tr
