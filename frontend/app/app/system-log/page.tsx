@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  RefreshCw,
 } from 'lucide-react';
 
 type LogEventType = 'SCHEDULE_CREATED' | 'JOURNAL_POSTED' | 'SCHEDULE_VOIDED' | 'WRITE_OFF' | 'CRON_JOB';
@@ -198,17 +199,23 @@ function SystemLogPageContent() {
     }
   }, [searchParams]);
 
-  const loadData = async (tid: string) => {
+  const loadData = async (tid: string, skipCache = false) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await scheduleApi.getSchedules(tid, true, true);
+      const response = await scheduleApi.getSchedules(tid, true, skipCache);
       setSchedules(response.schedules);
     } catch (err: any) {
       console.error('Error loading system log data:', err);
       setError(err.message || 'Failed to load system log data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    if (tenantId) {
+      loadData(tenantId, true);
     }
   };
 
@@ -277,11 +284,22 @@ function SystemLogPageContent() {
         )}
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-            <h3 className="text-base font-bold text-gray-900">System Log</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Activity log for all schedules — tracks creations, journal postings, voids, write-offs, and cron job runs
-            </p>
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-gray-900">System Log</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Activity log for all schedules — tracks creations, journal postings, voids, write-offs, and cron job runs
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
 
           <div className="p-5">

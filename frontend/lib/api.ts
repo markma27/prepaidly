@@ -65,11 +65,26 @@ const clearCachedData = (key: string) => {
   sessionStorage.removeItem(key);
 };
 
+const clearCachedDataByPrefix = (prefix: string) => {
+  if (typeof window === 'undefined') return;
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key && key.startsWith(prefix)) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach((k) => sessionStorage.removeItem(k));
+};
+
 const clearTenantCaches = (tenantId: string) => {
   clearCachedData(getCacheKey('accounts', tenantId));
   clearCachedData(getCacheKey('schedules', tenantId));
+  clearCachedData(getCacheKey('schedules', tenantId) + ':voided');
   clearCachedData(getCacheKey('scheduleContacts', tenantId));
   clearCachedData(getCacheKey('settings', tenantId));
+  clearCachedData(getCacheKey('usersByTenant', tenantId));
+  clearCachedDataByPrefix(getCacheKey('balanceSheet', tenantId + '_'));
 };
 
 /** @deprecated Use getAuthToken() from lib/auth.ts instead */
@@ -167,9 +182,14 @@ export const xeroAuthApi = {
   },
 
   getStatus: async (_userId?: number, validateTokens: boolean = false): Promise<XeroConnectionStatusResponse> => {
+    const cacheKey = getCacheKey('xeroStatus', validateTokens ? 'validated' : 'fast');
+    const cached = getCachedData<XeroConnectionStatusResponse>(cacheKey, DEFAULT_CACHE_TTL_MS);
+    if (cached) return cached;
     const params = new URLSearchParams();
     params.append('validateTokens', validateTokens.toString());
-    return fetchApi<XeroConnectionStatusResponse>(`/api/auth/xero/status?${params.toString()}`);
+    const data = await fetchApi<XeroConnectionStatusResponse>(`/api/auth/xero/status?${params.toString()}`);
+    setCachedData(cacheKey, data);
+    return data;
   },
 
   getConnectUrl: (_userId?: number): string => {
@@ -193,6 +213,8 @@ export const xeroAuthApi = {
       { method: 'DELETE' }
     );
     clearTenantCaches(tenantId);
+    clearCachedData(getCacheKey('xeroStatus', 'validated'));
+    clearCachedData(getCacheKey('xeroStatus', 'fast'));
     return result;
   },
 };
@@ -222,9 +244,14 @@ export const xeroApi = {
    * Get balance sheet as of a date for Xero reconciliation
    */
   getBalanceSheet: async (tenantId: string, date: string) => {
-    return fetchApi(
+    const cacheKey = getCacheKey('balanceSheet', `${tenantId}_${date}`);
+    const cached = getCachedData<any>(cacheKey, DEFAULT_CACHE_TTL_MS);
+    if (cached) return cached;
+    const data = await fetchApi(
       `/api/xero/balance-sheet?tenantId=${encodeURIComponent(tenantId)}&date=${encodeURIComponent(date)}`
     );
+    setCachedData(cacheKey, data);
+    return data;
   },
 };
 
@@ -240,6 +267,7 @@ export const scheduleApi = {
     });
     if (request.tenantId) {
       clearCachedData(getCacheKey('schedules', request.tenantId));
+      clearCachedData(getCacheKey('schedules', request.tenantId) + ':voided');
       clearCachedData(getCacheKey('scheduleContacts', request.tenantId));
     }
     return result;
@@ -297,6 +325,7 @@ export const scheduleApi = {
     if (result.schedule?.tenantId) {
       clearCachedData(getCacheKey('schedules', result.schedule.tenantId));
       clearCachedData(getCacheKey('schedules', result.schedule.tenantId) + ':voided');
+      clearCachedDataByPrefix(getCacheKey('balanceSheet', result.schedule.tenantId + '_'));
     }
     return result;
   },
@@ -334,6 +363,7 @@ export const scheduleApi = {
     if (result.tenantId) {
       clearCachedData(getCacheKey('schedules', result.tenantId));
       clearCachedData(getCacheKey('schedules', result.tenantId) + ':voided');
+      clearCachedDataByPrefix(getCacheKey('balanceSheet', result.tenantId + '_'));
     }
     return result;
   },
@@ -350,6 +380,7 @@ export const scheduleApi = {
     if (result.tenantId) {
       clearCachedData(getCacheKey('schedules', result.tenantId));
       clearCachedData(getCacheKey('schedules', result.tenantId) + ':voided');
+      clearCachedData(getCacheKey('scheduleContacts', result.tenantId));
     }
     return result;
   },
@@ -366,6 +397,7 @@ export const scheduleApi = {
     if (result.tenantId) {
       clearCachedData(getCacheKey('schedules', result.tenantId));
       clearCachedData(getCacheKey('schedules', result.tenantId) + ':voided');
+      clearCachedData(getCacheKey('scheduleContacts', result.tenantId));
     }
     return result;
   },
@@ -399,6 +431,8 @@ export const journalApi = {
     });
     if (request.tenantId) {
       clearCachedData(getCacheKey('schedules', request.tenantId));
+      clearCachedData(getCacheKey('schedules', request.tenantId) + ':voided');
+      clearCachedDataByPrefix(getCacheKey('balanceSheet', request.tenantId + '_'));
     }
     return result;
   },
@@ -420,9 +454,12 @@ export const syncApi = {
    * This refreshes tokens for all connected Xero organizations
    */
   refreshAll: async () => {
-    return fetchApi<{ success: boolean; message: string }>('/api/sync/refresh-all', {
+    const result = await fetchApi<{ success: boolean; message: string }>('/api/sync/refresh-all', {
       method: 'POST',
     });
+    clearCachedData(getCacheKey('xeroStatus', 'validated'));
+    clearCachedData(getCacheKey('xeroStatus', 'fast'));
+    return result;
   },
 };
 
@@ -534,9 +571,14 @@ export const usersApi = {
     if (!tenantId || tenantId === 'null' || tenantId === 'undefined') {
       return { users: [], count: 0 };
     }
-    return fetchApi<{ users: import('./types').UserListItem[]; count: number }>(
+    const cacheKey = getCacheKey('usersByTenant', tenantId);
+    const cached = getCachedData<{ users: import('./types').UserListItem[]; count: number }>(cacheKey, DEFAULT_CACHE_TTL_MS);
+    if (cached) return cached;
+    const data = await fetchApi<{ users: import('./types').UserListItem[]; count: number }>(
       `/api/users/by-tenant?tenantId=${encodeURIComponent(tenantId)}`
     );
+    setCachedData(cacheKey, data);
+    return data;
   },
 
   /**
@@ -544,10 +586,12 @@ export const usersApi = {
    * Only admins or super admins can call this.
    */
   promoteToAdmin: async (userId: number, tenantId: string) => {
-    return fetchApi<{ message: string }>(
+    const result = await fetchApi<{ message: string }>(
       `/api/users/${userId}/promote-to-admin?tenantId=${encodeURIComponent(tenantId)}`,
       { method: 'PATCH' }
     );
+    clearCachedData(getCacheKey('usersByTenant', tenantId));
+    return result;
   },
 
   /**
@@ -558,6 +602,8 @@ export const usersApi = {
       method: 'PUT',
       body: JSON.stringify({ displayName: data.displayName ?? null }),
     });
+    clearCachedData(getCacheKey('userProfile', 'jwt'));
+    clearCachedDataByPrefix('cache:usersByTenant:');
     const supabaseUser = getSupabaseUser();
     if (supabaseUser.id) {
       clearCachedData(getCacheKey('userProfile', supabaseUser.id));
