@@ -597,6 +597,16 @@ export const usersApi = {
     return result;
   },
 
+  demoteToUser: async (userId: number, tenantId: string) => {
+    const result = await fetchApi<{ message: string }>(
+      `/api/users/${userId}/demote-to-user?tenantId=${encodeURIComponent(tenantId)}`,
+      { method: 'PATCH' }
+    );
+    clearCachedData(getCacheKey('usersByTenant', tenantId));
+    clearCachedDataByPrefix('cache:userProfile:');
+    return result;
+  },
+
   /**
    * Update current user profile (e.g. display name). Clears profile cache on success.
    */

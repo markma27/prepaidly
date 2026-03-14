@@ -7,7 +7,7 @@ import type { UserListItem } from '@/lib/types';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import UsersSkeleton from '@/components/UsersSkeleton';
-import { UserPlus, Shield, ShieldCheck, User, ArrowUpCircle } from 'lucide-react';
+import { UserPlus, Shield, ShieldCheck, User, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 
 function formatDisplayName(user: UserListItem): string {
   if (user.displayName && user.displayName.trim()) {
@@ -111,8 +111,9 @@ function UsersPageContent() {
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [currentUserEffectiveRole, setCurrentUserEffectiveRole] = useState<string | null>(null);
   const [promotingId, setPromotingId] = useState<number | null>(null);
+  const [demotingId, setDemotingId] = useState<number | null>(null);
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
@@ -125,16 +126,15 @@ function UsersPageContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    usersApi.getProfile().then((p) => {
-      if (p?.role) setCurrentUserRole(p.role);
+    if (!tenantId) return;
+    usersApi.getProfile(tenantId).then((p) => {
+      if (p) setCurrentUserEffectiveRole(p.effectiveRole || p.role || null);
     });
-  }, []);
+  }, [tenantId]);
 
-  const canManageUsers =
-    currentUserRole === 'SYS_ADMIN' ||
-    currentUserRole === 'ORG_ADMIN' ||
-    currentUserRole === 'SUPER_ADMIN' ||
-    currentUserRole === 'ADMIN';
+  const isSuperAdmin = currentUserEffectiveRole === 'SYS_ADMIN' || currentUserEffectiveRole === 'SUPER_ADMIN';
+  const isAdmin = currentUserEffectiveRole === 'ORG_ADMIN' || currentUserEffectiveRole === 'ADMIN';
+  const canManageUsers = isSuperAdmin || isAdmin;
 
   const loadConnectionStatus = async () => {
     try {
@@ -193,6 +193,20 @@ function UsersPageContent() {
     }
   };
 
+  const handleDemoteToUser = async (userId: number) => {
+    if (!tenantId || !canManageUsers) return;
+    try {
+      setDemotingId(userId);
+      await usersApi.demoteToUser(userId, tenantId);
+      await loadUsers(tenantId);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to demote user';
+      setError(message);
+    } finally {
+      setDemotingId(null);
+    }
+  };
+
   return (
     <DashboardLayout tenantId={tenantId || ''}>
       {loading || !tenantId || tenantId === 'null' || tenantId === 'undefined' ? (
@@ -233,7 +247,7 @@ function UsersPageContent() {
                     <th className="px-5 py-3">Created</th>
                     <th className="px-5 py-3">Last login</th>
                     {canManageUsers && (
-                      <th className="px-5 py-3 text-right">Actions</th>
+                      <th className="px-5 py-3">Actions</th>
                     )}
                   </tr>
                 </thead>
@@ -281,19 +295,55 @@ function UsersPageContent() {
                           </td>
                           {canManageUsers && (
                             <td className="px-5 py-3 whitespace-nowrap text-right text-sm">
-                              {displayRole === 'GENERAL_USER' && (
-                                <button
-                                  type="button"
-                                  onClick={() => handlePromoteToAdmin(user.id)}
-                                  disabled={promotingId === user.id}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[#6d69ff] bg-white border border-[#6d69ff]/30 rounded-lg hover:bg-[#6d69ff]/5 hover:border-[#6d69ff]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <ArrowUpCircle className="w-3.5 h-3.5" />
-                                  {promotingId === user.id
-                                    ? 'Promoting…'
-                                    : 'Promote to Admin'}
-                                </button>
-                              )}
+                              <div className="flex items-center justify-end gap-2">
+                                {/* Promote: SYS_ADMIN can promote anyone non-SUPER_ADMIN; ORG_ADMIN can promote GENERAL_USER */}
+                                {displayRole === 'GENERAL_USER' && (isSuperAdmin || isAdmin) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePromoteToAdmin(user.id)}
+                                    disabled={promotingId === user.id}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[#6d69ff] bg-white border border-[#6d69ff]/30 rounded-lg hover:bg-[#6d69ff]/5 hover:border-[#6d69ff]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <ArrowUpCircle className="w-3.5 h-3.5" />
+                                    {promotingId === user.id ? 'Promoting…' : 'Promote'}
+                                  </button>
+                                )}
+                                {displayRole === 'ADMIN' && isSuperAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePromoteToAdmin(user.id)}
+                                    disabled
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-gray-400 bg-gray-100 border border-gray-200 rounded-lg cursor-not-allowed"
+                                    title="Already an admin"
+                                  >
+                                    <ArrowUpCircle className="w-3.5 h-3.5" />
+                                    Promote
+                                  </button>
+                                )}
+                                {/* Demote: SYS_ADMIN can demote anyone non-SUPER_ADMIN; ORG_ADMIN can demote ADMIN */}
+                                {displayRole === 'ADMIN' && (isSuperAdmin || isAdmin) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDemoteToUser(user.id)}
+                                    disabled={demotingId === user.id}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-orange-600 bg-white border border-orange-300 rounded-lg hover:bg-orange-50 hover:border-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <ArrowDownCircle className="w-3.5 h-3.5" />
+                                    {demotingId === user.id ? 'Demoting…' : 'Demote'}
+                                  </button>
+                                )}
+                                {displayRole === 'GENERAL_USER' && isSuperAdmin && (
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-gray-400 bg-gray-100 border border-gray-200 rounded-lg cursor-not-allowed"
+                                    title="Already a general user"
+                                  >
+                                    <ArrowDownCircle className="w-3.5 h-3.5" />
+                                    Demote
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           )}
                         </tr>

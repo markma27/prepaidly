@@ -735,6 +735,37 @@ public class UserController {
     }
 
     /**
+     * Demote an admin back to general user for the given tenant.
+     * Only admins or super admins can demote.
+     */
+    @PatchMapping("/{id}/demote-to-user")
+    public ResponseEntity<?> demoteToUser(
+            @PathVariable Long id,
+            @RequestParam String tenantId) {
+        if (tenantId == null || tenantId.isBlank() || "null".equals(tenantId) || "undefined".equals(tenantId)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "tenantId is required"));
+        }
+        try {
+            XeroConnection connection = xeroConnectionRepository.findByUserIdAndTenantId(id, tenantId.trim())
+                .orElse(null);
+            if (connection == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "User does not have access to this entity"));
+            }
+            if (!connection.isOrgAdmin()) {
+                return ResponseEntity.ok(Map.of("message", "User is already a general user"));
+            }
+            connection.setOrgAdmin(false);
+            xeroConnectionRepository.save(connection);
+            return ResponseEntity.ok(Map.of("message", "User demoted to general user successfully"));
+        } catch (Exception e) {
+            log.error("Error demoting user {} to general user", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to demote user: " + e.getMessage()));
+        }
+    }
+
+    /**
      * Convert User entity to UserResponse DTO
      */
     private UserResponse toUserResponse(User user) {
