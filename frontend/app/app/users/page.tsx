@@ -294,8 +294,8 @@ function UsersPageContent() {
                               : '—'}
                           </td>
                           {canManageUsers && (
-                            <td className="px-5 py-3 whitespace-nowrap text-right text-sm">
-                              <div className="flex items-center justify-end gap-2">
+                            <td className="px-5 py-3 whitespace-nowrap text-sm">
+                              <div className="flex items-center gap-2">
                                 {/* Promote: SYS_ADMIN can promote anyone non-SUPER_ADMIN; ORG_ADMIN can promote GENERAL_USER */}
                                 {displayRole === 'GENERAL_USER' && (isSuperAdmin || isAdmin) && (
                                   <button
