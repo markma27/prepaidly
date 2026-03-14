@@ -2,13 +2,16 @@ package com.prepaidly.service;
 
 import com.prepaidly.model.JournalEntry;
 import com.prepaidly.model.Schedule;
+import com.prepaidly.model.TenantSettings;
 import com.prepaidly.repository.JournalEntryRepository;
+import com.prepaidly.repository.TenantSettingsRepository;
 import com.prepaidly.service.XeroApiService.JournalLine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -20,6 +23,7 @@ public class JournalService {
     
     private final JournalEntryRepository journalEntryRepository;
     private final XeroApiService xeroApiService;
+    private final TenantSettingsRepository tenantSettingsRepository;
     
     /**
      * Post a journal entry to Xero
@@ -47,6 +51,15 @@ public class JournalService {
         // Check if already posted
         if (entry.getPosted()) {
             throw new RuntimeException("Journal entry already posted");
+        }
+
+        // Check conversion date (lock date) - journals on or before conversion date cannot be posted
+        TenantSettings settings = tenantSettingsRepository.findByTenantId(tenantId).orElse(null);
+        if (settings != null && settings.getConversionDate() != null) {
+            LocalDate periodDate = entry.getPeriodDate();
+            if (periodDate != null && !periodDate.isAfter(settings.getConversionDate())) {
+                throw new RuntimeException("Cannot post journal: period date " + periodDate + " is on or before conversion date " + settings.getConversionDate());
+            }
         }
         
         // Entry index (1-based) and total count for "1 of 4" in line description
@@ -171,6 +184,16 @@ public class JournalService {
         if (entry.getPosted()) {
             throw new RuntimeException("Write-off journal entry already posted");
         }
+
+        // Check conversion date for write-off entries too
+        TenantSettings settings = tenantSettingsRepository.findByTenantId(tenantId).orElse(null);
+        if (settings != null && settings.getConversionDate() != null) {
+            LocalDate periodDate = entry.getPeriodDate();
+            if (periodDate != null && !periodDate.isAfter(settings.getConversionDate())) {
+                throw new RuntimeException("Cannot post write-off journal: period date " + periodDate + " is on or before conversion date " + settings.getConversionDate());
+            }
+        }
+
         List<JournalLine> journalLines = buildWriteOffJournalLines(schedule, entry);
         String narration = (schedule.getType() == Schedule.ScheduleType.PREPAID ? "Prepayment" : "Unearned Revenue")
             + " - Full recognition (write-off)"

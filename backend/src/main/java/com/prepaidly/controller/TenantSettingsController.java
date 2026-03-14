@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.Map;
 
 @Slf4j
@@ -29,13 +30,16 @@ public class TenantSettingsController {
             if (settings == null) {
                 return ResponseEntity.ok(Map.of(
                     "prepaymentAccount", "",
-                    "unearnedAccount", ""
+                    "unearnedAccount", "",
+                    "conversionDate", ""
                 ));
             }
 
+            String conversionDateStr = settings.getConversionDate() != null ? settings.getConversionDate().toString() : "";
             return ResponseEntity.ok(Map.of(
                 "prepaymentAccount", settings.getDefaultPrepaymentAcctCode() != null ? settings.getDefaultPrepaymentAcctCode() : "",
-                "unearnedAccount", settings.getDefaultUnearnedAcctCode() != null ? settings.getDefaultUnearnedAcctCode() : ""
+                "unearnedAccount", settings.getDefaultUnearnedAcctCode() != null ? settings.getDefaultUnearnedAcctCode() : "",
+                "conversionDate", conversionDateStr
             ));
         } catch (Exception e) {
             log.error("Error fetching settings for tenant {}", tenantId, e);
@@ -61,11 +65,25 @@ public class TenantSettingsController {
             settings.setDefaultPrepaymentAcctCode(request.getOrDefault("prepaymentAccount", ""));
             settings.setDefaultUnearnedAcctCode(request.getOrDefault("unearnedAccount", ""));
 
+            String conversionDateStr = request.getOrDefault("conversionDate", "").trim();
+            if (conversionDateStr.isEmpty()) {
+                settings.setConversionDate(null);
+            } else {
+                try {
+                    settings.setConversionDate(LocalDate.parse(conversionDateStr));
+                } catch (Exception e) {
+                    log.warn("Invalid conversion date '{}', clearing", conversionDateStr);
+                    settings.setConversionDate(null);
+                }
+            }
+
             tenantSettingsRepository.save(settings);
 
+            String savedConversionDate = settings.getConversionDate() != null ? settings.getConversionDate().toString() : "";
             return ResponseEntity.ok(Map.of(
                 "prepaymentAccount", settings.getDefaultPrepaymentAcctCode() != null ? settings.getDefaultPrepaymentAcctCode() : "",
-                "unearnedAccount", settings.getDefaultUnearnedAcctCode() != null ? settings.getDefaultUnearnedAcctCode() : ""
+                "unearnedAccount", settings.getDefaultUnearnedAcctCode() != null ? settings.getDefaultUnearnedAcctCode() : "",
+                "conversionDate", savedConversionDate
             ));
         } catch (Exception e) {
             log.error("Error saving settings for tenant {}", tenantId, e);

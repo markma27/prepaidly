@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { scheduleApi, xeroApi } from '@/lib/api';
+import { scheduleApi, xeroApi, settingsApi } from '@/lib/api';
 import { formatDateOnly, formatDateInTimezone, formatCurrency } from '@/lib/utils';
 import { getOrgTimezone, getOrgCurrency } from '@/lib/OrgContext';
 import type { Schedule, XeroAccount } from '@/lib/types';
@@ -24,6 +24,7 @@ function ScheduleRegisterContent() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showVoided, setShowVoided] = useState(false);
   const [showCompleted, setShowCompleted] = useState(true);
+  const [conversionDate, setConversionDate] = useState<string | null>(null);
 
   // Get org currency for formatting
   const orgCurrency = getOrgCurrency(tenantId) || 'USD';
@@ -47,6 +48,7 @@ function ScheduleRegisterContent() {
   useEffect(() => {
     if (tenantId) {
       loadSchedules(tenantId);
+      settingsApi.getSettings(tenantId).then((s) => setConversionDate(s.conversionDate || null));
     }
   }, [tenantId]);
 
@@ -75,6 +77,17 @@ function ScheduleRegisterContent() {
       // Mark as loaded even on error to prevent infinite loading state
       setAccountsLoaded(true);
     }
+  };
+
+  /** Effective done count: posted period entries + period entries on or before conversion date */
+  const getEffectiveProgress = (schedule: Schedule) => {
+    const entries = schedule.journalEntries ?? [];
+    const periodEntries = entries.filter((e) => !e.writeOff);
+    const total = periodEntries.length;
+    const done = periodEntries.filter(
+      (e) => e.posted || (!!conversionDate && e.periodDate && e.periodDate <= conversionDate)
+    ).length;
+    return { effectiveDone: total > 0 ? done : (schedule.postedPeriods ?? 0), total: total || (schedule.totalPeriods ?? 0) };
   };
 
   const handleRowClick = (scheduleId: number) => {
@@ -364,11 +377,10 @@ function ScheduleRegisterContent() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {sortedSchedules.map((schedule) => {
-                    const postedCount = schedule.postedPeriods || 0;
-                    const totalCount = schedule.totalPeriods || 0;
-                    const isComplete = postedCount === totalCount && totalCount > 0;
+                    const { effectiveDone, total: totalCount } = getEffectiveProgress(schedule);
+                    const isComplete = totalCount > 0 && effectiveDone === totalCount;
                     const isCompleted = schedule.remainingBalance != null && schedule.remainingBalance <= 0;
-                    
+
                     return (
                       <tr
                         key={schedule.id}
@@ -433,26 +445,18 @@ function ScheduleRegisterContent() {
                                 </span>
                               );
                             }
-                            const isNotPosted = postedCount === 0 && totalCount > 0;
                             if (isComplete) {
                               return (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-100 text-purple-700">
-                                  {postedCount}/{totalCount} Posted
-                                </span>
-                              );
-                            } else if (isNotPosted) {
-                              return (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-700">
-                                  {postedCount}/{totalCount} Posted
-                                </span>
-                              );
-                            } else {
-                              return (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-yellow-100 text-yellow-700">
-                                  {postedCount}/{totalCount} Posted
+                                <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
+                                  Complete ({effectiveDone}/{totalCount})
                                 </span>
                               );
                             }
+                            return (
+                              <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-yellow-100 text-yellow-700">
+                                In Progress ({effectiveDone}/{totalCount})
+                              </span>
+                            );
                           })()}
                         </td>
                       </tr>

@@ -71,6 +71,18 @@ CREATE INDEX idx_journal_entries_schedule_id ON journal_entries(schedule_id);
 CREATE INDEX idx_journal_entries_period_date ON journal_entries(period_date);
 CREATE INDEX idx_journal_entries_posted ON journal_entries(posted);
 
+-- Tenant settings (default accounts, conversion date / lock date)
+CREATE TABLE IF NOT EXISTS tenant_settings (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id VARCHAR(255) NOT NULL UNIQUE,
+    default_prepayment_acct_code VARCHAR(50),
+    default_unearned_acct_code VARCHAR(50),
+    conversion_date DATE,
+    updated_at TIMESTAMP
+);
+
+CREATE INDEX idx_tenant_settings_tenant_id ON tenant_settings(tenant_id);
+
 -- Logs table (optional, for audit trail)
 CREATE TABLE IF NOT EXISTS logs (
     id BIGSERIAL PRIMARY KEY,

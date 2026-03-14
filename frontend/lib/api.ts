@@ -539,13 +539,13 @@ export const usersApi = {
 // Settings API
 export const settingsApi = {
   /**
-   * Get tenant settings (default accounts)
+   * Get tenant settings (default accounts, conversion date)
    */
-  getSettings: async (tenantId: string): Promise<{ prepaymentAccount: string; unearnedAccount: string }> => {
+  getSettings: async (tenantId: string): Promise<{ prepaymentAccount: string; unearnedAccount: string; conversionDate: string }> => {
     const cacheKey = getCacheKey('settings', tenantId);
-    const cached = getCachedData<{ prepaymentAccount: string; unearnedAccount: string }>(cacheKey, DEFAULT_CACHE_TTL_MS);
+    const cached = getCachedData<{ prepaymentAccount: string; unearnedAccount: string; conversionDate: string }>(cacheKey, DEFAULT_CACHE_TTL_MS);
     if (cached) return cached;
-    const data = await fetchApi<{ prepaymentAccount: string; unearnedAccount: string }>(
+    const data = await fetchApi<{ prepaymentAccount: string; unearnedAccount: string; conversionDate: string }>(
       `/api/settings?tenantId=${encodeURIComponent(tenantId)}`
     );
     setCachedData(cacheKey, data);
@@ -553,14 +553,18 @@ export const settingsApi = {
   },
 
   /**
-   * Save tenant settings (default accounts)
+   * Save tenant settings (default accounts, conversion date)
    */
-  saveSettings: async (tenantId: string, settings: { prepaymentAccount: string; unearnedAccount: string }): Promise<{ prepaymentAccount: string; unearnedAccount: string }> => {
-    const result = await fetchApi<{ prepaymentAccount: string; unearnedAccount: string }>(
+  saveSettings: async (tenantId: string, settings: { prepaymentAccount: string; unearnedAccount: string; conversionDate?: string }): Promise<{ prepaymentAccount: string; unearnedAccount: string; conversionDate: string }> => {
+    const result = await fetchApi<{ prepaymentAccount: string; unearnedAccount: string; conversionDate: string }>(
       `/api/settings?tenantId=${encodeURIComponent(tenantId)}`,
       {
         method: 'PUT',
-        body: JSON.stringify(settings),
+        body: JSON.stringify({
+          prepaymentAccount: settings.prepaymentAccount,
+          unearnedAccount: settings.unearnedAccount,
+          conversionDate: settings.conversionDate ?? '',
+        }),
       }
     );
     clearCachedData(getCacheKey('settings', tenantId));

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { scheduleApi, xeroApi } from '@/lib/api';
+import { scheduleApi, xeroApi, settingsApi } from '@/lib/api';
 import { formatDateOnly, formatDateInTimezone, formatCurrency, formatCurrencyCompact } from '@/lib/utils';
 import { getOrgTimezone, getOrgCurrency } from '@/lib/OrgContext';
 import type { Schedule, XeroAccount } from '@/lib/types';
@@ -55,6 +55,7 @@ function DashboardPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string>('');
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1920);
+  const [conversionDate, setConversionDate] = useState<string | null>(null);
 
   // Get org currency for formatting
   const orgCurrency = getOrgCurrency(tenantId) || 'USD';
@@ -72,10 +73,12 @@ function DashboardPageContent() {
     if (tenantIdParam) {
       setTenantId(tenantIdParam);
       const loadDashboardData = async () => {
-        await Promise.all([
+        const [, , settings] = await Promise.all([
           loadSchedules(tenantIdParam),
           loadAccounts(tenantIdParam),
+          settingsApi.getSettings(tenantIdParam),
         ]);
+        setConversionDate(settings?.conversionDate || null);
       };
       loadDashboardData();
     } else {
@@ -377,6 +380,21 @@ function DashboardPageContent() {
     });
     return sorted.slice(0, 10);
   }, [schedules, recentSortKey, recentSortDir]);
+
+  /** Effective done count: posted period entries + period entries on or before conversion date */
+  const getEffectiveProgress = (schedule: Schedule) => {
+    const entries = schedule.journalEntries ?? [];
+    const periodEntries = entries.filter((e: { writeOff?: boolean }) => !e.writeOff);
+    const total = periodEntries.length;
+    const done = periodEntries.filter(
+      (e: { posted?: boolean; periodDate?: string }) =>
+        e.posted || (!!conversionDate && e.periodDate && e.periodDate <= conversionDate)
+    ).length;
+    return {
+      effectiveDone: total > 0 ? done : (schedule.postedPeriods ?? 0),
+      total: total || (schedule.totalPeriods ?? 0),
+    };
+  };
 
   const handleRecentSort = (column: RecentSortKey) => {
     if (recentSortKey === column) {
@@ -745,29 +763,20 @@ function DashboardPageContent() {
                             </span>
                           );
                         }
-                        const postedCount = schedule.postedPeriods || 0;
-                        const totalCount = schedule.totalPeriods || 0;
-                        const isComplete = postedCount === totalCount && totalCount > 0;
-                        const isNotPosted = postedCount === 0 && totalCount > 0;
+                        const { effectiveDone, total: totalCount } = getEffectiveProgress(schedule);
+                        const isComplete = totalCount > 0 && effectiveDone === totalCount;
                         if (isComplete) {
                           return (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-100 text-purple-700">
-                              {postedCount}/{totalCount} Posted
-                            </span>
-                          );
-                        } else if (isNotPosted) {
-                          return (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-700">
-                              {postedCount}/{totalCount} Posted
-                            </span>
-                          );
-                        } else {
-                          return (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-yellow-100 text-yellow-700">
-                              {postedCount}/{totalCount} Posted
+                            <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
+                              Complete ({effectiveDone}/{totalCount})
                             </span>
                           );
                         }
+                        return (
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-yellow-100 text-yellow-700">
+                            In Progress ({effectiveDone}/{totalCount})
+                          </span>
+                        );
                       })()}
                     </td>
                     <td className="px-5 py-3 text-sm text-gray-500">{formatDateInTimezone(schedule.createdAt, getOrgTimezone(tenantId))}</td>

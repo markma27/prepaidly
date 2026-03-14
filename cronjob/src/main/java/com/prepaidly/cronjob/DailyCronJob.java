@@ -3,6 +3,7 @@ package com.prepaidly.cronjob;
 import com.prepaidly.cronjob.config.DatabaseConfig;
 import com.prepaidly.cronjob.repository.JournalEntryReader;
 import com.prepaidly.cronjob.repository.ScheduleReader;
+import com.prepaidly.cronjob.repository.TenantSettingsReader;
 import com.prepaidly.cronjob.repository.XeroConnectionReader;
 import com.prepaidly.cronjob.service.EncryptionService;
 import com.prepaidly.cronjob.service.JournalPostingService;
@@ -101,9 +102,14 @@ public class DailyCronJob {
             // Log xero_manual_journal_id and posted status for all journal entries
             logJournalEntries(journalEntrySet);
             
+            log.info("Reading tenant settings (conversion dates)...");
+            TenantSettingsReader tenantSettingsReader = new TenantSettingsReader();
+            Map<String, LocalDate> conversionDateByTenant = tenantSettingsReader.readConversionDatesByTenant();
+
             log.info("Filtering journal entries ready to post...");
             // Create a set of journal entries whose period_date equals or before current date and not posted yet
-            Set<JournalEntry> entriesToPost = filterEntriesReadyToPost(journalEntrySet);
+            // Exclude entries on or before conversion date (lock date) per tenant
+            Set<JournalEntry> entriesToPost = filterEntriesReadyToPost(journalEntrySet, scheduleSet, conversionDateByTenant);
             log.info("Found {} journal entries ready to post", entriesToPost.size());
             
             if (!entriesToPost.isEmpty()) {
@@ -271,43 +277,65 @@ public class DailyCronJob {
      * An entry is ready if:
      * - period_date is less than or equal to the current system date
      * - posted is false or null (not posted yet)
-     * 
+     * - period_date is after conversion date (if set for tenant) - journals on or before conversion date cannot be posted
+     *
      * @param journalEntrySet Set of all journal entries
+     * @param scheduleSet Set of all schedules (to resolve tenant_id from schedule_id)
+     * @param conversionDateByTenant Map of tenant ID to conversion date (lock date)
      * @return Set of journal entries ready to post
      */
-    private Set<JournalEntry> filterEntriesReadyToPost(Set<JournalEntry> journalEntrySet) {
+    private Set<JournalEntry> filterEntriesReadyToPost(
+            Set<JournalEntry> journalEntrySet,
+            Set<Schedule> scheduleSet,
+            Map<String, LocalDate> conversionDateByTenant) {
         log.info("Filtering journal entries ready to post...");
         LocalDate currentDate = LocalDate.now();
         log.info("Current system date: {}", currentDate);
-        
+
+        Map<Long, Schedule> scheduleMap = new HashMap<>();
+        for (Schedule s : scheduleSet) {
+            scheduleMap.put(s.getId(), s);
+        }
+
         Set<JournalEntry> entriesToPost = new HashSet<>();
-        
+
         for (JournalEntry entry : journalEntrySet) {
             LocalDate periodDate = entry.getPeriodDate();
             Boolean posted = entry.getPosted();
-            
+
             // Check if period_date is null (shouldn't happen, but defensive check)
             if (periodDate == null) {
                 log.warn("Journal entry ID {} has null period_date, skipping", entry.getId());
                 continue;
             }
-            
+
             // Check if period_date is less than or equal to current date
             boolean isPeriodDateValid = !periodDate.isAfter(currentDate);
-            
+
             // Check if not posted yet (posted is false or null)
             boolean isNotPosted = posted == null || !posted;
-            
+
+            // Check conversion date (lock date) - skip if period_date is on or before conversion date
+            Schedule schedule = scheduleMap.get(entry.getScheduleId());
+            if (schedule != null) {
+                LocalDate conversionDate = conversionDateByTenant.get(schedule.getTenantId());
+                if (conversionDate != null && !periodDate.isAfter(conversionDate)) {
+                    log.debug("Journal entry ID {} (period_date: {}) skipped: on or before conversion date {}", 
+                            entry.getId(), periodDate, conversionDate);
+                    continue;
+                }
+            }
+
             if (isPeriodDateValid && isNotPosted) {
                 entriesToPost.add(entry);
-                log.debug("Journal entry ID {} (period_date: {}, posted: {}) is ready to post", 
+                log.debug("Journal entry ID {} (period_date: {}, posted: {}) is ready to post",
                         entry.getId(), periodDate, posted);
             }
         }
-        
-        log.info("Filtered {} journal entries ready to post out of {} total entries", 
+
+        log.info("Filtered {} journal entries ready to post out of {} total entries",
                 entriesToPost.size(), journalEntrySet.size());
-        
+
         return entriesToPost;
     }
     

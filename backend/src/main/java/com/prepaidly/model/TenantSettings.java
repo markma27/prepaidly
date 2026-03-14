@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -31,6 +32,10 @@ public class TenantSettings {
     /** Default unearned revenue liability account code */
     @Column(name = "default_unearned_acct_code")
     private String defaultUnearnedAcctCode;
+
+    /** Conversion date (lock date) - journals with period_date on or before this date cannot be posted to Xero */
+    @Column(name = "conversion_date")
+    private LocalDate conversionDate;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;

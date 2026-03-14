@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
-import { scheduleApi, journalApi, xeroApi } from '@/lib/api';
+import { scheduleApi, journalApi, xeroApi, settingsApi } from '@/lib/api';
 import { formatDateOnly, formatDateInTimezone, formatTimestampInTimezone, formatCurrency } from '@/lib/utils';
 import { getOrgTimezone, getOrgCurrency } from '@/lib/OrgContext';
 import type { Schedule, JournalEntry, XeroAccount } from '@/lib/types';
@@ -43,6 +43,7 @@ function ScheduleDetailContent() {
   const [editDescription, setEditDescription] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [conversionDate, setConversionDate] = useState<string | null>(null);
 
   const scheduleId = params?.id ? parseInt(params.id as string) : null;
   
@@ -176,18 +177,37 @@ function ScheduleDetailContent() {
     schedule && !schedule.voided && schedule.remainingBalance != null && schedule.remainingBalance <= 0
   );
 
-  // Minimum write-off date: day after the most recently posted (period) journal date
+  // For progress: count period entries that are "done" (posted or before conversion date)
+  const { effectiveDonePeriods, totalPeriods } = useMemo(() => {
+    const total = periodEntries.length;
+    const done = periodEntries.filter(
+      (e) => e.posted || (!!conversionDate && e.periodDate && e.periodDate <= conversionDate)
+    ).length;
+    return { effectiveDonePeriods: done, totalPeriods: total };
+  }, [periodEntries, conversionDate]);
+
+  // Minimum write-off date: day after the most recently posted (period) journal date, or day after conversion date
   const minWriteOffDate = useMemo(() => {
+    let minFromPosted: string | undefined;
     const postedPeriodEntries = journalEntries.filter((e) => !e.writeOff && e.posted);
-    if (postedPeriodEntries.length === 0) return undefined;
-    const maxDate = postedPeriodEntries.reduce((max, e) => {
-      const d = new Date(e.periodDate);
-      return d > max ? d : max;
-    }, new Date(0));
-    const next = new Date(maxDate);
-    next.setDate(next.getDate() + 1);
-    return next.toISOString().slice(0, 10);
-  }, [journalEntries]);
+    if (postedPeriodEntries.length > 0) {
+      const maxDate = postedPeriodEntries.reduce((max, e) => {
+        const d = new Date(e.periodDate);
+        return d > max ? d : max;
+      }, new Date(0));
+      const next = new Date(maxDate);
+      next.setDate(next.getDate() + 1);
+      minFromPosted = next.toISOString().slice(0, 10);
+    }
+    if (conversionDate) {
+      const dayAfterConversion = new Date(conversionDate);
+      dayAfterConversion.setDate(dayAfterConversion.getDate() + 1);
+      const conversionMin = dayAfterConversion.toISOString().slice(0, 10);
+      if (!minFromPosted) return conversionMin;
+      return minFromPosted > conversionMin ? minFromPosted : conversionMin;
+    }
+    return minFromPosted;
+  }, [journalEntries, conversionDate]);
 
   const getAccountDisplay = (code: string | undefined, typeLabel: string): string => {
     if (!code) return '—';
@@ -204,11 +224,13 @@ function ScheduleDetailContent() {
       setError(null);
       (async () => {
         try {
-          const [scheduleData] = await Promise.all([
+          const [scheduleData, , settings] = await Promise.all([
             scheduleApi.getSchedule(scheduleId),
             loadAccounts(tenantIdParam),
+            settingsApi.getSettings(tenantIdParam),
           ]);
           setSchedule(scheduleData);
+          setConversionDate(settings.conversionDate || null);
         } catch (err: any) {
           console.error('Error loading schedule:', err);
           setError(err.message || 'Failed to load schedule');
@@ -245,6 +267,13 @@ function ScheduleDetailContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const isEntryLockedByConversionDate = (entry: JournalEntry): boolean => {
+    if (!conversionDate) return false;
+    const periodDate = entry.periodDate;
+    if (!periodDate) return false;
+    return periodDate <= conversionDate;
   };
 
   const handlePostJournal = async (journalEntry: JournalEntry, e: React.MouseEvent) => {
@@ -613,13 +642,13 @@ function ScheduleDetailContent() {
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
                     Completed
                   </span>
-                ) : schedule.postedPeriods === schedule.totalPeriods && schedule.totalPeriods ? (
+                ) : effectiveDonePeriods === totalPeriods && totalPeriods > 0 ? (
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
-                    Complete ({schedule.postedPeriods}/{schedule.totalPeriods})
+                    Complete ({effectiveDonePeriods}/{totalPeriods})
                   </span>
                 ) : (
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-yellow-100 text-yellow-700">
-                    In Progress ({schedule.postedPeriods || 0}/{schedule.totalPeriods || 0})
+                    In Progress ({effectiveDonePeriods}/{totalPeriods})
                   </span>
                 )}
               </div>
@@ -715,6 +744,11 @@ function ScheduleDetailContent() {
                           <CheckCircle className="w-3 h-3" />
                           Posted
                         </span>
+                      ) : isEntryLockedByConversionDate(entry) ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-violet-100 text-violet-700">
+                          <Calendar className="w-3 h-3" />
+                          Before conversion date
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-700">
                           <XCircle className="w-3 h-3" />
@@ -745,9 +779,10 @@ function ScheduleDetailContent() {
                       ) : (
                         <button
                           onClick={(e) => handlePostJournal(entry, e)}
-                          disabled={posting.has(entry.id) || schedule.voided || isCompleted}
+                          disabled={posting.has(entry.id) || schedule.voided || isCompleted || isEntryLockedByConversionDate(entry)}
+                          title={isEntryLockedByConversionDate(entry) ? `Period date is on or before conversion date (${conversionDate})` : undefined}
                           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                            schedule.voided || isCompleted
+                            schedule.voided || isCompleted || isEntryLockedByConversionDate(entry)
                               ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                               : 'text-white bg-[#6d69ff] hover:bg-[#5a56e6]'
                           }`}
@@ -1032,7 +1067,9 @@ function ScheduleDetailContent() {
                   />
                   {minWriteOffDate && (
                     <p className="text-xs text-gray-500 mt-1">
-                      Must be after the most recently posted journal date.
+                      {conversionDate
+                        ? `Must be after conversion date (${conversionDate})${journalEntries.some((e) => !e.writeOff && e.posted) ? ' and the most recently posted journal date' : ''}.`
+                        : 'Must be after the most recently posted journal date.'}
                     </p>
                   )}
                 </div>
@@ -1048,8 +1085,13 @@ function ScheduleDetailContent() {
                   <button
                     type="button"
                     onClick={handleWriteOffConfirm}
-                    disabled={writeOffSubmitting}
-                    className="px-4 py-2 text-sm font-medium text-white bg-[#6d69ff] rounded-lg hover:bg-[#5a56e6] transition-colors disabled:opacity-50 flex items-center gap-2"
+                    disabled={writeOffSubmitting || (!!conversionDate && writeOffDate <= conversionDate)}
+                    title={conversionDate && writeOffDate <= conversionDate ? `Write-off date must be after conversion date (${conversionDate})` : undefined}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
+                      writeOffSubmitting || (!!conversionDate && writeOffDate <= conversionDate)
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-50'
+                        : 'text-white bg-[#6d69ff] hover:bg-[#5a56e6] disabled:opacity-50'
+                    }`}
                   >
                     {writeOffSubmitting ? (
                       <>

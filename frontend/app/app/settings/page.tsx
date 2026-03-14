@@ -19,6 +19,7 @@ function SettingsPageContent() {
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [defaultPrepaymentAccount, setDefaultPrepaymentAccount] = useState<string>('');
   const [defaultUnearnedAccount, setDefaultUnearnedAccount] = useState<string>('');
+  const [conversionDate, setConversionDate] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -80,6 +81,7 @@ function SettingsPageContent() {
           const defaults = await settingsApi.getSettings(tid);
           setDefaultPrepaymentAccount(defaults.prepaymentAccount || '');
           setDefaultUnearnedAccount(defaults.unearnedAccount || '');
+          setConversionDate(defaults.conversionDate || '');
         } catch (e) {
           console.error('Error loading default accounts:', e);
         }
@@ -142,7 +144,12 @@ function SettingsPageContent() {
     setSaveSuccess(false);
   };
 
-  // Save default accounts to database
+  const handleConversionDateChange = (value: string) => {
+    setConversionDate(value);
+    setSaveSuccess(false);
+  };
+
+  // Save default accounts and conversion date to database
   const handleSaveDefaults = async () => {
     if (!tenantId) return;
     
@@ -153,6 +160,7 @@ function SettingsPageContent() {
       await settingsApi.saveSettings(tenantId, {
         prepaymentAccount: defaultPrepaymentAccount,
         unearnedAccount: defaultUnearnedAccount,
+        conversionDate: conversionDate,
       });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
@@ -258,6 +266,46 @@ function SettingsPageContent() {
         )}
 
         {/* Default Accounts */}
+        {/* Conversion Date */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-4">
+            <div className="flex justify-between items-start gap-4">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-gray-900">Conversion Date</h3>
+                <p className="text-xs text-gray-500 mt-1">Lock date: journals with period date on or before this date cannot be posted to Xero</p>
+              </div>
+              <button
+                onClick={handleSaveDefaults}
+                disabled={saving}
+                className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  saving
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : saveSuccess
+                    ? 'bg-green-500 text-white'
+                    : 'bg-[#6d69ff] text-white hover:bg-[#5a56e6]'
+                }`}
+              >
+                {saving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}
+              </button>
+            </div>
+          </div>
+          <div className="p-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Conversion Date
+              </label>
+              <input
+                type="date"
+                value={conversionDate}
+                onChange={(e) => handleConversionDateChange(e.target.value)}
+                className="w-full max-w-xs px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent text-sm text-gray-900"
+              />
+              <p className="text-xs text-gray-500 mt-1.5">Leave empty to allow posting all journals. Set a date to lock pre-conversion periods from posting.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Default Accounts */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
           <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-4">
             <div className="flex justify-between items-start gap-4">
@@ -295,7 +343,7 @@ function SettingsPageContent() {
                   <option value="">Select account...</option>
                   {prepaymentAccounts.map((account) => (
                     <option key={account.accountID} value={account.code}>
-                      [{account.code}] {account.name}
+                      {account.code} - {account.name}
                     </option>
                   ))}
                 </select>
@@ -315,7 +363,7 @@ function SettingsPageContent() {
                   <option value="">Select account...</option>
                   {unearnedAccounts.map((account) => (
                     <option key={account.accountID} value={account.code}>
-                      [{account.code}] {account.name}
+                      {account.code} - {account.name}
                     </option>
                   ))}
                 </select>
@@ -323,77 +371,6 @@ function SettingsPageContent() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Chart of Accounts */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Chart of Accounts</h2>
-              <span className="text-sm text-gray-600">
-                {accounts.length} account{accounts.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-          </div>
-
-          {accounts.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
-              <p>No account data available</p>
-              <button
-                onClick={() => tenantId && loadData(tenantId)}
-                className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Reload
-              </button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Account Code
-                    </th>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Account Name
-                    </th>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {accounts.map((account) => (
-                    <tr key={account.accountID} className="hover:bg-gray-50">
-                      <td className="px-6 py-3.5 whitespace-nowrap text-left text-sm font-medium text-gray-900">
-                        {account.code}
-                      </td>
-                      <td className="px-6 py-3.5 text-left text-sm text-gray-700">
-                        {account.name}
-                      </td>
-                      <td className="px-6 py-3.5 whitespace-nowrap text-left text-sm text-gray-500">
-                        {account.type}
-                      </td>
-                      <td className="px-6 py-3.5 whitespace-nowrap text-left">
-                        <span
-                          className={`inline-flex items-center justify-center min-w-[4.5rem] px-2.5 py-0.5 text-xs font-semibold rounded-full ${
-                            account.status === 'ACTIVE'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          {account.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
         </div>
       )}

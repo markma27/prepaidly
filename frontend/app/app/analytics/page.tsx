@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { scheduleApi, xeroApi } from '@/lib/api';
+import { scheduleApi, xeroApi, settingsApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { getOrgCurrency } from '@/lib/OrgContext';
 import type { Schedule, JournalEntry, XeroAccount } from '@/lib/types';
@@ -35,16 +35,19 @@ function AnalyticsPageContent() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   };
   const [startYearMonth, setStartYearMonth] = useState<string>(() => getCurrentStartYearMonth());
+  const [conversionDate, setConversionDate] = useState<string | null>(null);
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
     if (tenantIdParam) {
       setTenantId(tenantIdParam);
       const loadAnalyticsData = async () => {
-        await Promise.all([
+        const [, , settings] = await Promise.all([
           loadSchedules(tenantIdParam),
           loadAccounts(tenantIdParam),
+          settingsApi.getSettings(tenantIdParam),
         ]);
+        setConversionDate(settings.conversionDate || null);
       };
       loadAnalyticsData();
     } else {
@@ -89,6 +92,15 @@ function AnalyticsPageContent() {
   const getAccountName = (code: string | undefined): string => {
     if (!code) return '';
     return accountMap.get(code) || '';
+  };
+
+  // Check if a month column is before or on conversion date (for grey styling)
+  const isMonthBeforeConversionDate = (yearMonth: string): boolean => {
+    if (!conversionDate) return false;
+    const [y, m] = yearMonth.split('-').map(Number);
+    const lastDay = new Date(y, m, 0);
+    const lastDayStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+    return lastDayStr <= conversionDate;
   };
 
   const getAccountCodeAndName = (schedule: Schedule): string => {
@@ -812,8 +824,10 @@ function AnalyticsPageContent() {
                               const amount = amountByMonth.get(col.yearMonth);
                               const entry = getJournalEntryForMonth(schedule, col.yearMonth);
                               const hasAmount = amount != null && Math.round(amount * 100) !== 0;
-                              const statusClass =
-                                hasAmount && entry
+                              const beforeConversion = isMonthBeforeConversionDate(col.yearMonth);
+                              const statusClass = beforeConversion
+                                ? 'text-gray-400'
+                                : hasAmount && entry
                                   ? entry.posted
                                     ? 'text-green-600'
                                     : 'text-amber-600'
@@ -839,11 +853,11 @@ function AnalyticsPageContent() {
                           Total
                         </td>
                         {monthColumns.map((col) => {
-                          const total = monthTotals.get(col.yearMonth) ?? 0;
+                          const beforeConversion = isMonthBeforeConversionDate(col.yearMonth);
                           return (
                             <td
                               key={col.key}
-                              className="py-3 px-3 text-right text-gray-900 whitespace-nowrap tabular-nums"
+                              className={`py-3 px-3 text-right whitespace-nowrap tabular-nums ${beforeConversion ? 'text-gray-400' : 'text-gray-900'}`}
                             >
                               {formatAmountOrDash(monthTotals.get(col.yearMonth) ?? 0)}
                             </td>
@@ -959,11 +973,14 @@ function AnalyticsPageContent() {
                               {monthColumns.map((col) => {
                                 const balance = balanceByMonth.get(col.yearMonth);
                                 const entry = getJournalEntryForMonth(schedule, col.yearMonth);
-                                const statusClass = entry
-                                  ? entry.posted
-                                    ? 'text-green-600'
-                                    : 'text-amber-600'
-                                  : 'text-gray-700';
+                                const beforeConversion = isMonthBeforeConversionDate(col.yearMonth);
+                                const statusClass = beforeConversion
+                                  ? 'text-gray-400'
+                                  : entry
+                                    ? entry.posted
+                                      ? 'text-green-600'
+                                      : 'text-amber-600'
+                                    : 'text-gray-700';
                                 return (
                                   <td
                                     key={col.key}
@@ -985,13 +1002,13 @@ function AnalyticsPageContent() {
                             Total
                           </td>
                           {monthColumns.map((col) => {
-                            const total = balanceTotalsByMonth.get(col.yearMonth) ?? 0;
+                            const beforeConversion = isMonthBeforeConversionDate(col.yearMonth);
                             return (
                               <td
                                 key={col.key}
-                                className="py-3 px-3 text-right text-gray-900 whitespace-nowrap tabular-nums"
+                                className={`py-3 px-3 text-right whitespace-nowrap tabular-nums ${beforeConversion ? 'text-gray-400' : 'text-gray-900'}`}
                               >
-                                {formatAmountOrDash(total)}
+                                {formatAmountOrDash(balanceTotalsByMonth.get(col.yearMonth) ?? 0)}
                               </td>
                             );
                           })}
