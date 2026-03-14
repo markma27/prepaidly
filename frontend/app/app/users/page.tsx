@@ -193,17 +193,9 @@ function UsersPageContent() {
     }
   };
 
-  if (!tenantId || tenantId === 'null' || tenantId === 'undefined') {
-    return (
-      <div className="space-y-7 max-w-[1800px] mx-auto">
-        <UsersSkeleton />
-      </div>
-    );
-  }
-
   return (
-    <DashboardLayout tenantId={tenantId}>
-      {loading ? (
+    <DashboardLayout tenantId={tenantId || ''}>
+      {loading || !tenantId || tenantId === 'null' || tenantId === 'undefined' ? (
         <UsersSkeleton />
       ) : (
         <div className="space-y-7 max-w-[1800px] mx-auto">
@@ -317,6 +309,7 @@ function UsersPageContent() {
     </DashboardLayout>
   );
 }
+
 
 export default function UsersPage() {
   return (

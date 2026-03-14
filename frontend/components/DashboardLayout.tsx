@@ -500,14 +500,6 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
             </Link>
               );
             })}
-            {/* Return to Entity List */}
-            <Link
-              href="/app"
-              className="flex items-center px-2.5 py-2 text-[13px] font-medium rounded-lg transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2.5 text-gray-400" />
-              Return to Entity List
-            </Link>
           </div>
 
           {/* Divider above User Profile */}
@@ -648,6 +640,15 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
 
                 {isEntityMenuOpen && (
                   <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[200px] max-w-md max-h-64 overflow-y-auto">
+                    <Link
+                      href="/app"
+                      onClick={() => setIsEntityMenuOpen(false)}
+                      className="flex items-center gap-2 w-full text-left px-4 py-2 text-[13px] font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
+                    >
+                      <ArrowLeft className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      Return to Entity List
+                    </Link>
+                    <div className="h-px bg-gray-100 my-1" role="separator" />
                     {connections.length > 0 ? (
                       connections.map((conn) => (
                         <button

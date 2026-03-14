@@ -3,13 +3,13 @@ import Skeleton from './Skeleton';
 export default function UsersSkeleton() {
   return (
     <div className="space-y-7 max-w-[1800px] mx-auto">
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
         <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-gray-900">Users with access</h3>
-            <p className="text-xs text-gray-500 mt-0.5">People who can access this entity</p>
+            <p className="text-xs text-gray-500 mt-0.5">People who can access this entity. Display name, email, role, created date, and last login.</p>
           </div>
-          <div className="h-8 w-24 rounded-lg overflow-hidden">
+          <div className="h-8 w-24 rounded-lg overflow-hidden flex-shrink-0">
             <Skeleton className="h-full w-full rounded-lg" variant="rectangular" />
           </div>
         </div>
@@ -26,25 +26,25 @@ export default function UsersSkeleton() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {[1, 2, 3, 4, 5].map((i) => (
+              {[1, 2, 3, 4, 5, 6].map((i) => (
                 <tr key={i}>
                   <td className="px-5 py-3">
-                    <Skeleton className="h-5 w-28" variant="rectangular" />
+                    <Skeleton className="h-5 w-28 rounded" variant="rectangular" />
                   </td>
                   <td className="px-5 py-3">
-                    <Skeleton className="h-5 w-44" variant="rectangular" />
+                    <Skeleton className="h-5 w-44 rounded" variant="rectangular" />
                   </td>
                   <td className="px-5 py-3">
-                    <Skeleton className="h-5 w-20" variant="rectangular" />
+                    <Skeleton className="h-5 w-20 rounded" variant="rectangular" />
                   </td>
                   <td className="px-5 py-3">
-                    <Skeleton className="h-5 w-24" variant="rectangular" />
+                    <Skeleton className="h-5 w-24 rounded" variant="rectangular" />
                   </td>
                   <td className="px-5 py-3">
-                    <Skeleton className="h-5 w-28" variant="rectangular" />
+                    <Skeleton className="h-5 w-28 rounded" variant="rectangular" />
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <Skeleton className="h-7 w-24 ml-auto" variant="rectangular" />
+                    <Skeleton className="h-7 w-24 rounded ml-auto" variant="rectangular" />
                   </td>
                 </tr>
               ))}
