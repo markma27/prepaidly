@@ -482,11 +482,11 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
                   {initial}
                 </div>
                 <div className="flex flex-col items-start justify-center flex-1 min-w-0 text-left">
-                  <span className="text-[13px] font-semibold text-gray-900 leading-tight truncate w-full">
+                  <span className="text-[13px] font-semibold text-gray-900 leading-tight truncate w-full" title={displayName}>
                     {displayName}
                   </span>
                   {roleLabel ? (
-                    <span className="text-[11px] text-gray-500 leading-tight truncate w-full mt-0.5">
+                    <span className="text-[11px] text-gray-500 leading-tight truncate w-full mt-0.5" title={roleLabel}>
                       {roleLabel}
                     </span>
                   ) : null}
@@ -503,9 +503,9 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
                         {initial}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 truncate">{displayName}</div>
+                        <div className="text-sm font-semibold text-gray-900 truncate" title={displayName}>{displayName}</div>
                         {roleLabel ? (
-                          <div className="text-xs text-gray-500 truncate mt-0.5">{roleLabel}</div>
+                          <div className="text-xs text-gray-500 truncate mt-0.5" title={roleLabel}>{roleLabel}</div>
                         ) : null}
                       </div>
                     </div>
