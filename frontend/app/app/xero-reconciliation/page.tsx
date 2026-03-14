@@ -224,9 +224,9 @@ function XeroReconciliationPageContent() {
           {!defaultAccountsLoaded || (loading && !balanceSheet) ? (
             <div className="p-5">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-                <div className="flex gap-3">
-                  <Skeleton className="h-[46px] w-[200px]" variant="rectangular" />
-                  <Skeleton className="h-[46px] w-[200px]" variant="rectangular" />
+                <div className="flex gap-3 flex-1 min-w-0">
+                  <Skeleton className="h-[46px] flex-1 min-w-[220px]" variant="rectangular" />
+                  <Skeleton className="h-[46px] flex-1 min-w-[220px]" variant="rectangular" />
                 </div>
                 <div className="flex items-center gap-3">
                   <Skeleton className="h-4 w-24" variant="text" />
@@ -237,28 +237,38 @@ function XeroReconciliationPageContent() {
               <div className="overflow-x-auto border border-gray-200 rounded-lg">
                 <table className="min-w-full divide-y divide-gray-200 table-fixed">
                   <colgroup>
-                    <col className="w-[40%]" />
-                    <col className="w-[20%]" />
-                    <col className="w-[20%]" />
-                    <col className="w-[20%]" />
+                    <col className="min-w-[180px]" />
+                    <col className="w-32" />
+                    <col className="w-32" />
+                    <col className="w-32" />
                   </colgroup>
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3"><Skeleton className="h-3 w-20" variant="text" /></th>
-                      <th className="px-4 py-3"><Skeleton className="h-3 w-24" variant="text" /></th>
-                      <th className="px-4 py-3"><Skeleton className="h-3 w-24" variant="text" /></th>
-                      <th className="px-4 py-3"><Skeleton className="h-3 w-24" variant="text" /></th>
+                      <th className="px-4 py-3 text-left"><Skeleton className="h-3 w-16" variant="text" /></th>
+                      <th className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-3 w-20" variant="text" /></div></th>
+                      <th className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-3 w-20" variant="text" /></div></th>
+                      <th className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-3 w-20" variant="text" /></div></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {[1, 2, 3].map((i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-3"><Skeleton className="h-4 w-40" variant="text" /></td>
-                        <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
-                        <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
-                        <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    <tr>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-44" variant="text" /></td>
+                      <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                      <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                      <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-48" variant="text" /></td>
+                      <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                      <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                      <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                    </tr>
+                    <tr className="bg-gray-100 border-t-2 border-gray-200">
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
+                      <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                      <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                      <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -270,7 +280,7 @@ function XeroReconciliationPageContent() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('prepayment')}
-                  className={`w-[200px] min-w-[200px] px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 text-left ${
+                  className={`flex-1 min-w-[220px] whitespace-nowrap px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 text-left ${
                     activeTab === 'prepayment'
                       ? 'border-blue-500 bg-blue-50 text-blue-600'
                       : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
@@ -284,7 +294,7 @@ function XeroReconciliationPageContent() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('unearned')}
-                  className={`w-[200px] min-w-[200px] px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 text-left ${
+                  className={`flex-1 min-w-[220px] whitespace-nowrap px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 text-left ${
                     activeTab === 'unearned'
                       ? 'border-green-500 bg-green-50 text-green-600'
                       : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
@@ -365,22 +375,22 @@ function XeroReconciliationPageContent() {
                         {loading ? (
                           <>
                             <tr>
-                              <td className="px-4 py-3"><Skeleton className="h-4 w-40" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                            </tr>
-                            <tr>
                               <td className="px-4 py-3"><Skeleton className="h-4 w-44" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
                             </tr>
                             <tr>
+                              <td className="px-4 py-3"><Skeleton className="h-4 w-48" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                            </tr>
+                            <tr className="bg-gray-100 border-t-2 border-gray-200">
                               <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
                             </tr>
                           </>
                         ) : (() => {
@@ -400,8 +410,11 @@ function XeroReconciliationPageContent() {
                           if (!acc) {
                             return (
                               <>
-                                <tr>
-                                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">No matching account found.</td>
+                                <tr className="hover:bg-gray-50/50">
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">Account Balance - Xero</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
                                 </tr>
                                 <tr>
                                   <td className="px-4 py-3 text-sm font-medium text-gray-900">Account Balance - Prepaidly</td>
@@ -409,11 +422,11 @@ function XeroReconciliationPageContent() {
                                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b1, orgCurrency)}</td>
                                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b2, orgCurrency)}</td>
                                 </tr>
-                                <tr>
-                                  <td className="px-4 py-3 text-sm font-medium text-gray-700">Variance</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
+                                <tr className="bg-gray-100 border-t-2 border-gray-200">
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
                                 </tr>
                               </>
                             );
@@ -441,13 +454,13 @@ function XeroReconciliationPageContent() {
                               <tr className="bg-gray-100 border-t-2 border-gray-200">
                                 <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance</td>
                                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
-                                  {v0 != null ? formatCurrencyBrackets(v0, orgCurrency) : '—'}
+                                  {v0 != null ? formatCurrencyBrackets(v0, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
                                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
-                                  {v1 != null ? formatCurrencyBrackets(v1, orgCurrency) : '—'}
+                                  {v1 != null ? formatCurrencyBrackets(v1, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
                                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
-                                  {v2 != null ? formatCurrencyBrackets(v2, orgCurrency) : '—'}
+                                  {v2 != null ? formatCurrencyBrackets(v2, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
                               </tr>
                             </>
@@ -499,22 +512,22 @@ function XeroReconciliationPageContent() {
                         {loading ? (
                           <>
                             <tr>
-                              <td className="px-4 py-3"><Skeleton className="h-4 w-40" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                            </tr>
-                            <tr>
                               <td className="px-4 py-3"><Skeleton className="h-4 w-44" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
                             </tr>
                             <tr>
+                              <td className="px-4 py-3"><Skeleton className="h-4 w-48" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                            </tr>
+                            <tr className="bg-gray-100 border-t-2 border-gray-200">
                               <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
-                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
+                              <td className="px-4 py-3 text-right"><div className="flex justify-end"><Skeleton className="h-4 w-20" variant="text" /></div></td>
                             </tr>
                           </>
                         ) : (() => {
@@ -534,8 +547,11 @@ function XeroReconciliationPageContent() {
                           if (!acc) {
                             return (
                               <>
-                                <tr>
-                                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">No matching account found.</td>
+                                <tr className="hover:bg-gray-50/50">
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">Account Balance - Xero</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
                                 </tr>
                                 <tr>
                                   <td className="px-4 py-3 text-sm font-medium text-gray-900">Account Balance - Prepaidly</td>
@@ -543,11 +559,11 @@ function XeroReconciliationPageContent() {
                                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b1, orgCurrency)}</td>
                                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b2, orgCurrency)}</td>
                                 </tr>
-                                <tr>
-                                  <td className="px-4 py-3 text-sm font-medium text-gray-700">Variance</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
+                                <tr className="bg-gray-100 border-t-2 border-gray-200">
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
                                 </tr>
                               </>
                             );
@@ -575,13 +591,13 @@ function XeroReconciliationPageContent() {
                               <tr className="bg-gray-100 border-t-2 border-gray-200">
                                 <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance</td>
                                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
-                                  {v0 != null ? formatCurrencyBrackets(v0, orgCurrency) : '—'}
+                                  {v0 != null ? formatCurrencyBrackets(v0, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
                                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
-                                  {v1 != null ? formatCurrencyBrackets(v1, orgCurrency) : '—'}
+                                  {v1 != null ? formatCurrencyBrackets(v1, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
                                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
-                                  {v2 != null ? formatCurrencyBrackets(v2, orgCurrency) : '—'}
+                                  {v2 != null ? formatCurrencyBrackets(v2, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
                               </tr>
                             </>
