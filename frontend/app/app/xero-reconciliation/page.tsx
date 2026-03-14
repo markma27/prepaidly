@@ -167,12 +167,10 @@ function XeroReconciliationPageContent() {
       const monthEndPlus11 = getMonthEndDatePlusNMonths(selectedMonth, 11);
       const monthEndPlus12 = getMonthEndDatePlusNMonths(selectedMonth, 12);
       const monthEndPlus13 = getMonthEndDatePlusNMonths(selectedMonth, 13);
-      const [data, dataPlus11, dataPlus12, dataPlus13] = await Promise.all([
-        xeroApi.getBalanceSheet(tenantId, monthEndDate),
-        xeroApi.getBalanceSheet(tenantId, monthEndPlus11),
-        xeroApi.getBalanceSheet(tenantId, monthEndPlus12),
-        xeroApi.getBalanceSheet(tenantId, monthEndPlus13),
-      ]) as [XeroBalanceSheetResponse, XeroBalanceSheetResponse, XeroBalanceSheetResponse, XeroBalanceSheetResponse];
+      const data = await xeroApi.getBalanceSheet(tenantId, monthEndDate) as XeroBalanceSheetResponse;
+      const dataPlus11 = await xeroApi.getBalanceSheet(tenantId, monthEndPlus11) as XeroBalanceSheetResponse;
+      const dataPlus12 = await xeroApi.getBalanceSheet(tenantId, monthEndPlus12) as XeroBalanceSheetResponse;
+      const dataPlus13 = await xeroApi.getBalanceSheet(tenantId, monthEndPlus13) as XeroBalanceSheetResponse;
       setBalanceSheet(data);
       setBalanceSheetPlus11(dataPlus11);
       setBalanceSheetPlus12(dataPlus12);

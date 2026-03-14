@@ -10,6 +10,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -131,6 +132,7 @@ public class XeroApiService {
     /**
      * Get accounts for a tenant (with retry on 401/403)
      */
+    @Cacheable(value = "xeroAccounts", key = "#tenantId", unless = "#result == null")
     public XeroAccountResponse getAccounts(String tenantId) {
         return executeWithRetry(tenantId, (accessToken, tid) -> {
             HttpHeaders headers = new HttpHeaders();
@@ -252,6 +254,7 @@ public class XeroApiService {
      * Get Balance Sheet report for a tenant as of a specific date.
      * Returns balance sheet account code, name, and amount.
      */
+    @Cacheable(value = "xeroBalanceSheet", key = "#tenantId + '_' + #asOfDate.toString()", unless = "#result == null")
     public XeroBalanceSheetResponse getBalanceSheet(String tenantId, LocalDate asOfDate) {
         return executeWithRetry(tenantId, (accessToken, tid) -> {
             HttpHeaders headers = new HttpHeaders();
