@@ -228,7 +228,7 @@ public class XeroOAuthService {
                 user.setEmail(email != null ? email : "xero-" + xeroUserId + "@prepaidly.local");
                 user.setDisplayName(displayName);
                 user.setXeroUserId(xeroUserId);
-                user.setRole("USER");
+                user.setRole("ORG_USER");
                 user.setLastLogin(LocalDateTime.now());
                 user = userRepository.save(user);
                 log.info("Login: created new user id={}, email={}", user.getId(), user.getEmail());
