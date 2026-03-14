@@ -4,24 +4,104 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { usersApi, xeroAuthApi } from '@/lib/api';
 import type { UserListItem } from '@/lib/types';
-import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import UsersSkeleton from '@/components/UsersSkeleton';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Shield, ShieldCheck, User, ArrowUpCircle } from 'lucide-react';
 
-function formatDisplayName(email: string): string {
-  const part = email.split('@')[0];
-  if (!part) return email;
+function formatDisplayName(user: UserListItem): string {
+  if (user.displayName && user.displayName.trim()) {
+    return user.displayName.trim();
+  }
+  const part = user.email.split('@')[0];
+  if (!part) return user.email;
   return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
 }
 
+/** Format as DD MMM YYYY (e.g. 22 Feb 2026) */
 function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { dateStyle: 'medium' });
+    return d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
   } catch {
     return '—';
+  }
+}
+
+/** Format as DD MMM YYYY, HH:MM am/pm (e.g. 15 Mar 2026, 12:41 am) */
+function formatDateTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const datePart = d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    const timePart = d.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return `${datePart}, ${timePart}`;
+  } catch {
+    return '—';
+  }
+}
+
+/** Normalize to display role: prefer effectiveRole, fall back to backend role (SYS_ADMIN, ORG_ADMIN, ORG_USER) */
+function getDisplayRole(user: UserListItem): string {
+  if (user.effectiveRole) {
+    if (user.effectiveRole === 'SUPER_ADMIN') return 'SUPER_ADMIN';
+    if (user.effectiveRole === 'ADMIN') return 'ADMIN';
+    if (user.effectiveRole === 'GENERAL_USER') return 'GENERAL_USER';
+  }
+  const r = user.role;
+  if (r === 'SYS_ADMIN') return 'SUPER_ADMIN';
+  if (r === 'ORG_ADMIN') return 'ADMIN';
+  if (r === 'ORG_USER') return 'GENERAL_USER';
+  return '';
+}
+
+function getRoleLabel(displayRole: string): string {
+  switch (displayRole) {
+    case 'SUPER_ADMIN':
+      return 'Super Admin';
+    case 'ADMIN':
+      return 'Admin';
+    case 'GENERAL_USER':
+      return 'General User';
+    default:
+      return displayRole || '—';
+  }
+}
+
+function getRoleIcon(displayRole: string) {
+  switch (displayRole) {
+    case 'SUPER_ADMIN':
+      return <ShieldCheck className="w-4 h-4 text-amber-600" />;
+    case 'ADMIN':
+      return <Shield className="w-4 h-4 text-blue-600" />;
+    case 'GENERAL_USER':
+      return <User className="w-4 h-4 text-gray-500" />;
+    default:
+      return null;
+  }
+}
+
+function getRoleBadgeClass(displayRole: string): string {
+  switch (displayRole) {
+    case 'SUPER_ADMIN':
+      return 'bg-amber-50 text-amber-800 border-amber-200';
+    case 'ADMIN':
+      return 'bg-blue-50 text-blue-800 border-blue-200';
+    case 'GENERAL_USER':
+      return 'bg-gray-50 text-gray-700 border-gray-200';
+    default:
+      return 'bg-gray-50 text-gray-600 border-gray-200';
   }
 }
 
@@ -31,10 +111,11 @@ function UsersPageContent() {
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [promotingId, setPromotingId] = useState<number | null>(null);
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
-    console.log('tenantIdParam from URL:', tenantIdParam);
     if (tenantIdParam && tenantIdParam !== 'null' && tenantIdParam !== 'undefined') {
       setTenantId(tenantIdParam);
       loadUsers(tenantIdParam);
@@ -43,14 +124,28 @@ function UsersPageContent() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    usersApi.getProfile().then((p) => {
+      if (p?.role) setCurrentUserRole(p.role);
+    });
+  }, []);
+
+  const canManageUsers =
+    currentUserRole === 'SYS_ADMIN' ||
+    currentUserRole === 'ORG_ADMIN' ||
+    currentUserRole === 'SUPER_ADMIN' ||
+    currentUserRole === 'ADMIN';
+
   const loadConnectionStatus = async () => {
-    console.log('No tenantId in URL, checking connection status...');
     try {
       const status = await xeroAuthApi.getStatus(undefined, true);
-      console.log('Connection status:', status);
-      if (status.totalConnections > 0 && status.connections && status.connections.length > 0 && status.connections[0].connected) {
+      if (
+        status.totalConnections > 0 &&
+        status.connections &&
+        status.connections.length > 0 &&
+        status.connections[0].connected
+      ) {
         const firstTenantId = status.connections[0].tenantId;
-        console.log('Using first connected tenant:', firstTenantId);
         setTenantId(firstTenantId);
         loadUsers(firstTenantId);
       } else {
@@ -58,7 +153,6 @@ function UsersPageContent() {
         setLoading(false);
       }
     } catch (err: unknown) {
-      console.error('Failed to load connection status:', err);
       const message = err instanceof Error ? err.message : 'Failed to load connection status';
       setError(message);
       setLoading(false);
@@ -66,7 +160,6 @@ function UsersPageContent() {
   };
 
   const loadUsers = async (tid: string) => {
-    console.log('Loading users for tenant:', tid);
     if (!tid || tid === 'null' || tid === 'undefined') {
       setError('No valid entity selected');
       setLoading(false);
@@ -86,10 +179,24 @@ function UsersPageContent() {
     }
   };
 
+  const handlePromoteToAdmin = async (userId: number) => {
+    if (!tenantId || !canManageUsers) return;
+    try {
+      setPromotingId(userId);
+      await usersApi.promoteToAdmin(userId, tenantId);
+      await loadUsers(tenantId);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to promote user';
+      setError(message);
+    } finally {
+      setPromotingId(null);
+    }
+  };
+
   if (!tenantId || tenantId === 'null' || tenantId === 'undefined') {
     return (
-      <div className="container mx-auto p-8">
-        <LoadingSpinner message="Loading..." />
+      <div className="space-y-7 max-w-[1800px] mx-auto">
+        <UsersSkeleton />
       </div>
     );
   }
@@ -99,80 +206,107 @@ function UsersPageContent() {
       {loading ? (
         <UsersSkeleton />
       ) : (
-        <div className="max-w-[1800px] mx-auto p-6">
+        <div className="space-y-7 max-w-[1800px] mx-auto">
           {error && (
-            <ErrorMessage
-              message={error}
-              onDismiss={() => setError(null)}
-            />
+            <ErrorMessage message={error} onDismiss={() => setError(null)} />
           )}
 
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Users with access</h2>
-                  <p className="text-sm text-gray-500 mt-0.5">People who can access this entity</p>
-                </div>
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 text-gray-500 cursor-not-allowed"
-                  title="Invite functionality coming soon"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Invite user
-                </button>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">
+                  Users with access
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  People who can access this entity. Display name, email, role, created date, and last login.
+                </p>
               </div>
+              <button
+                type="button"
+                disabled
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-400 bg-gray-100 border border-gray-200 rounded-lg cursor-not-allowed"
+                title="Invite functionality coming soon"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Invite user
+              </button>
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Display name
-                    </th>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Role
-                    </th>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Last login
-                    </th>
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <th className="px-5 py-3">Display name</th>
+                    <th className="px-5 py-3">Email</th>
+                    <th className="px-5 py-3">Role</th>
+                    <th className="px-5 py-3">Created</th>
+                    <th className="px-5 py-3">Last login</th>
+                    {canManageUsers && (
+                      <th className="px-5 py-3 text-right">Actions</th>
+                    )}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-100">
                   {users.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-500">
+                      <td
+                        colSpan={canManageUsers ? 6 : 5}
+                        className="px-5 py-12 text-center text-sm text-gray-500"
+                      >
                         No users with access to this entity yet.
                       </td>
                     </tr>
                   ) : (
-                    users.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50/50">
-                        <td className="px-6 py-3.5 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {formatDisplayName(user.email)}
-                        </td>
-                        <td className="px-6 py-3.5 whitespace-nowrap text-sm text-gray-600">
-                          {user.email}
-                        </td>
-                        <td className="px-6 py-3.5 whitespace-nowrap text-sm text-gray-500">
-                          {user.role || '—'}
-                        </td>
-                        <td className="px-6 py-3.5 whitespace-nowrap text-sm text-gray-500">
-                          {formatDate(user.createdAt)}
-                        </td>
-                        <td className="px-6 py-3.5 whitespace-nowrap text-sm text-gray-500">
-                          {user.lastLogin ? formatDate(user.lastLogin) : '—'}
-                        </td>
-                      </tr>
-                    ))
+                    users.map((user) => {
+                      const displayRole = getDisplayRole(user);
+                      return (
+                        <tr
+                          key={user.id}
+                          className="hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="px-5 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
+                            {formatDisplayName(user)}
+                          </td>
+                          <td className="px-5 py-3 text-sm text-gray-600 whitespace-nowrap">
+                            {user.email}
+                          </td>
+                          <td className="px-5 py-3 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase border ${getRoleBadgeClass(
+                                displayRole
+                              )}`}
+                            >
+                              {getRoleIcon(displayRole)}
+                              {getRoleLabel(displayRole)}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-sm text-gray-500 whitespace-nowrap">
+                            {formatDate(user.createdAt)}
+                          </td>
+                          <td className="px-5 py-3 text-sm text-gray-500 whitespace-nowrap">
+                            {user.lastLogin
+                              ? formatDateTime(user.lastLogin)
+                              : '—'}
+                          </td>
+                          {canManageUsers && (
+                            <td className="px-5 py-3 whitespace-nowrap text-right text-sm">
+                              {displayRole === 'GENERAL_USER' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePromoteToAdmin(user.id)}
+                                  disabled={promotingId === user.id}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[#6d69ff] bg-white border border-[#6d69ff]/30 rounded-lg hover:bg-[#6d69ff]/5 hover:border-[#6d69ff]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <ArrowUpCircle className="w-3.5 h-3.5" />
+                                  {promotingId === user.id
+                                    ? 'Promoting…'
+                                    : 'Promote to Admin'}
+                                </button>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -188,8 +322,8 @@ export default function UsersPage() {
   return (
     <Suspense
       fallback={
-        <div className="container mx-auto p-8">
-          <LoadingSpinner message="Loading..." />
+        <div className="space-y-7 max-w-[1800px] mx-auto">
+          <UsersSkeleton />
         </div>
       }
     >

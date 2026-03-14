@@ -36,6 +36,9 @@ public class JournalEntry {
     /** Whether this entry has been posted to Xero */
     private Boolean posted = false;
 
+    /** True when this entry is a full recognition (write-off) of remaining balance */
+    private Boolean writeOff = false;
+
     /** Timestamp when the journal entry was created */
     private LocalDateTime createdAt;
 }

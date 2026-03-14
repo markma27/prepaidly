@@ -13,7 +13,7 @@ import {
   ListOrdered, 
   BarChart3, 
   Settings, 
-  HelpCircle,
+  ScrollText,
   ChevronDown,
   ChevronRight,
   Calendar,
@@ -91,6 +91,9 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [profileDisplayName, setProfileDisplayName] = useState('');
+  const [isProfileSaving, setIsProfileSaving] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Memoize current connection lookup to avoid recalculation
@@ -289,10 +292,19 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
     { name: 'Xero Reconciliation', href: `/app/xero-reconciliation?tenantId=${tenantId || ''}`, icon: FileSpreadsheet, path: '/app/xero-reconciliation' },
   ];
 
+  // General users (ORG_USER, legacy USER) cannot access Users and System Log pages
+  const isGeneralUser =
+    profile?.role === 'ORG_USER' || profile?.role === 'USER';
+  const canAccessAdminPages = !isGeneralUser;
+
   const footerNavigation = [
-    { name: 'Users', href: `/app/users?tenantId=${tenantId || ''}`, icon: Users, path: '/app/users' },
+    ...(canAccessAdminPages
+      ? [{ name: 'Users', href: `/app/users?tenantId=${tenantId || ''}`, icon: Users, path: '/app/users' }]
+      : []),
     { name: 'Settings', href: `/app/settings?tenantId=${tenantId || ''}`, icon: Settings, path: '/app/settings' },
-    { name: 'Help & Support', href: `/app/dashboard?tenantId=${tenantId || ''}`, icon: HelpCircle, path: '/app/dashboard' },
+    ...(canAccessAdminPages
+      ? [{ name: 'System Log', href: `/app/system-log?tenantId=${tenantId || ''}`, icon: ScrollText, path: '/app/system-log' }]
+      : []),
   ];
 
   const isActive = (itemPath: string, itemName: string) => {
@@ -331,6 +343,8 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
     }
     // Users page
     if (pathname === '/app/users') return itemName === 'Users';
+    // System Log page
+    if (pathname === '/app/system-log') return itemName === 'System Log';
     // For other pages, match by pathname
     return pathname === itemPath;
   };
@@ -340,14 +354,45 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
     router.push(`/app/dashboard?tenantId=${newTenantId}`);
   };
 
-  // Fetch profile when Profile Settings modal opens
+  // Display name from users table (profile), fallback to Supabase-derived name
+  const displayName = (profile?.displayName && profile.displayName.trim())
+    ? profile.displayName.trim()
+    : userName;
+  const initial = displayName.charAt(0).toUpperCase() || userInitial;
+
+  const getRoleLabel = (role: string | undefined | null): string => {
+    if (!role) return '';
+    switch (role) {
+      case 'SYS_ADMIN': return 'Super Admin';
+      case 'ORG_ADMIN': return 'Admin';
+      case 'ORG_USER': return 'General User';
+      case 'USER': return 'General User'; // legacy
+      default: return role;
+    }
+  };
+  const roleLabel = getRoleLabel(profile?.role ?? null);
+
+  // Fetch profile on mount to determine nav visibility (Users/System Log for admins only)
+  useEffect(() => {
+    let cancelled = false;
+    usersApi.getProfile().then((p) => {
+      if (!cancelled && p) setProfile(p);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Re-fetch profile when Profile Settings modal opens (for fresh data in modal)
   useEffect(() => {
     if (!isProfileSettingsOpen) return;
     let cancelled = false;
+    setProfileSaveError(null);
     setIsProfileLoading(true);
     setProfile(null);
     usersApi.getProfile().then((p) => {
-      if (!cancelled && p) setProfile(p);
+      if (!cancelled && p) {
+        setProfile(p);
+        setProfileDisplayName(p.displayName?.trim() ?? '');
+      }
     }).finally(() => {
       if (!cancelled) setIsProfileLoading(false);
     });
@@ -478,11 +523,17 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors group"
               >
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#6d69ff] to-[#5a56e8] flex items-center justify-center text-white text-sm font-semibold shadow-sm flex-shrink-0">
-                  {userInitial}
+                  {initial}
                 </div>
                 <div className="flex flex-col items-start justify-center flex-1 min-w-0 text-left">
-                  <span className="text-[13px] font-semibold text-gray-900 leading-tight truncate w-full text-left">{userName}</span>
-                  <span className="text-[11px] text-gray-500 leading-tight truncate w-full text-left mt-0.5">{userEmail}</span>
+                  <span className="text-[13px] font-semibold text-gray-900 leading-tight truncate w-full">
+                    {displayName}
+                  </span>
+                  {roleLabel ? (
+                    <span className="text-[11px] text-gray-500 leading-tight truncate w-full mt-0.5">
+                      {roleLabel}
+                    </span>
+                  ) : null}
                 </div>
                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -493,11 +544,13 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
                   <div className="px-4 py-3 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#6d69ff] to-[#5a56e8] flex items-center justify-center text-white text-sm font-semibold shadow-sm">
-                        {userInitial}
+                        {initial}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 truncate">{userName}</div>
-                        <div className="text-xs text-gray-500 truncate">{userEmail}</div>
+                        <div className="text-sm font-semibold text-gray-900 truncate">{displayName}</div>
+                        {roleLabel ? (
+                          <div className="text-xs text-gray-500 truncate mt-0.5">{roleLabel}</div>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -645,9 +698,22 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
               </div>
             ) : profile ? (
               <div className="space-y-3 text-sm mb-6">
+                {profileSaveError && (
+                  <p className="text-red-600 text-sm">{profileSaveError}</p>
+                )}
                 <div>
-                  <span className="text-gray-500 font-medium">Display Name</span>
-                  <p className="text-gray-900 mt-0.5">{profile.displayName || '—'}</p>
+                  <label htmlFor="profile-display-name" className="text-gray-500 font-medium block mb-1">
+                    Display Name
+                  </label>
+                  <input
+                    id="profile-display-name"
+                    type="text"
+                    value={profileDisplayName}
+                    onChange={(e) => setProfileDisplayName(e.target.value)}
+                    placeholder="Enter display name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6d69ff] focus:border-transparent"
+                    disabled={isProfileSaving}
+                  />
                 </div>
                 <div>
                   <span className="text-gray-500 font-medium">Email</span>
@@ -655,16 +721,26 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
                 </div>
                 <div>
                   <span className="text-gray-500 font-medium">Role</span>
-                  <p className="text-gray-900 mt-0.5">{profile.role || 'USER'}</p>
+                  <p className="text-gray-900 mt-0.5">{getRoleLabel(profile.role) || '—'}</p>
                 </div>
                 <div>
                   <span className="text-gray-500 font-medium">Last Login</span>
                   <p className="text-gray-900 mt-0.5">
                     {profile.lastLogin
-                      ? new Date(profile.lastLogin).toLocaleString(undefined, {
-                          dateStyle: 'medium',
-                          timeStyle: 'short',
-                        })
+                      ? (() => {
+                          const d = new Date(profile.lastLogin);
+                          const datePart = d.toLocaleDateString('en-GB', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          });
+                          const timePart = d.toLocaleTimeString('en-GB', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          });
+                          return `${datePart}, ${timePart}`;
+                        })()
                       : '—'}
                   </p>
                 </div>
@@ -672,12 +748,41 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
             ) : (
               <p className="text-sm text-gray-600 mb-6">Could not load profile.</p>
             )}
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={() => setIsProfileSettingsOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
-                Confirm
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!profile) return;
+                  const newName = profileDisplayName.trim() || null;
+                  if (newName === (profile.displayName?.trim() || null)) {
+                    setIsProfileSettingsOpen(false);
+                    return;
+                  }
+                  setIsProfileSaving(true);
+                  setProfileSaveError(null);
+                  try {
+                    const updated = await usersApi.updateProfile(profile.id, {
+                      displayName: newName || null,
+                    });
+                    setProfile(updated);
+                    setIsProfileSettingsOpen(false);
+                  } catch (err) {
+                    setProfileSaveError(
+                      err instanceof Error ? err.message : 'Failed to save display name'
+                    );
+                  } finally {
+                    setIsProfileSaving(false);
+                  }
+                }}
+                disabled={isProfileSaving}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProfileSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

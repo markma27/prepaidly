@@ -142,6 +142,11 @@ public class SupabaseAdminService {
         return allUsers;
     }
 
+    private static final java.util.Set<String> SUPER_ADMIN_EMAILS = java.util.Set.of(
+        "mayinxing@gmail.com",
+        "edmond.huo@prepaidly.io"
+    );
+
     private void applySupabaseUser(User user, Map<String, Object> userMap) {
         String supabaseUserId = Optional.ofNullable(userMap.get("id")).map(Object::toString).orElse(null);
         user.setSupabaseUserId(supabaseUserId);
@@ -155,8 +160,12 @@ public class SupabaseAdminService {
         // Display name from user_metadata or raw_user_meta_data (GoTrue uses both)
         user.setDisplayName(extractDisplayName(userMap));
 
-        // Role from user_metadata or raw_user_meta_data or default "USER"
-        user.setRole(extractRole(userMap));
+        // Role: super admin emails always SYS_ADMIN; else from metadata or default ORG_USER
+        if (email != null && SUPER_ADMIN_EMAILS.contains(email.toLowerCase())) {
+            user.setRole("SYS_ADMIN");
+        } else {
+            user.setRole(extractRole(userMap));
+        }
 
         // Last login: user-level last_sign_in_at, or fallback to first identity's last_sign_in_at
         user.setLastLogin(parseLocalDateTime(extractLastSignInAt(userMap)));
@@ -181,9 +190,14 @@ public class SupabaseAdminService {
         Map<String, Object> meta = getMetadataMap(userMap);
         if (meta != null) {
             String role = Optional.ofNullable(meta.get("role")).map(Object::toString).orElse(null);
-            if (role != null && !role.isBlank()) return role.toUpperCase();
+            if (role != null && !role.isBlank()) {
+                String r = role.toUpperCase();
+                if ("SYS_ADMIN".equals(r) || "ORG_ADMIN".equals(r) || "ORG_USER".equals(r)) {
+                    return r;
+                }
+            }
         }
-        return "USER";
+        return "ORG_USER";
     }
 
     /** Get user metadata from user_metadata or raw_user_meta_data (GoTrue uses both across versions). */

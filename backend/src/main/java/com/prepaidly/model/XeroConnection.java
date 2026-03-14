@@ -90,6 +90,10 @@ public class XeroConnection {
     @Column(name = "last_refreshed_at")
     private LocalDateTime lastRefreshedAt;
 
+    /** True for the first user who connected this organisation; they can invite users and promote to admin */
+    @Column(name = "is_org_admin", nullable = false)
+    private boolean isOrgAdmin = false;
+
     /** Timestamp when the connection was created */
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

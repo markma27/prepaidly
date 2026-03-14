@@ -33,5 +33,12 @@ public class UpdateUserRequest {
      */
     @Email(message = "Email must be valid")
     private String email;
+
+    /**
+     * New display name for the user.
+     * If provided, updates the user's display_name in the database.
+     * If null, display name is not updated. Blank string is stored as null.
+     */
+    private String displayName;
 }
 

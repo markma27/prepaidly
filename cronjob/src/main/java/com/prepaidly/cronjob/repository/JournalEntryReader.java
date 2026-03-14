@@ -32,7 +32,7 @@ public class JournalEntryReader {
         log.info("Starting to read journal entries from database...");
         Set<JournalEntry> journalEntrySet = new HashSet<>();
         
-        String sql = "SELECT id, schedule_id, period_date, amount, xero_manual_journal_id, posted, created_at " +
+        String sql = "SELECT id, schedule_id, period_date, amount, xero_manual_journal_id, posted, is_write_off, created_at " +
                      "FROM journal_entries";
         
         log.info("SQL Query: {}", sql);
@@ -74,6 +74,7 @@ public class JournalEntryReader {
                 entry.setXeroManualJournalId(xeroManualJournalId);
                 
                 entry.setPosted(rs.getBoolean("posted"));
+                entry.setWriteOff(rs.getBoolean("is_write_off"));
                 entry.setCreatedAt(rs.getObject("created_at", LocalDateTime.class));
                 
                 journalEntrySet.add(entry);

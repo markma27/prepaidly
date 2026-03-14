@@ -1,10 +1,13 @@
 // TypeScript type definitions for Prepaidly API responses
 
-/** User as returned by /api/users and /api/users/by-tenant */
+/** User as returned by /api/users/by-tenant with effective role for the tenant */
 export interface UserListItem {
   id: number;
   email: string;
+  displayName?: string | null;
   role?: string;
+  /** Effective role for this tenant: SUPER_ADMIN | ADMIN | GENERAL_USER */
+  effectiveRole?: string;
   lastLogin?: string;
   createdAt: string;
 }

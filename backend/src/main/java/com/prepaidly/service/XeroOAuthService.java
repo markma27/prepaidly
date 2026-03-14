@@ -226,6 +226,13 @@ public class XeroOAuthService {
                         connection.setUser(user);
                         connection.setTenantId(tenantId);
                         isNew = true;
+                        // First user to connect this organisation becomes org admin
+                        boolean isFirstForTenant = xeroConnectionRepository.findByTenantId(tenantId).isEmpty();
+                        connection.setOrgAdmin(isFirstForTenant);
+                        if (isFirstForTenant) {
+                            log.info("[{}/{}] First connection for tenant {} - user set as org admin", 
+                                i + 1, connections.size(), tenantId);
+                        }
                         log.info("[{}/{}] Creating new connection for tenantId: {}", 
                             i + 1, connections.size(), tenantId);
                     }

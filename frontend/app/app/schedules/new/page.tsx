@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { scheduleApi, xeroApi, settingsApi } from '@/lib/api';
+import { scheduleApi, xeroApi, settingsApi, usersApi } from '@/lib/api';
 import { validateDateRange, formatCurrency, formatDateOnly, formatDateToDDMMYYYY, parseDateToYYYYMMDD, generateProRataSchedule, generateEqualMonthlySchedule, countProRataPeriods, getCurrencySymbol, resolveEndDate } from '@/lib/utils';
 import { getOrgCurrency } from '@/lib/OrgContext';
 import type { XeroAccount, ScheduleType } from '@/lib/types';
@@ -437,6 +437,7 @@ function NewSchedulePageContent() {
       setSubmitting(true);
       setError(null);
 
+      const profile = await usersApi.getProfile();
       const request = {
         tenantId,
         type,
@@ -453,6 +454,7 @@ function NewSchedulePageContent() {
         invoiceUrl: invoiceStorageUrl || undefined,
         invoiceFilename: invoiceFile?.name || undefined,
         allocationMethod,
+        createdBy: profile?.id,
       };
 
       const created = await scheduleApi.createSchedule(request);

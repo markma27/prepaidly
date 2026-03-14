@@ -1,6 +1,6 @@
-# Daily Cron Job
+# Monthly Cron Job
 
-Java-based daily cron job that executes at 12:00 AM daily on Railway.
+Java-based cron job that runs on the **1st of each month** on Railway. It posts all outstanding journal entries whose period date is on or before the last day of the previous month, excluding entries before the tenant conversion date and schedules that are already fully written off.
 
 ## Structure
 
@@ -71,8 +71,8 @@ export DB_PASSWORD="your_password"
 4. **Set up scheduled task:**
    - In Railway dashboard, go to your cron service
    - Navigate to "Settings" → "Cron Schedule"
-   - Set the schedule to: `0 0 * * *` (runs at 12:00 AM daily)
-   - Or use Railway's UI to select "Daily at midnight"
+   - Set the schedule to: `0 0 1 * *` (runs at 00:00 on the 1st of every month)
+   - This ensures all outstanding journals before last month end are posted monthly
 
 5. **Environment Variables:**
    **IMPORTANT**: Set these environment variables in Railway:
@@ -140,42 +140,28 @@ If you get "Tenant or user not found" error:
 
 ## Cron Schedule Format
 
-The schedule `0 0 * * *` means:
+The schedule `0 0 1 * *` means:
 - `0` - minute (0th minute)
 - `0` - hour (0th hour = midnight)
-- `*` - day of month (every day)
+- `1` - day of month (1st)
 - `*` - month (every month)
-- `*` - day of week (every day)
+- `*` - day of week (any)
 
-This runs at 12:00 AM (midnight) every day.
+This runs at 00:00 (midnight) on the 1st of every month.
 
-## Customizing the Job
+## What the Job Does
 
-Edit `src/main/java/com/prepaidly/cronjob/DailyCronJob.java` to add your daily tasks.
+The job runs on the 1st of each month and:
 
-The job currently:
-- Reads all journal entries from the database
-- Stores them in a map keyed by `xero_manual_journal_id`
-- Logs the `xero_manual_journal_id` and `posted` status for all entries
-
-Example tasks you might want to add:
-
-```java
-public void run() {
-    log.info("=== Daily Cron Job Started ===");
-    
-    // Read journal entries
-    Map<String, JournalEntry> journalEntryMap = readJournalEntries();
-    
-    // Your custom tasks here
-    // - Refresh Xero tokens for all tenants
-    // - Generate journal entries for schedules due today
-    // - Send reminder notifications
-    // - Clean up old data
-    
-    log.info("Daily cron job completed successfully");
-}
-```
+1. Reads all journal entries and schedules from the database
+2. Loads tenant conversion dates (lock dates)
+3. **Filters entries ready to post:**
+   - `period_date` ≤ last day of previous month (outstanding before month end)
+   - Not yet posted (`posted` is false or null)
+   - `period_date` after tenant conversion date (if set)
+   - Not a write-off entry (`is_write_off` = false)
+   - Schedule is not fully written off (no write-off entry on the schedule)
+4. For each filtered entry, creates the manual journal in Xero and updates the database (`xero_manual_journal_id`, `posted = true`)
 
 ## Dependencies
 
@@ -226,8 +212,8 @@ java -jar build/libs/prepaidly-cronjob-0.1.0.jar
 ## Notes
 
 - The job is designed to run once and exit (not as a long-running service)
-- Railway's cron scheduler will trigger it at the specified time
-- Make sure to set `restartPolicyType: "never"` so Railway doesn't restart it
-- The job should complete quickly (within Railway's timeout limits)
+- Railway's cron scheduler triggers it on the 1st of each month (`0 0 1 * *`)
+- Set `restartPolicyType: "never"` in `railway.json` so Railway doesn't restart the process
+- The job should complete within Railway's timeout limits
 - Database connection uses HikariCP connection pooling for efficiency
 - Model classes are shared with backend to avoid code duplication

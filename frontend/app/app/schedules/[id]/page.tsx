@@ -186,6 +186,25 @@ function ScheduleDetailContent() {
     return { effectiveDonePeriods: done, totalPeriods: total };
   }, [periodEntries, conversionDate]);
 
+  // Single source of truth for schedule status: prefer API postedPeriods/totalPeriods and remainingBalance
+  // so that after refetch (e.g. post journal) we show Completed consistently everywhere
+  const scheduleStatus = useMemo(() => {
+    if (!schedule) return { label: 'In Progress', detail: '0/0', variant: 'yellow' as const };
+    if (schedule.voided) return { label: 'Voided', detail: '', variant: 'red' as const };
+    const apiPosted = schedule.postedPeriods ?? effectiveDonePeriods;
+    const apiTotal = schedule.totalPeriods ?? totalPeriods;
+    const completed =
+      isCompleted ||
+      (apiTotal != null && apiTotal > 0 && apiPosted != null && apiPosted >= apiTotal);
+    if (completed)
+      return { label: 'Completed', detail: '', variant: 'green' as const };
+    return {
+      label: 'In Progress',
+      detail: `${apiPosted ?? 0}/${apiTotal ?? 0}`,
+      variant: 'yellow' as const,
+    };
+  }, [schedule, isCompleted, effectiveDonePeriods, totalPeriods]);
+
   // Minimum write-off date: day after the most recently posted (period) journal date, or day after conversion date
   const minWriteOffDate = useMemo(() => {
     let minFromPosted: string | undefined;
@@ -634,21 +653,19 @@ function ScheduleDetailContent() {
               </div>
               <div>
                 <div className="text-xs text-gray-500 mb-1">Status</div>
-                {schedule.voided ? (
+                {scheduleStatus.variant === 'red' && (
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-100 text-red-700">
-                    Voided
+                    {scheduleStatus.label}
                   </span>
-                ) : isCompleted ? (
+                )}
+                {scheduleStatus.variant === 'green' && (
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
-                    Completed
+                    {scheduleStatus.label}
                   </span>
-                ) : effectiveDonePeriods === totalPeriods && totalPeriods > 0 ? (
-                  <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 text-green-700">
-                    Completed
-                  </span>
-                ) : (
+                )}
+                {scheduleStatus.variant === 'yellow' && (
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-yellow-100 text-yellow-700">
-                    In Progress ({effectiveDonePeriods}/{totalPeriods})
+                    {scheduleStatus.label}{scheduleStatus.detail ? ` (${scheduleStatus.detail})` : ''}
                   </span>
                 )}
               </div>

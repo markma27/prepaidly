@@ -258,11 +258,16 @@ export const scheduleApi = {
   /**
    * Get all schedules for a tenant
    * @param includeVoided when true, includes voided schedules (default false for Register/Analytics)
+   * @param skipCache when true, bypasses cache and refetches (e.g. for System Log to show latest posts)
    */
-  getSchedules: async (tenantId: string, includeVoided = false): Promise<{ schedules: Schedule[]; count: number }> => {
+  getSchedules: async (tenantId: string, includeVoided = false, skipCache = false): Promise<{ schedules: Schedule[]; count: number }> => {
     const cacheKey = getCacheKey('schedules', tenantId) + (includeVoided ? ':voided' : '');
-    const cached = getCachedData<{ schedules: Schedule[]; count: number }>(cacheKey, DEFAULT_CACHE_TTL_MS);
-    if (cached) return cached;
+    if (!skipCache) {
+      const cached = getCachedData<{ schedules: Schedule[]; count: number }>(cacheKey, DEFAULT_CACHE_TTL_MS);
+      if (cached) return cached;
+    } else {
+      clearCachedData(cacheKey);
+    }
     const data = await fetchApi<{ schedules: Schedule[]; count: number }>(
       `/api/schedules?tenantId=${encodeURIComponent(tenantId)}&includeVoided=${includeVoided}`
     );
@@ -525,14 +530,41 @@ export const usersApi = {
 
   /**
    * Get users who have access to the entity (tenant).
+   * Returns displayName, effectiveRole (SUPER_ADMIN | ADMIN | GENERAL_USER), lastLogin with date & time.
    */
   getByTenant: async (tenantId: string) => {
     if (!tenantId || tenantId === 'null' || tenantId === 'undefined') {
       return { users: [], count: 0 };
     }
-    return fetchApi<{ users: { id: number; email: string; role?: string; lastLogin?: string; createdAt: string }[]; count: number }>(
+    return fetchApi<{ users: import('./types').UserListItem[]; count: number }>(
       `/api/users/by-tenant?tenantId=${encodeURIComponent(tenantId)}`
     );
+  },
+
+  /**
+   * Promote a general user to admin for the given tenant.
+   * Only admins or super admins can call this.
+   */
+  promoteToAdmin: async (userId: number, tenantId: string) => {
+    return fetchApi<{ message: string }>(
+      `/api/users/${userId}/promote-to-admin?tenantId=${encodeURIComponent(tenantId)}`,
+      { method: 'PATCH' }
+    );
+  },
+
+  /**
+   * Update current user profile (e.g. display name). Clears profile cache on success.
+   */
+  updateProfile: async (userId: number, data: { displayName?: string | null }) => {
+    const result = await fetchApi<UserProfile>(`/api/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ displayName: data.displayName ?? null }),
+    });
+    const supabaseUser = getSupabaseUser();
+    if (supabaseUser.id) {
+      clearCachedData(getCacheKey('userProfile', supabaseUser.id));
+    }
+    return result;
   },
 };
 

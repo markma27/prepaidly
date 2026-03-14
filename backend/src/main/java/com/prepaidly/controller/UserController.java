@@ -3,6 +3,7 @@ package com.prepaidly.controller;
 import com.prepaidly.dto.CreateUserRequest;
 import com.prepaidly.dto.UpdateUserRequest;
 import com.prepaidly.dto.UserResponse;
+import com.prepaidly.dto.UserWithTenantRoleResponse;
 import com.prepaidly.model.User;
 import com.prepaidly.model.XeroConnection;
 import com.prepaidly.repository.UserRepository;
@@ -57,6 +58,11 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class UserController {
+
+    private static final java.util.Set<String> SUPER_ADMIN_EMAILS = java.util.Set.of(
+        "mayinxing@gmail.com",
+        "edmond.huo@prepaidly.io"
+    );
 
     private final UserRepository userRepository;
     private final XeroConnectionRepository xeroConnectionRepository;
@@ -274,12 +280,12 @@ public class UserController {
         }
         try {
             List<XeroConnection> connections = xeroConnectionRepository.findByTenantId(tenantId.trim());
-            Set<Long> userIds = connections.stream()
-                .map(conn -> conn.getUser().getId())
-                .collect(Collectors.toSet());
+            java.util.Map<Long, XeroConnection> userToConnection = connections.stream()
+                .collect(Collectors.toMap(conn -> conn.getUser().getId(), conn -> conn, (a, b) -> a));
+            Set<Long> userIds = userToConnection.keySet();
             List<User> users = userRepository.findAllById(userIds);
-            List<UserResponse> responses = users.stream()
-                .map(this::toUserResponse)
+            List<UserWithTenantRoleResponse> responses = users.stream()
+                .map(u -> toUserWithTenantRole(u, userToConnection.get(u.getId())))
                 .collect(Collectors.toList());
             return ResponseEntity.ok(Map.of(
                 "users", responses,
@@ -380,8 +386,9 @@ public class UserController {
             User user = userRepository.findBySupabaseUserId(supabaseUserId).orElseGet(() -> {
                 User u = new User();
                 u.setSupabaseUserId(supabaseUserId);
-                u.setEmail(email != null && !email.isBlank() ? email : "supabase-" + supabaseUserId + "@prepaidly.local");
-                u.setRole("USER");
+                String userEmail = email != null && !email.isBlank() ? email : "supabase-" + supabaseUserId + "@prepaidly.local";
+                u.setEmail(userEmail);
+                u.setRole(SUPER_ADMIN_EMAILS.contains(userEmail.toLowerCase()) ? "SYS_ADMIN" : "ORG_USER");
                 return u;
             });
             user.setLastLogin(java.time.LocalDateTime.now());
@@ -578,6 +585,10 @@ public class UserController {
                 user.setEmail(request.getEmail());
             }
 
+            if (request.getDisplayName() != null) {
+                user.setDisplayName(request.getDisplayName().isBlank() ? null : request.getDisplayName().trim());
+            }
+
             user = Objects.requireNonNull(userRepository.save(user), "Saved user cannot be null");
             UserResponse response = toUserResponse(user);
             return ResponseEntity.ok(response);
@@ -666,6 +677,37 @@ public class UserController {
     }
 
     /**
+     * Promote a general user to admin for the given tenant.
+     * Only admins or super admins can promote. Only GENERAL_USER can be promoted to ADMIN.
+     */
+    @PatchMapping("/{id}/promote-to-admin")
+    public ResponseEntity<?> promoteToAdmin(
+            @PathVariable Long id,
+            @RequestParam String tenantId) {
+        if (tenantId == null || tenantId.isBlank() || "null".equals(tenantId) || "undefined".equals(tenantId)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "tenantId is required"));
+        }
+        try {
+            XeroConnection connection = xeroConnectionRepository.findByUserIdAndTenantId(id, tenantId.trim())
+                .orElse(null);
+            if (connection == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "User does not have access to this entity"));
+            }
+            if (connection.isOrgAdmin()) {
+                return ResponseEntity.ok(Map.of("message", "User is already an admin"));
+            }
+            connection.setOrgAdmin(true);
+            xeroConnectionRepository.save(connection);
+            return ResponseEntity.ok(Map.of("message", "User promoted to admin successfully"));
+        } catch (Exception e) {
+            log.error("Error promoting user {} to admin", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to promote user: " + e.getMessage()));
+        }
+    }
+
+    /**
      * Convert User entity to UserResponse DTO
      */
     private UserResponse toUserResponse(User user) {
@@ -677,6 +719,32 @@ public class UserController {
         response.setLastLogin(user.getLastLogin());
         response.setCreatedAt(user.getCreatedAt());
         return response;
+    }
+
+    private UserWithTenantRoleResponse toUserWithTenantRole(User user, XeroConnection connection) {
+        UserWithTenantRoleResponse r = new UserWithTenantRoleResponse();
+        r.setId(user.getId());
+        r.setEmail(user.getEmail());
+        r.setDisplayName(user.getDisplayName());
+        r.setRole(user.getRole());
+        r.setLastLogin(user.getLastLogin());
+        r.setCreatedAt(user.getCreatedAt());
+        String effectiveRole = computeEffectiveRole(user, connection);
+        r.setEffectiveRole(effectiveRole);
+        return r;
+    }
+
+    private String computeEffectiveRole(User user, XeroConnection connection) {
+        if (user.getEmail() != null && SUPER_ADMIN_EMAILS.contains(user.getEmail().toLowerCase())) {
+            return "SUPER_ADMIN";
+        }
+        if ("SYS_ADMIN".equals(user.getRole())) {
+            return "SUPER_ADMIN";
+        }
+        if (connection != null && connection.isOrgAdmin()) {
+            return "ADMIN";
+        }
+        return "GENERAL_USER";
     }
 }
 

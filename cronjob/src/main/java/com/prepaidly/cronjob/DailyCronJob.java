@@ -24,12 +24,15 @@ import java.util.Properties;
 import java.util.Set;
 
 /**
- * Daily Cron Job
- * 
- * Executes daily tasks at 12:00 AM. This job can be scheduled to run
- * automatically on Railway or other platforms.
- * 
- * Customize the run() method to add your daily maintenance tasks.
+ * Monthly Cron Job
+ *
+ * Intended to run on the 1st of each month. Posts all outstanding journal entries
+ * whose period_date is on or before last day of the previous month, excluding:
+ * - entries on or before the tenant conversion date (lock date),
+ * - write-off entries (is_write_off = true),
+ * - entries belonging to schedules that are already fully written off.
+ *
+ * Schedule on Railway: 0 0 1 * * (midnight on day 1 of every month).
  */
 public class DailyCronJob {
     private static final Logger log = LoggerFactory.getLogger(DailyCronJob.class);
@@ -106,9 +109,8 @@ public class DailyCronJob {
             TenantSettingsReader tenantSettingsReader = new TenantSettingsReader();
             Map<String, LocalDate> conversionDateByTenant = tenantSettingsReader.readConversionDatesByTenant();
 
-            log.info("Filtering journal entries ready to post...");
-            // Create a set of journal entries whose period_date equals or before current date and not posted yet
-            // Exclude entries on or before conversion date (lock date) per tenant
+            log.info("Filtering journal entries ready to post (cutoff: last day of previous month)...");
+            // Entries with period_date <= last month end, not posted, after conversion date, not write-offs, schedule not fully written off
             Set<JournalEntry> entriesToPost = filterEntriesReadyToPost(journalEntrySet, scheduleSet, conversionDateByTenant);
             log.info("Found {} journal entries ready to post", entriesToPost.size());
             
@@ -273,11 +275,13 @@ public class DailyCronJob {
     }
     
     /**
-     * Filter journal entries that are ready to be posted.
+     * Filter journal entries that are ready to be posted (monthly run on 1st).
      * An entry is ready if:
-     * - period_date is less than or equal to the current system date
+     * - period_date is less than or equal to last day of previous month (outstanding before month end)
      * - posted is false or null (not posted yet)
      * - period_date is after conversion date (if set for tenant) - journals on or before conversion date cannot be posted
+     * - entry is not a write-off (is_write_off = false) - write-offs are not auto-posted
+     * - schedule is not already fully written off (schedule has no write-off entry)
      *
      * @param journalEntrySet Set of all journal entries
      * @param scheduleSet Set of all schedules (to resolve tenant_id from schedule_id)
@@ -288,20 +292,32 @@ public class DailyCronJob {
             Set<JournalEntry> journalEntrySet,
             Set<Schedule> scheduleSet,
             Map<String, LocalDate> conversionDateByTenant) {
-        log.info("Filtering journal entries ready to post...");
-        LocalDate currentDate = LocalDate.now();
-        log.info("Current system date: {}", currentDate);
+        log.info("Filtering journal entries ready to post (cutoff = last day of previous month)...");
+        LocalDate lastDayOfPreviousMonth = LocalDate.now().withDayOfMonth(1).minusDays(1);
+        log.info("Cutoff date (last day of previous month): {}", lastDayOfPreviousMonth);
 
         Map<Long, Schedule> scheduleMap = new HashMap<>();
         for (Schedule s : scheduleSet) {
             scheduleMap.put(s.getId(), s);
         }
 
+        // Schedules that have a write-off entry (fully written off) - do not auto-post any entries for these
+        Set<Long> scheduleIdsWithWriteOff = new HashSet<>();
+        for (JournalEntry e : journalEntrySet) {
+            if (Boolean.TRUE.equals(e.getWriteOff())) {
+                if (e.getScheduleId() != null) {
+                    scheduleIdsWithWriteOff.add(e.getScheduleId());
+                }
+            }
+        }
+        log.info("Schedules with write-off (excluded from auto-post): {}", scheduleIdsWithWriteOff.size());
+
         Set<JournalEntry> entriesToPost = new HashSet<>();
 
         for (JournalEntry entry : journalEntrySet) {
             LocalDate periodDate = entry.getPeriodDate();
             Boolean posted = entry.getPosted();
+            Boolean writeOff = entry.getWriteOff();
 
             // Check if period_date is null (shouldn't happen, but defensive check)
             if (periodDate == null) {
@@ -309,11 +325,23 @@ public class DailyCronJob {
                 continue;
             }
 
-            // Check if period_date is less than or equal to current date
-            boolean isPeriodDateValid = !periodDate.isAfter(currentDate);
+            // Cutoff: only entries with period_date <= last day of previous month
+            boolean isPeriodDateValid = !periodDate.isAfter(lastDayOfPreviousMonth);
 
             // Check if not posted yet (posted is false or null)
             boolean isNotPosted = posted == null || !posted;
+
+            // Exclude write-off entries (they are not auto-posted by cron)
+            if (Boolean.TRUE.equals(writeOff)) {
+                log.debug("Journal entry ID {} skipped: write-off entry", entry.getId());
+                continue;
+            }
+
+            // Exclude entries whose schedule is already fully written off
+            if (entry.getScheduleId() != null && scheduleIdsWithWriteOff.contains(entry.getScheduleId())) {
+                log.debug("Journal entry ID {} (schedule_id: {}) skipped: schedule has write-off", entry.getId(), entry.getScheduleId());
+                continue;
+            }
 
             // Check conversion date (lock date) - skip if period_date is on or before conversion date
             Schedule schedule = scheduleMap.get(entry.getScheduleId());
