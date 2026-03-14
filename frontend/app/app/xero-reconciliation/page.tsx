@@ -9,7 +9,8 @@ import type { XeroBalanceSheetResponse, Schedule } from '@/lib/types';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
-import { Calendar, RefreshCw, AlertTriangle } from 'lucide-react';
+import Skeleton from '@/components/Skeleton';
+import { Calendar, RefreshCw, AlertTriangle, DollarSign, FileText } from 'lucide-react';
 
 function XeroReconciliationPageContent() {
   const searchParams = useSearchParams();
@@ -29,6 +30,10 @@ function XeroReconciliationPageContent() {
 
   const orgCurrency = getOrgCurrency(tenantId) || 'USD';
 
+  /** Format amount: negatives as brackets e.g. ($1,000.00), positives as usual */
+  const formatCurrencyBrackets = (amount: number, currency: string) =>
+    amount < 0 ? `(${formatCurrency(Math.abs(amount), currency)})` : formatCurrency(amount, currency);
+
   const getDefaultMonth = () => {
     const today = new Date();
     const d = new Date(today.getFullYear(), today.getMonth() - 1, 1);
@@ -37,6 +42,8 @@ function XeroReconciliationPageContent() {
     return `${y}-${m}`;
   };
   const [selectedMonth, setSelectedMonth] = useState<string>(getDefaultMonth());
+  /** Month that the currently displayed data is for; only updates when Refresh is clicked */
+  const [loadedMonth, setLoadedMonth] = useState<string>(getDefaultMonth());
 
   /** Format YYYY-MM-DD as "Saturday, 31 January 2026" without timezone conversion. */
   const formatReportDate = (isoDate: string) => {
@@ -170,6 +177,7 @@ function XeroReconciliationPageContent() {
       setBalanceSheetPlus11(dataPlus11);
       setBalanceSheetPlus12(dataPlus12);
       setBalanceSheetPlus13(dataPlus13);
+      setLoadedMonth(selectedMonth);
     } catch (err: any) {
       console.error('Error loading balance sheet:', err);
       setError(err.message || 'Failed to load balance sheet from Xero');
@@ -182,11 +190,13 @@ function XeroReconciliationPageContent() {
     }
   }, [tenantId, selectedMonth]);
 
+  // Load balance sheet only on initial tenant load; month changes require clicking Refresh
   useEffect(() => {
-    if (tenantId && selectedMonth) {
+    if (tenantId) {
       loadBalanceSheet();
     }
-  }, [tenantId, selectedMonth, loadBalanceSheet]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   if (!tenantId) {
     return (
@@ -200,72 +210,119 @@ function XeroReconciliationPageContent() {
 
   return (
     <DashboardLayout tenantId={tenantId} pageTitle="Xero Reconciliation">
-      <div className="space-y-6">
-        {/* Date filter and balance sheet card - when settings loaded */}
-        {defaultAccountsLoaded && (
-          <>
-            <div className="flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-gray-50/50 p-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-gray-500" />
-                <label htmlFor="recon-month" className="text-sm font-medium text-gray-700">
-                  As of month (balance at month end)
-                </label>
-              </div>
-              <input
-                id="recon-month"
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              />
-              <button
-                onClick={loadBalanceSheet}
-                disabled={loading}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                {loading ? 'Loading...' : 'Refresh'}
-              </button>
-            </div>
+      <div className="max-w-[1800px] mx-auto">
+        {error && (
+          <ErrorMessage message={error} onDismiss={() => setError(null)} />
+        )}
 
-            {error && (
-              <ErrorMessage message={error} />
-            )}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+            <h3 className="text-base font-bold text-gray-900">Xero Reconciliation</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Compare Xero balances with Prepaidly schedules</p>
+          </div>
 
-            {loading && !balanceSheet ? (
-              <div className="flex min-h-[300px] items-center justify-center">
-                <LoadingSpinner />
-              </div>
-            ) : balanceSheet ? (
-          <div className="flex flex-col">
-            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-              <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+          {!defaultAccountsLoaded || (loading && !balanceSheet) ? (
+            <div className="p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                <div className="flex gap-3">
+                  <Skeleton className="h-[46px] w-[200px]" variant="rectangular" />
+                  <Skeleton className="h-[46px] w-[200px]" variant="rectangular" />
+                </div>
                 <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('prepayment')}
-                    className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                      activeTab === 'prepayment'
-                        ? 'bg-primary-600 text-white'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    Prepayment
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('unearned')}
-                    className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                      activeTab === 'unearned'
-                        ? 'bg-primary-600 text-white'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    Unearned Revenue
-                  </button>
+                  <Skeleton className="h-4 w-24" variant="text" />
+                  <Skeleton className="h-9 w-[160px]" variant="rectangular" />
+                  <Skeleton className="h-9 w-[97px]" variant="rectangular" />
                 </div>
               </div>
-              <div className="p-4">
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200 table-fixed">
+                  <colgroup>
+                    <col className="w-[40%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[20%]" />
+                  </colgroup>
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3"><Skeleton className="h-3 w-20" variant="text" /></th>
+                      <th className="px-4 py-3"><Skeleton className="h-3 w-24" variant="text" /></th>
+                      <th className="px-4 py-3"><Skeleton className="h-3 w-24" variant="text" /></th>
+                      <th className="px-4 py-3"><Skeleton className="h-3 w-24" variant="text" /></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {[1, 2, 3].map((i) => (
+                      <tr key={i}>
+                        <td className="px-4 py-3"><Skeleton className="h-4 w-40" variant="text" /></td>
+                        <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
+                        <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
+                        <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+          <div className="p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('prepayment')}
+                  className={`w-[200px] min-w-[200px] px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 text-left ${
+                    activeTab === 'prepayment'
+                      ? 'border-blue-500 bg-blue-50 text-blue-600'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 flex-shrink-0" />
+                    Prepayment
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('unearned')}
+                  className={`w-[200px] min-w-[200px] px-4 py-3 rounded-lg border-2 text-sm font-semibold transition-all duration-200 text-left ${
+                    activeTab === 'unearned'
+                      ? 'border-green-500 bg-green-50 text-green-600'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 flex-shrink-0" />
+                    Unearned Revenue
+                  </div>
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-gray-500" />
+                  <label htmlFor="recon-month" className="text-sm font-medium text-gray-700">
+                    As of month
+                  </label>
+                </div>
+                <input
+                  id="recon-month"
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                />
+                <button
+                  onClick={loadBalanceSheet}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  {loading ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+            </div>
+
+            {balanceSheet ? (
+                <>
                 {activeTab === 'prepayment' && !prepaymentAcctCode && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
@@ -288,7 +345,7 @@ function XeroReconciliationPageContent() {
                   </div>
                 )}
                 {activeTab === 'prepayment' && prepaymentAcctCode && (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
                     <table className="min-w-full divide-y divide-gray-200 table-fixed">
                       <colgroup>
                         <col className="min-w-[180px]" />
@@ -299,13 +356,34 @@ function XeroReconciliationPageContent() {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Account</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(selectedMonth, 0)}</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(selectedMonth, -1)}</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(selectedMonth, -2)}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(loadedMonth, 0)}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(loadedMonth, -1)}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(loadedMonth, -2)}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 bg-white">
-                        {(() => {
+                        {loading ? (
+                          <>
+                            <tr>
+                              <td className="px-4 py-3"><Skeleton className="h-4 w-40" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3"><Skeleton className="h-4 w-44" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                            </tr>
+                          </>
+                        ) : (() => {
                           const acc = balanceSheet.accounts.find((a) => a.accountCode === prepaymentAcctCode);
                           const amountPlus13 = balanceSheetPlus13?.accounts?.find((a) => a.accountCode === prepaymentAcctCode);
                           const amountPlus12 = balanceSheetPlus12?.accounts?.find((a) => a.accountCode === prepaymentAcctCode);
@@ -313,9 +391,9 @@ function XeroReconciliationPageContent() {
                           const x0 = amountPlus13?.amount ?? null;
                           const x1 = amountPlus12?.amount ?? null;
                           const x2 = amountPlus11?.amount ?? null;
-                          const b0 = getTotalRemainingBalance('PREPAID', getMonthEndDateForOffset(selectedMonth, 0));
-                          const b1 = getTotalRemainingBalance('PREPAID', getMonthEndDateForOffset(selectedMonth, -1));
-                          const b2 = getTotalRemainingBalance('PREPAID', getMonthEndDateForOffset(selectedMonth, -2));
+                          const b0 = getTotalRemainingBalance('PREPAID', getMonthEndDateForOffset(loadedMonth, 0));
+                          const b1 = getTotalRemainingBalance('PREPAID', getMonthEndDateForOffset(loadedMonth, -1));
+                          const b2 = getTotalRemainingBalance('PREPAID', getMonthEndDateForOffset(loadedMonth, -2));
                           const v0 = x0 != null ? x0 - b0 : null;
                           const v1 = x1 != null ? x1 - b1 : null;
                           const v2 = x2 != null ? x2 - b2 : null;
@@ -325,14 +403,14 @@ function XeroReconciliationPageContent() {
                                 <tr>
                                   <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">No matching account found.</td>
                                 </tr>
-                                <tr className="bg-blue-50/50">
-                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">Prepaidly Schedules</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b0, orgCurrency)}</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b1, orgCurrency)}</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b2, orgCurrency)}</td>
+                                <tr>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">Account Balance - Prepaidly</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b1, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b2, orgCurrency)}</td>
                                 </tr>
                                 <tr>
-                                  <td className="px-4 py-3 text-sm font-medium text-gray-700">Variance (Xero − Prepaidly)</td>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-700">Variance</td>
                                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
                                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
                                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
@@ -343,33 +421,33 @@ function XeroReconciliationPageContent() {
                           return (
                             <>
                               <tr className="hover:bg-gray-50/50">
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{(acc.accountCode || '—') + ' - ' + (acc.accountName || '—')}</td>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">Account Balance - Xero</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
+                                  {x0 != null ? formatCurrencyBrackets(x0, orgCurrency) : '—'}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
+                                  {x1 != null ? formatCurrencyBrackets(x1, orgCurrency) : '—'}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
+                                  {x2 != null ? formatCurrencyBrackets(x2, orgCurrency) : '—'}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">Account Balance - Prepaidly</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b0, orgCurrency)}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b1, orgCurrency)}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b2, orgCurrency)}</td>
+                              </tr>
+                              <tr className="bg-gray-100 border-t-2 border-gray-200">
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance</td>
                                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
-                                  {x0 != null ? formatCurrency(x0, orgCurrency) : '—'}
+                                  {v0 != null ? formatCurrencyBrackets(v0, orgCurrency) : '—'}
                                 </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">
-                                  {x1 != null ? formatCurrency(x1, orgCurrency) : '—'}
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                  {v1 != null ? formatCurrencyBrackets(v1, orgCurrency) : '—'}
                                 </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">
-                                  {x2 != null ? formatCurrency(x2, orgCurrency) : '—'}
-                                </td>
-                              </tr>
-                              <tr className="bg-blue-50/50 hover:bg-blue-50/70">
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">Prepaidly Schedules</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b0, orgCurrency)}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b1, orgCurrency)}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b2, orgCurrency)}</td>
-                              </tr>
-                              <tr className="bg-amber-50/50 border-t-2 border-amber-200">
-                                <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance (Xero − Prepaidly)</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-800">
-                                  {v0 != null ? formatCurrency(v0, orgCurrency) : '—'}
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-800">
-                                  {v1 != null ? formatCurrency(v1, orgCurrency) : '—'}
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-800">
-                                  {v2 != null ? formatCurrency(v2, orgCurrency) : '—'}
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                  {v2 != null ? formatCurrencyBrackets(v2, orgCurrency) : '—'}
                                 </td>
                               </tr>
                             </>
@@ -401,7 +479,7 @@ function XeroReconciliationPageContent() {
                   </div>
                 )}
                 {activeTab === 'unearned' && unearnedAcctCode && (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
                     <table className="min-w-full divide-y divide-gray-200 table-fixed">
                       <colgroup>
                         <col className="min-w-[180px]" />
@@ -412,13 +490,34 @@ function XeroReconciliationPageContent() {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Account</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(selectedMonth, 0)}</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(selectedMonth, -1)}</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(selectedMonth, -2)}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(loadedMonth, 0)}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(loadedMonth, -1)}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">{getMonthEndLabel(loadedMonth, -2)}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 bg-white">
-                        {(() => {
+                        {loading ? (
+                          <>
+                            <tr>
+                              <td className="px-4 py-3"><Skeleton className="h-4 w-40" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3"><Skeleton className="h-4 w-44" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3"><Skeleton className="h-4 w-24" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                              <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-20 ml-auto" variant="text" /></td>
+                            </tr>
+                          </>
+                        ) : (() => {
                           const acc = balanceSheet.accounts.find((a) => a.accountCode === unearnedAcctCode);
                           const amountPlus13 = balanceSheetPlus13?.accounts?.find((a) => a.accountCode === unearnedAcctCode);
                           const amountPlus12 = balanceSheetPlus12?.accounts?.find((a) => a.accountCode === unearnedAcctCode);
@@ -426,9 +525,9 @@ function XeroReconciliationPageContent() {
                           const x0 = amountPlus13?.amount ?? null;
                           const x1 = amountPlus12?.amount ?? null;
                           const x2 = amountPlus11?.amount ?? null;
-                          const b0 = getTotalRemainingBalance('UNEARNED', getMonthEndDateForOffset(selectedMonth, 0));
-                          const b1 = getTotalRemainingBalance('UNEARNED', getMonthEndDateForOffset(selectedMonth, -1));
-                          const b2 = getTotalRemainingBalance('UNEARNED', getMonthEndDateForOffset(selectedMonth, -2));
+                          const b0 = getTotalRemainingBalance('UNEARNED', getMonthEndDateForOffset(loadedMonth, 0));
+                          const b1 = getTotalRemainingBalance('UNEARNED', getMonthEndDateForOffset(loadedMonth, -1));
+                          const b2 = getTotalRemainingBalance('UNEARNED', getMonthEndDateForOffset(loadedMonth, -2));
                           const v0 = x0 != null ? x0 - b0 : null;
                           const v1 = x1 != null ? x1 - b1 : null;
                           const v2 = x2 != null ? x2 - b2 : null;
@@ -438,14 +537,14 @@ function XeroReconciliationPageContent() {
                                 <tr>
                                   <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">No matching account found.</td>
                                 </tr>
-                                <tr className="bg-blue-50/50">
-                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">Prepaidly Schedules</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b0, orgCurrency)}</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b1, orgCurrency)}</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b2, orgCurrency)}</td>
+                                <tr>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">Account Balance - Prepaidly</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b1, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b2, orgCurrency)}</td>
                                 </tr>
                                 <tr>
-                                  <td className="px-4 py-3 text-sm font-medium text-gray-700">Variance (Xero − Prepaidly)</td>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-700">Variance</td>
                                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
                                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
                                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-500">—</td>
@@ -456,33 +555,33 @@ function XeroReconciliationPageContent() {
                           return (
                             <>
                               <tr className="hover:bg-gray-50/50">
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">{(acc.accountCode || '—') + ' - ' + (acc.accountName || '—')}</td>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">Account Balance - Xero</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
+                                  {x0 != null ? formatCurrencyBrackets(x0, orgCurrency) : '—'}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
+                                  {x1 != null ? formatCurrencyBrackets(x1, orgCurrency) : '—'}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
+                                  {x2 != null ? formatCurrencyBrackets(x2, orgCurrency) : '—'}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">Account Balance - Prepaidly</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b0, orgCurrency)}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b1, orgCurrency)}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(b2, orgCurrency)}</td>
+                              </tr>
+                              <tr className="bg-gray-100 border-t-2 border-gray-200">
+                                <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance</td>
                                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
-                                  {x0 != null ? formatCurrency(x0, orgCurrency) : '—'}
+                                  {v0 != null ? formatCurrencyBrackets(v0, orgCurrency) : '—'}
                                 </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">
-                                  {x1 != null ? formatCurrency(x1, orgCurrency) : '—'}
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                  {v1 != null ? formatCurrencyBrackets(v1, orgCurrency) : '—'}
                                 </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">
-                                  {x2 != null ? formatCurrency(x2, orgCurrency) : '—'}
-                                </td>
-                              </tr>
-                              <tr className="bg-blue-50/50 hover:bg-blue-50/70">
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">Prepaidly Schedules</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b0, orgCurrency)}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b1, orgCurrency)}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">{formatCurrency(b2, orgCurrency)}</td>
-                              </tr>
-                              <tr className="bg-amber-50/50 border-t-2 border-amber-200">
-                                <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance (Xero − Prepaidly)</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-800">
-                                  {v0 != null ? formatCurrency(v0, orgCurrency) : '—'}
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-800">
-                                  {v1 != null ? formatCurrency(v1, orgCurrency) : '—'}
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-800">
-                                  {v2 != null ? formatCurrency(v2, orgCurrency) : '—'}
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                  {v2 != null ? formatCurrencyBrackets(v2, orgCurrency) : '—'}
                                 </td>
                               </tr>
                             </>
@@ -492,12 +591,11 @@ function XeroReconciliationPageContent() {
                     </table>
                   </div>
                 )}
-              </div>
-            </div>
+                </>
+                ) : null}
           </div>
-            ) : null}
-          </>
-        )}
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );
