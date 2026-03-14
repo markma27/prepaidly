@@ -422,9 +422,9 @@ function XeroReconciliationPageContent() {
                                 </tr>
                                 <tr className="bg-gray-100 border-t-2 border-gray-200">
                                   <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
                                 </tr>
                               </>
                             );
@@ -451,13 +451,13 @@ function XeroReconciliationPageContent() {
                               </tr>
                               <tr className="bg-gray-100 border-t-2 border-gray-200">
                                 <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
                                   {v0 != null ? formatCurrencyBrackets(v0, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
                                   {v1 != null ? formatCurrencyBrackets(v1, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
                                   {v2 != null ? formatCurrencyBrackets(v2, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
                               </tr>
@@ -559,9 +559,9 @@ function XeroReconciliationPageContent() {
                                 </tr>
                                 <tr className="bg-gray-100 border-t-2 border-gray-200">
                                   <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">{formatCurrencyBrackets(0, orgCurrency)}</td>
                                 </tr>
                               </>
                             );
@@ -588,13 +588,13 @@ function XeroReconciliationPageContent() {
                               </tr>
                               <tr className="bg-gray-100 border-t-2 border-gray-200">
                                 <td className="px-4 py-3 text-sm font-semibold text-gray-800">Variance</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
                                   {v0 != null ? formatCurrencyBrackets(v0, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
                                   {v1 != null ? formatCurrencyBrackets(v1, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-600">
                                   {v2 != null ? formatCurrencyBrackets(v2, orgCurrency) : formatCurrencyBrackets(0, orgCurrency)}
                                 </td>
                               </tr>
