@@ -270,10 +270,13 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
     { name: 'Xero Reconciliation', href: `/app/xero-reconciliation?tenantId=${tenantId || ''}`, icon: FileSpreadsheet, path: '/app/xero-reconciliation' },
   ];
 
-  // General users (ORG_USER, legacy USER) cannot access Users and System Log pages
-  const isGeneralUser =
-    profile?.role === 'ORG_USER' || profile?.role === 'USER';
-  const canAccessAdminPages = !isGeneralUser;
+  // Determine admin access: use effectiveRole (tenant-aware) when available, fall back to raw role
+  const effectiveRole = profile?.effectiveRole || profile?.role;
+  const canAccessAdminPages =
+    effectiveRole === 'SYS_ADMIN' ||
+    effectiveRole === 'SUPER_ADMIN' ||
+    effectiveRole === 'ORG_ADMIN' ||
+    effectiveRole === 'ADMIN';
 
   const footerNavigation = [
     ...(canAccessAdminPages
@@ -341,23 +344,26 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
   const getRoleLabel = (role: string | undefined | null): string => {
     if (!role) return '';
     switch (role) {
-      case 'SYS_ADMIN': return 'Super Admin';
-      case 'ORG_ADMIN': return 'Admin';
-      case 'ORG_USER': return 'General User';
-      case 'USER': return 'General User'; // legacy
+      case 'SYS_ADMIN':
+      case 'SUPER_ADMIN': return 'Super Admin';
+      case 'ORG_ADMIN':
+      case 'ADMIN': return 'Admin';
+      case 'ORG_USER':
+      case 'GENERAL_USER':
+      case 'USER': return 'General User';
       default: return role;
     }
   };
-  const roleLabel = getRoleLabel(profile?.role ?? null);
+  const roleLabel = getRoleLabel(effectiveRole ?? null);
 
-  // Fetch profile on mount to determine nav visibility (Users/System Log for admins only)
+  // Fetch profile with tenantId to determine nav visibility (Users/System Log for admins only)
   useEffect(() => {
     let cancelled = false;
-    usersApi.getProfile().then((p) => {
+    usersApi.getProfile(tenantId || undefined).then((p) => {
       if (!cancelled && p) setProfile(p);
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [tenantId]);
 
   // Re-fetch profile when Profile Settings modal opens (for fresh data in modal)
   useEffect(() => {
@@ -366,7 +372,7 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
     setProfileSaveError(null);
     setIsProfileLoading(true);
     setProfile(null);
-    usersApi.getProfile().then((p) => {
+    usersApi.getProfile(tenantId || undefined).then((p) => {
       if (!cancelled && p) {
         setProfile(p);
         setProfileDisplayName(p.displayName?.trim() ?? '');

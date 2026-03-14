@@ -409,33 +409,43 @@ public class UserController {
     /**
      * Get current user profile.
      * Supports JWT-based auth (Authorization header) or legacy supabaseUserId param.
+     * When tenantId is provided, computes effectiveRole (SUPER_ADMIN, ADMIN, GENERAL_USER).
      */
     @GetMapping("/profile")
     public ResponseEntity<?> getProfile(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @RequestParam(required = false) String supabaseUserId) {
+            @RequestParam(required = false) String supabaseUserId,
+            @RequestParam(required = false) String tenantId) {
         try {
+            User user = null;
+
             // Try JWT-based auth first
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String token = authHeader.substring(7);
                 Long userId = jwtAuthService.getUserIdFromToken(token);
-                User user = userRepository.findById(userId).orElse(null);
-                if (user == null) {
-                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                            .body(Map.of("error", "User not found"));
-                }
-                return ResponseEntity.ok(toUserResponse(user));
+                user = userRepository.findById(userId).orElse(null);
             }
 
             // Fallback: legacy supabaseUserId param
-            if (supabaseUserId != null && !supabaseUserId.isBlank()) {
-                var profile = userProfileService.getProfileBySupabaseUserId(supabaseUserId);
-                if (profile.isPresent()) {
-                    return ResponseEntity.ok(profile.get());
-                }
+            if (user == null && supabaseUserId != null && !supabaseUserId.isBlank()) {
+                user = userRepository.findBySupabaseUserId(supabaseUserId.trim()).orElse(null);
             }
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "User not found"));
+
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "User not found"));
+            }
+
+            UserResponse response = toUserResponse(user);
+
+            if (tenantId != null && !tenantId.isBlank()) {
+                XeroConnection connection = xeroConnectionRepository
+                        .findByUserIdAndTenantId(user.getId(), tenantId.trim())
+                        .orElse(null);
+                response.setEffectiveRole(computeEffectiveRole(user, connection));
+            }
+
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching profile", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

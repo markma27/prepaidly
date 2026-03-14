@@ -490,6 +490,7 @@ export type UserProfile = {
   email: string;
   displayName?: string | null;
   role?: string | null;
+  effectiveRole?: string | null;
   lastLogin?: string | null;
   createdAt: string;
 };
@@ -500,14 +501,15 @@ export const usersApi = {
    * Get current user profile. Uses JWT auth (Authorization header is added by fetchApi).
    * Falls back to supabaseUserId for backward compatibility.
    */
-  getProfile: async (): Promise<UserProfile | null> => {
+  getProfile: async (tenantId?: string): Promise<UserProfile | null> => {
     const token = getAuthToken();
     if (token) {
-      const cacheKey = getCacheKey('userProfile', 'jwt');
+      const cacheKey = getCacheKey('userProfile', tenantId ? `jwt_${tenantId}` : 'jwt');
       const cached = getCachedData<UserProfile>(cacheKey, DEFAULT_CACHE_TTL_MS);
       if (cached) return cached;
       try {
-        const data = await fetchApi<UserProfile>('/api/users/profile');
+        const params = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : '';
+        const data = await fetchApi<UserProfile>(`/api/users/profile${params}`);
         setCachedData(cacheKey, data);
         return data;
       } catch {
@@ -591,6 +593,7 @@ export const usersApi = {
       { method: 'PATCH' }
     );
     clearCachedData(getCacheKey('usersByTenant', tenantId));
+    clearCachedDataByPrefix('cache:userProfile:');
     return result;
   },
 
@@ -602,12 +605,8 @@ export const usersApi = {
       method: 'PUT',
       body: JSON.stringify({ displayName: data.displayName ?? null }),
     });
-    clearCachedData(getCacheKey('userProfile', 'jwt'));
+    clearCachedDataByPrefix('cache:userProfile:');
     clearCachedDataByPrefix('cache:usersByTenant:');
-    const supabaseUser = getSupabaseUser();
-    if (supabaseUser.id) {
-      clearCachedData(getCacheKey('userProfile', supabaseUser.id));
-    }
     return result;
   },
 };

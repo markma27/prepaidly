@@ -51,6 +51,12 @@ public class UserResponse {
     private String role;
     
     /**
+     * Effective role for the current tenant context: SUPER_ADMIN, ADMIN, or GENERAL_USER.
+     * Only populated when a tenantId is provided in the request.
+     */
+    private String effectiveRole;
+
+    /**
      * User's last login timestamp
      */
     private LocalDateTime lastLogin;
