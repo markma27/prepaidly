@@ -257,136 +257,180 @@ function ImportScheduleContent() {
   if (!tenantId) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-8">
-        <LoadingSpinner message="Loading..." />
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden w-full max-w-[500px]">
+          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+            <h3 className="text-base font-bold text-gray-900">Import Schedules</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Upload schedules via CSV</p>
+          </div>
+          <div className="flex justify-center items-center py-12">
+            <LoadingSpinner message="Loading..." />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <DashboardLayout tenantId={tenantId}>
-      <div className="space-y-6 max-w-[1800px] mx-auto">
+      <div className="max-w-[1800px] mx-auto space-y-5">
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}
-            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
+        <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Import Schedules via CSV</h1>
-            <p className="text-sm text-gray-500">
+            <button
+              onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-3"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Schedules
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900">Import Schedules via CSV</h1>
+            <p className="text-sm text-gray-500 mt-1">
               Upload a CSV file to create multiple schedules at once
             </p>
           </div>
         </div>
 
-        {/* Step 1: Download Template */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-            <h3 className="text-sm font-bold text-gray-900">Step 1: Download CSV Template</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Download the template, fill in your schedule data, and upload it below
-            </p>
-          </div>
-          <div className="p-5">
-            <div className="flex items-start gap-4">
-              <button
-                onClick={handleDownloadTemplate}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#6d69ff] rounded-lg hover:bg-[#5b57e6] transition-colors shadow-sm"
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* Left Column - Upload and Preview */}
+          <div className="lg:col-span-2 space-y-5">
+            {/* Results */}
+            {result && (
+              <div
+                className={`rounded-xl border p-5 ${
+                  result.totalFailed === 0
+                    ? 'bg-green-50 border-green-200'
+                    : result.totalCreated > 0
+                    ? 'bg-yellow-50 border-yellow-200'
+                    : 'bg-red-50 border-red-200'
+                }`}
               >
-                <Download className="w-4 h-4" />
-                Download Template
-              </button>
-              <div className="text-xs text-gray-500 space-y-1">
-                <p className="font-medium text-gray-700">Template columns:</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-0.5">
-                  <span><span className="text-red-500">*</span> type (PREPAID / UNEARNED)</span>
-                  <span><span className="text-red-500">*</span> contact_name</span>
-                  <span><span className="text-red-500">*</span> invoice_reference</span>
-                  <span><span className="text-red-500">*</span> invoice_date</span>
-                  <span><span className="text-red-500">*</span> start_date</span>
-                  <span><span className="text-red-500">*</span> end_date</span>
-                  <span><span className="text-red-500">*</span> total_amount</span>
-                  <span>expense_account_code</span>
-                  <span>revenue_account_code</span>
-                  <span><span className="text-red-500">*</span> deferral_account_code</span>
-                  <span>description</span>
-                  <span>allocation_method</span>
-                </div>
-                <p className="text-gray-400 mt-1">
-                  Dates accepted as YYYY-MM-DD or DD/MM/YYYY. Allocation method: &quot;actual&quot; (daily pro-rata, default) or &quot;equal&quot; (equal monthly).
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+                <div className="flex items-start gap-3">
+                  {result.totalFailed === 0 ? (
+                    <CheckCircle2 className="w-6 h-6 text-green-500 flex-shrink-0" />
+                  ) : result.totalCreated > 0 ? (
+                    <AlertTriangle className="w-6 h-6 text-yellow-500 flex-shrink-0" />
+                  ) : (
+                    <XCircle className="w-6 h-6 text-red-500 flex-shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <h3
+                      className={`text-sm font-bold ${
+                        result.totalFailed === 0
+                          ? 'text-green-800'
+                          : result.totalCreated > 0
+                          ? 'text-yellow-800'
+                          : 'text-red-800'
+                      }`}
+                    >
+                      {result.totalFailed === 0
+                        ? 'Import Successful!'
+                        : result.totalCreated > 0
+                        ? 'Import Partially Successful'
+                        : 'Import Failed'}
+                    </h3>
+                    <p className="text-xs mt-1 text-gray-600">
+                      {result.totalCreated} of {result.totalRequested} schedule
+                      {result.totalRequested !== 1 ? 's' : ''} created successfully.
+                      {result.totalFailed > 0 &&
+                        ` ${result.totalFailed} failed.`}
+                    </p>
 
-        {/* Step 2: Upload CSV */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
-            <h3 className="text-sm font-bold text-gray-900">Step 2: Upload CSV File</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Select or drag and drop your completed CSV file
-            </p>
-          </div>
-          <div className="p-5">
-            <div
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
-                dragOver
-                  ? 'border-[#6d69ff] bg-[#6d69ff]/5'
-                  : file
-                  ? 'border-green-300 bg-green-50'
-                  : 'border-gray-300 hover:border-[#6d69ff]/50 hover:bg-gray-50'
-              }`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-            >
-              {file ? (
-                <div className="flex flex-col items-center gap-2">
-                  <FileText className="w-10 h-10 text-green-500" />
-                  <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {parsedRows.length} row{parsedRows.length !== 1 ? 's' : ''} detected &middot;{' '}
-                    <span className="text-green-600">{validRows.length} valid</span>
-                    {invalidRows.length > 0 && (
-                      <span className="text-red-500"> &middot; {invalidRows.length} with errors</span>
+                    {result.errors.length > 0 && (
+                      <div className="mt-3 space-y-1">
+                        <p className="text-xs font-semibold text-red-700">Server-side errors:</p>
+                        {result.errors.map((err, i) => (
+                          <p key={i} className="text-xs text-red-600">
+                            {err.rowNumber > 0 ? `Row ${err.rowNumber}: ` : ''}
+                            {err.message}
+                          </p>
+                        ))}
+                      </div>
                     )}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <button
-                      onClick={() => setShowPreview(!showPreview)}
-                      className="flex items-center gap-1 text-xs text-[#6d69ff] hover:underline"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      {showPreview ? 'Hide' : 'Show'} Preview
-                    </button>
-                    <button
-                      onClick={handleReset}
-                      className="flex items-center gap-1 text-xs text-red-500 hover:underline"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Remove
-                    </button>
+
+                    <div className="flex items-center gap-3 mt-4">
+                      <button
+                        onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#6d69ff] rounded-lg hover:bg-[#5b57e6] transition-colors"
+                      >
+                        View Schedule Register
+                      </button>
+                      <button
+                        onClick={handleReset}
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Import More
+                      </button>
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <Upload className="w-10 h-10 text-gray-400" />
-                  <p className="text-sm text-gray-600">
-                    Drag and drop your CSV file here, or{' '}
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-[#6d69ff] font-semibold hover:underline"
-                    >
-                      browse
-                    </button>
-                  </p>
-                  <p className="text-xs text-gray-400">Only .csv files accepted</p>
+              </div>
+            )}
+
+            {/* Upload CSV */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+              <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+                <h3 className="text-base font-bold text-gray-900">Upload CSV File</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Select or drag and drop your completed CSV file
+                </p>
+              </div>
+              <div className="p-5">
+                <div
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
+                    dragOver
+                      ? 'border-[#6d69ff] bg-[#6d69ff]/5'
+                      : file
+                      ? 'border-green-300 bg-green-50'
+                      : 'border-gray-300 hover:border-[#6d69ff]/50 hover:bg-gray-50'
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                >
+                  {file ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <FileText className="w-10 h-10 text-green-500" />
+                      <p className="text-sm font-medium text-gray-900">{file.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {parsedRows.length} row{parsedRows.length !== 1 ? 's' : ''} detected &middot;{' '}
+                        <span className="text-green-600">{validRows.length} valid</span>
+                        {invalidRows.length > 0 && (
+                          <span className="text-red-500"> &middot; {invalidRows.length} with errors</span>
+                        )}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          onClick={() => setShowPreview(!showPreview)}
+                          className="flex items-center gap-1 text-xs text-[#6d69ff] hover:underline"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          {showPreview ? 'Hide' : 'Show'} Preview
+                        </button>
+                        <button
+                          onClick={handleReset}
+                          className="flex items-center gap-1 text-xs text-red-500 hover:underline"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="w-10 h-10 text-gray-400" />
+                      <p className="text-sm text-gray-600">
+                        Drag and drop your CSV file here, or{' '}
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="text-[#6d69ff] font-semibold hover:underline"
+                        >
+                          browse
+                        </button>
+                      </p>
+                      <p className="text-xs text-gray-400">Only .csv files accepted</p>
                 </div>
               )}
               <input
@@ -400,103 +444,8 @@ function ImportScheduleContent() {
           </div>
         </div>
 
-        {/* Preview Table */}
-        {showPreview && parsedRows.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Preview</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Review parsed data before importing. Rows with errors will be skipped.
-                </p>
-              </div>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1 text-green-600">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> {validRows.length} valid
-                </span>
-                {invalidRows.length > 0 && (
-                  <span className="flex items-center gap-1 text-red-500">
-                    <XCircle className="w-3.5 h-3.5" /> {invalidRows.length} errors
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    <th className="px-3 py-2 w-8">#</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Type</th>
-                    <th className="px-3 py-2">Contact</th>
-                    <th className="px-3 py-2">Invoice Ref</th>
-                    <th className="px-3 py-2">Invoice Date</th>
-                    <th className="px-3 py-2">Start</th>
-                    <th className="px-3 py-2">End</th>
-                    <th className="px-3 py-2 text-right">Amount</th>
-                    <th className="px-3 py-2">Expense Acct</th>
-                    <th className="px-3 py-2">Revenue Acct</th>
-                    <th className="px-3 py-2">Deferral Acct</th>
-                    <th className="px-3 py-2">Method</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {parsedRows.map((row) => (
-                    <tr
-                      key={row.rowNumber}
-                      className={row.errors.length > 0 ? 'bg-red-50/50' : 'hover:bg-gray-50'}
-                    >
-                      <td className="px-3 py-2 text-gray-400">{row.rowNumber}</td>
-                      <td className="px-3 py-2">
-                        {row.errors.length > 0 ? (
-                          <span
-                            className="flex items-center gap-1 text-red-500 cursor-help"
-                            title={row.errors.join('; ')}
-                          >
-                            <XCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span className="truncate max-w-[120px]">{row.errors[0]}</span>
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-green-600">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Valid
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            (row.raw.type || '').toUpperCase() === 'PREPAID'
-                              ? 'bg-blue-50 text-blue-600'
-                              : (row.raw.type || '').toUpperCase() === 'UNEARNED'
-                              ? 'bg-green-50 text-green-600'
-                              : 'bg-gray-100 text-gray-500'
-                          }`}
-                        >
-                          {row.raw.type || '—'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-gray-900">{row.raw.contact_name || '—'}</td>
-                      <td className="px-3 py-2 text-gray-900">{row.raw.invoice_reference || '—'}</td>
-                      <td className="px-3 py-2 text-gray-600">{row.raw.invoice_date || '—'}</td>
-                      <td className="px-3 py-2 text-gray-600">{row.raw.start_date || '—'}</td>
-                      <td className="px-3 py-2 text-gray-600">{row.raw.end_date || '—'}</td>
-                      <td className="px-3 py-2 text-right font-medium text-gray-900">
-                        {row.raw.total_amount || '—'}
-                      </td>
-                      <td className="px-3 py-2 text-gray-600">{row.raw.expense_account_code || '—'}</td>
-                      <td className="px-3 py-2 text-gray-600">{row.raw.revenue_account_code || '—'}</td>
-                      <td className="px-3 py-2 text-gray-600">{row.raw.deferral_account_code || '—'}</td>
-                      <td className="px-3 py-2 text-gray-500">{row.raw.allocation_method || 'actual'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Error rows detail (only when there are errors) */}
-        {showPreview && invalidRows.length > 0 && (
+        {/* Error rows detail */}
+        {showPreview && invalidRows.length > 0 && !result && (
           <div className="bg-red-50 rounded-xl border border-red-200 p-4">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -520,107 +469,247 @@ function ImportScheduleContent() {
           </div>
         )}
 
-        {/* Import Button */}
-        {showPreview && validRows.length > 0 && !result && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleImport}
-              disabled={importing}
-              className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-[#6d69ff] rounded-lg hover:bg-[#5b57e6] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {importing ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" />
-                  Import {validRows.length} Schedule{validRows.length !== 1 ? 's' : ''}
-                </>
-              )}
-            </button>
-            {invalidRows.length > 0 && (
-              <p className="text-xs text-gray-500">
-                {invalidRows.length} row{invalidRows.length !== 1 ? 's' : ''} with errors will be
-                skipped
-              </p>
+        {/* Preview Table */}
+        {showPreview && parsedRows.length > 0 && !result && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+            <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Preview</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Review parsed data before importing
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1 text-green-600 font-medium">
+                    <CheckCircle2 className="w-4 h-4" /> {validRows.length} valid
+                  </span>
+                  {invalidRows.length > 0 && (
+                    <span className="flex items-center gap-1 text-red-500 font-medium">
+                      <XCircle className="w-4 h-4" /> {invalidRows.length} errors
+                    </span>
+                  )}
+                </div>
+                {validRows.length > 0 && (
+                  <button
+                    onClick={handleImport}
+                    disabled={importing}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#6d69ff] rounded-lg hover:bg-[#5b57e6] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {importing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Import {validRows.length} Valid
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 w-8">#</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Contact</th>
+                    <th className="px-4 py-3">Invoice Ref</th>
+                    <th className="px-4 py-3">Invoice Date</th>
+                    <th className="px-4 py-3">Start</th>
+                    <th className="px-4 py-3">End</th>
+                    <th className="px-4 py-3 text-right">Amount</th>
+                    <th className="px-4 py-3">Expense Acct</th>
+                    <th className="px-4 py-3">Revenue Acct</th>
+                    <th className="px-4 py-3">Deferral Acct</th>
+                    <th className="px-4 py-3">Method</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {parsedRows.map((row) => (
+                    <tr
+                      key={row.rowNumber}
+                      className={row.errors.length > 0 ? 'bg-red-50/50' : 'hover:bg-gray-50 transition-colors'}
+                    >
+                      <td className="px-4 py-3 text-gray-400">{row.rowNumber}</td>
+                      <td className="px-4 py-3">
+                        {row.errors.length > 0 ? (
+                          <span
+                            className="flex items-center gap-1 text-red-500 cursor-help"
+                            title={row.errors.join('; ')}
+                          >
+                            <XCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="truncate max-w-[120px]">{row.errors[0]}</span>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-green-600">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Valid
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
+                            (row.raw.type || '').toUpperCase() === 'PREPAID'
+                              ? 'bg-blue-50 text-blue-600'
+                              : (row.raw.type || '').toUpperCase() === 'UNEARNED'
+                              ? 'bg-green-50 text-green-600'
+                              : 'bg-gray-100 text-gray-500'
+                          }`}
+                        >
+                          {row.raw.type || '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-900 font-medium">{row.raw.contact_name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-900">{row.raw.invoice_reference || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.raw.invoice_date || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.raw.start_date || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.raw.end_date || '—'}</td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-900">
+                        {row.raw.total_amount || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{row.raw.expense_account_code || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.raw.revenue_account_code || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.raw.deferral_account_code || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500">{row.raw.allocation_method || 'actual'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </div>
-        )}
 
-        {/* Results */}
-        {result && (
-          <div
-            className={`rounded-xl border p-5 ${
-              result.totalFailed === 0
-                ? 'bg-green-50 border-green-200'
-                : result.totalCreated > 0
-                ? 'bg-yellow-50 border-yellow-200'
-                : 'bg-red-50 border-red-200'
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              {result.totalFailed === 0 ? (
-                <CheckCircle2 className="w-6 h-6 text-green-500 flex-shrink-0" />
-              ) : result.totalCreated > 0 ? (
-                <AlertTriangle className="w-6 h-6 text-yellow-500 flex-shrink-0" />
-              ) : (
-                <XCircle className="w-6 h-6 text-red-500 flex-shrink-0" />
-              )}
-              <div className="flex-1">
-                <h3
-                  className={`text-sm font-bold ${
-                    result.totalFailed === 0
-                      ? 'text-green-800'
-                      : result.totalCreated > 0
-                      ? 'text-yellow-800'
-                      : 'text-red-800'
-                  }`}
+          {/* Right Column - Instructions */}
+          <div className="space-y-5">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+              <div className="bg-gradient-to-r from-[#6d69ff]/10 via-[#6d69ff]/30 to-[#6d69ff]/10 px-5 py-3">
+                <h3 className="text-base font-bold text-gray-900">Instructions</h3>
+                <p className="text-xs text-gray-500 mt-0.5">How to import schedules</p>
+              </div>
+              <div className="p-5 space-y-5">
+                <ol className="text-sm text-gray-600 space-y-2 list-decimal list-inside">
+                  <li>Download the CSV template</li>
+                  <li>Fill in your schedule data</li>
+                  <li>Upload the completed file</li>
+                </ol>
+                
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-[#6d69ff] bg-white border border-[#6d69ff]/30 rounded-lg hover:bg-[#6d69ff]/5 hover:border-[#6d69ff]/50 transition-all duration-200"
                 >
-                  {result.totalFailed === 0
-                    ? 'Import Successful!'
-                    : result.totalCreated > 0
-                    ? 'Import Partially Successful'
-                    : 'Import Failed'}
-                </h3>
-                <p className="text-xs mt-1 text-gray-600">
-                  {result.totalCreated} of {result.totalRequested} schedule
-                  {result.totalRequested !== 1 ? 's' : ''} created successfully.
-                  {result.totalFailed > 0 &&
-                    ` ${result.totalFailed} failed.`}
-                </p>
+                  <Download className="w-4 h-4" />
+                  Download Template
+                </button>
 
-                {result.errors.length > 0 && (
-                  <div className="mt-3 space-y-1">
-                    <p className="text-xs font-semibold text-red-700">Server-side errors:</p>
-                    {result.errors.map((err, i) => (
-                      <p key={i} className="text-xs text-red-600">
-                        {err.rowNumber > 0 ? `Row ${err.rowNumber}: ` : ''}
-                        {err.message}
-                      </p>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-center gap-3 mt-4">
-                  <button
-                    onClick={() => router.push(`/app/schedules/register?tenantId=${tenantId}`)}
-                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#6d69ff] rounded-lg hover:bg-[#5b57e6] transition-colors"
-                  >
-                    View Schedule Register
-                  </button>
-                  <button
-                    onClick={handleReset}
-                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Import More
-                  </button>
+                <div className="pt-5 border-t border-gray-100">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Required Columns</h4>
+                  <ul className="text-xs text-gray-600 space-y-2">
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-500 mt-0.5">*</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">type</span>
+                        <p className="text-gray-500">PREPAID or UNEARNED</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-500 mt-0.5">*</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">contact_name</span>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-500 mt-0.5">*</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">invoice_reference</span>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-500 mt-0.5">*</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">invoice_date</span>
+                        <p className="text-gray-500">YYYY-MM-DD or DD/MM/YYYY</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-500 mt-0.5">*</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">start_date</span>
+                        <p className="text-gray-500">YYYY-MM-DD or DD/MM/YYYY</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-500 mt-0.5">*</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">end_date</span>
+                        <p className="text-gray-500">YYYY-MM-DD or DD/MM/YYYY</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-500 mt-0.5">*</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">total_amount</span>
+                        <p className="text-gray-500">Positive number</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-500 mt-0.5">*</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">deferral_account_code</span>
+                      </div>
+                    </li>
+                  </ul>
                 </div>
+
+                <div className="pt-4 border-t border-gray-100">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Conditional Columns</h4>
+                  <ul className="text-xs text-gray-600 space-y-2">
+                    <li className="flex items-start gap-2">
+                      <span className="text-gray-400 mt-0.5">•</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">expense_account_code</span>
+                        <p className="text-gray-500">Required if type is PREPAID</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-gray-400 mt-0.5">•</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">revenue_account_code</span>
+                        <p className="text-gray-500">Required if type is UNEARNED</p>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="pt-4 border-t border-gray-100">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Optional Columns</h4>
+                  <ul className="text-xs text-gray-600 space-y-2">
+                    <li className="flex items-start gap-2">
+                      <span className="text-gray-400 mt-0.5">•</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">description</span>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-gray-400 mt-0.5">•</span>
+                      <div>
+                        <span className="font-semibold text-gray-900">allocation_method</span>
+                        <p className="text-gray-500">"actual" (default) or "equal"</p>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </DashboardLayout>
   );
