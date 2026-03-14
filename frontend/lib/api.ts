@@ -169,9 +169,6 @@ export const xeroAuthApi = {
   getStatus: async (_userId?: number, validateTokens: boolean = false): Promise<XeroConnectionStatusResponse> => {
     const params = new URLSearchParams();
     params.append('validateTokens', validateTokens.toString());
-    // Fallback: pass supabaseUserId if JWT not available (transition period)
-    const supabaseUser = getSupabaseUser();
-    if (supabaseUser.id) params.append('supabaseUserId', supabaseUser.id);
     return fetchApi<XeroConnectionStatusResponse>(`/api/auth/xero/status?${params.toString()}`);
   },
 
@@ -179,21 +176,18 @@ export const xeroAuthApi = {
     if (!API_BASE_URL) {
       throw new ApiError('API base URL is not configured.', 500);
     }
-    const supabaseUser = getSupabaseUser();
-    if (!supabaseUser.id) {
+    const token = getAuthToken();
+    if (!token) {
       throw new ApiError('Not authenticated. Please log in first.', 401);
     }
     const params = new URLSearchParams();
-    if (supabaseUser.id) params.append('supabaseUserId', supabaseUser.id);
-    if (supabaseUser.email) params.append('email', supabaseUser.email);
+    params.append('token', token);
     return `${API_BASE_URL}/api/auth/xero/connect?${params.toString()}`;
   },
 
   disconnect: async (tenantId: string): Promise<{ success: boolean; message: string }> => {
-    const supabaseUser = getSupabaseUser();
     const params = new URLSearchParams();
     params.append('tenantId', tenantId);
-    if (supabaseUser.id) params.append('supabaseUserId', supabaseUser.id);
     const result = await fetchApi<{ success: boolean; message: string }>(
       `/api/auth/xero/disconnect?${params.toString()}`,
       { method: 'DELETE' }

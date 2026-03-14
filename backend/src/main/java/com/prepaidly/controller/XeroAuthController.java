@@ -143,16 +143,28 @@ public class XeroAuthController {
 
     @GetMapping("/connect")
     public ResponseEntity<?> connect(
+            @RequestParam(required = false) String token,
             @RequestParam(required = false) String supabaseUserId,
             @RequestParam(required = false) String email) {
         try {
-            if (supabaseUserId == null || supabaseUserId.isBlank()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Missing supabaseUserId"));
+            Long targetUserId = null;
+
+            // Prefer JWT-based authentication
+            if (token != null && !token.isBlank()) {
+                targetUserId = jwtAuthService.getUserIdFromToken(token);
             }
 
-            long targetUserId = resolveUserIdFromSupabase(supabaseUserId, email);
-            log.info("Xero connect request received for Supabase user {}, backend user {}", supabaseUserId, targetUserId);
+            // Fallback to supabaseUserId for backward compatibility
+            if (targetUserId == null && supabaseUserId != null && !supabaseUserId.isBlank()) {
+                targetUserId = resolveUserIdFromSupabase(supabaseUserId, email);
+            }
+
+            if (targetUserId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Not authenticated. Please log in first."));
+            }
+
+            log.info("Xero connect request received for user {}", targetUserId);
             String authUrl = xeroOAuthService.getAuthorizationUrl(targetUserId);
             
             log.info("Redirecting to Xero authorization URL");
@@ -501,26 +513,37 @@ public class XeroAuthController {
      */
     @GetMapping("/status")
     public ResponseEntity<XeroConnectionStatusResponse> status(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam(required = false) String supabaseUserId,
             @RequestParam(required = false, defaultValue = "false") boolean validateTokens) {
         try {
-            if (supabaseUserId == null || supabaseUserId.isBlank()) {
+            Long userId = null;
+
+            // Prefer JWT-based authentication
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                try {
+                    userId = jwtAuthService.getUserIdFromToken(authHeader.substring(7));
+                } catch (Exception e) {
+                    log.debug("JWT validation failed in status endpoint: {}", e.getMessage());
+                }
+            }
+
+            // Fallback to supabaseUserId
+            if (userId == null && supabaseUserId != null && !supabaseUserId.isBlank()) {
+                User supaUser = userRepository.findBySupabaseUserId(supabaseUserId.trim()).orElse(null);
+                if (supaUser != null) {
+                    userId = supaUser.getId();
+                }
+            }
+
+            if (userId == null) {
                 XeroConnectionStatusResponse empty = new XeroConnectionStatusResponse();
                 empty.setConnections(List.of());
                 empty.setTotalConnections(0);
                 return ResponseEntity.ok(empty);
             }
 
-            User user = userRepository.findBySupabaseUserId(supabaseUserId.trim())
-                .orElse(null);
-            if (user == null) {
-                XeroConnectionStatusResponse empty = new XeroConnectionStatusResponse();
-                empty.setConnections(List.of());
-                empty.setTotalConnections(0);
-                return ResponseEntity.ok(empty);
-            }
-
-            List<XeroConnection> connections = xeroConnectionRepository.findByUserId(user.getId());
+            List<XeroConnection> connections = xeroConnectionRepository.findByUserId(userId);
             
             log.info("Found {} total connections. validateTokens={}", connections.size(), validateTokens);
             
@@ -718,23 +741,36 @@ public class XeroAuthController {
      */
     @DeleteMapping("/disconnect")
     public ResponseEntity<?> disconnect(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam String tenantId,
             @RequestParam(required = false) String supabaseUserId) {
         try {
-            if (supabaseUserId == null || supabaseUserId.isBlank()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Missing supabaseUserId"));
+            Long userId = null;
+
+            // Prefer JWT-based authentication
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                try {
+                    userId = jwtAuthService.getUserIdFromToken(authHeader.substring(7));
+                } catch (Exception e) {
+                    log.debug("JWT validation failed in disconnect endpoint: {}", e.getMessage());
+                }
             }
 
-            User user = userRepository.findBySupabaseUserId(supabaseUserId.trim())
-                .orElse(null);
-            if (user == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "User not found for Supabase ID"));
+            // Fallback to supabaseUserId
+            if (userId == null && supabaseUserId != null && !supabaseUserId.isBlank()) {
+                User supaUser = userRepository.findBySupabaseUserId(supabaseUserId.trim()).orElse(null);
+                if (supaUser != null) {
+                    userId = supaUser.getId();
+                }
+            }
+
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Not authenticated. Please log in first."));
             }
 
             XeroConnection connection = xeroConnectionRepository
-                .findByUserIdAndTenantId(user.getId(), tenantId)
+                .findByUserIdAndTenantId(userId, tenantId)
                 .orElse(null);
             
             if (connection == null) {
