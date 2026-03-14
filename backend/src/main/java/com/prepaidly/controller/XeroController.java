@@ -1,6 +1,7 @@
 package com.prepaidly.controller;
 
 import com.prepaidly.dto.XeroAccountResponse;
+import com.prepaidly.dto.XeroBalanceSheetResponse;
 import com.prepaidly.dto.XeroInvoiceResponse;
 import com.prepaidly.service.XeroApiService;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.Map;
 
 /**
@@ -291,6 +293,26 @@ public class XeroController {
             log.error("Error fetching invoices for tenant {}", tenantId, e);
             return ResponseEntity.status(500).body(Map.of(
                 "error", "Failed to fetch invoices: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Get Balance Sheet report as of a specific date.
+     * Returns balance sheet account code, account name, and amount.
+     */
+    @GetMapping("/balance-sheet")
+    public ResponseEntity<?> getBalanceSheet(
+            @RequestParam String tenantId,
+            @RequestParam String date) {
+        try {
+            LocalDate asOfDate = LocalDate.parse(date);
+            XeroBalanceSheetResponse balanceSheet = xeroApiService.getBalanceSheet(tenantId, asOfDate);
+            return ResponseEntity.ok(balanceSheet);
+        } catch (Exception e) {
+            log.error("Error fetching balance sheet for tenant {}", tenantId, e);
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Failed to fetch balance sheet: " + e.getMessage()
             ));
         }
     }

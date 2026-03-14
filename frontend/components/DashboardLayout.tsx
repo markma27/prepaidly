@@ -20,7 +20,8 @@ import {
   ArrowLeft,
   User,
   Users,
-  LogOut
+  LogOut,
+  FileSpreadsheet
 } from 'lucide-react';
 import Skeleton from '@/components/Skeleton';
 
@@ -285,6 +286,7 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
     { name: 'New Schedule', href: `/app/schedules/new?tenantId=${tenantId || ''}`, icon: PlusCircle, path: '/app/schedules/new' },
     { name: 'Schedule Register', href: `/app/schedules/register?tenantId=${tenantId || ''}`, icon: ListOrdered, path: '/app/schedules/register' },
     { name: 'Analytics', href: `/app/analytics?tenantId=${tenantId || ''}`, icon: BarChart3, path: '/app/analytics' },
+    { name: 'Xero Reconciliation', href: `/app/xero-reconciliation?tenantId=${tenantId || ''}`, icon: FileSpreadsheet, path: '/app/xero-reconciliation' },
   ];
 
   const footerNavigation = [
@@ -301,6 +303,10 @@ export default function DashboardLayout({ children, tenantId, pageTitle }: Dashb
     // Analytics: exact path match
     if (pathname === '/app/analytics') {
       return itemName === 'Analytics';
+    }
+    // Xero Reconciliation: exact path match
+    if (pathname === '/app/xero-reconciliation') {
+      return itemName === 'Xero Reconciliation';
     }
     // For Schedule Register, match register page and detail pages (but not new schedule page)
     if (itemPath === '/app/schedules/register') {

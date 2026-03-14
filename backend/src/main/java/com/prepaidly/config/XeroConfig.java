@@ -23,7 +23,8 @@ public class XeroConfig {
         "accounting.settings.read",
         "accounting.contacts.read",
         "accounting.transactions",
-        "accounting.journals.read"
+        "accounting.journals.read",
+        "accounting.reports.read"
     };
 }
 

@@ -22,6 +22,17 @@ export interface XeroAccountResponse {
   accounts: XeroAccount[];
 }
 
+export interface XeroBalanceSheetAccount {
+  accountCode: string;
+  accountName: string;
+  amount: number;
+}
+
+export interface XeroBalanceSheetResponse {
+  reportDate: string;
+  accounts: XeroBalanceSheetAccount[];
+}
+
 export interface XeroConnection {
   tenantId: string;
   tenantName: string;

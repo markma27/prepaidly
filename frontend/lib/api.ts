@@ -226,6 +226,14 @@ export const xeroApi = {
     return fetchApi(`/api/xero/invoices?tenantId=${encodeURIComponent(tenantId)}`);
   },
 
+  /**
+   * Get balance sheet as of a date for Xero reconciliation
+   */
+  getBalanceSheet: async (tenantId: string, date: string) => {
+    return fetchApi(
+      `/api/xero/balance-sheet?tenantId=${encodeURIComponent(tenantId)}&date=${encodeURIComponent(date)}`
+    );
+  },
 };
 
 // Schedule API

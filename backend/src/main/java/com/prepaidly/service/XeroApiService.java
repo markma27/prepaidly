@@ -2,6 +2,7 @@ package com.prepaidly.service;
 
 import com.prepaidly.config.XeroConfig;
 import com.prepaidly.dto.XeroAccountResponse;
+import com.prepaidly.dto.XeroBalanceSheetResponse;
 import com.prepaidly.dto.XeroInvoiceResponse;
 import com.prepaidly.model.XeroConnection;
 import com.prepaidly.repository.XeroConnectionRepository;
@@ -17,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.math.BigDecimal;
 
 /**
  * Xero API Service
@@ -244,6 +246,220 @@ public class XeroApiService {
             
             throw new RuntimeException("Failed to fetch invoices: " + response.getStatusCode());
         });
+    }
+
+    /**
+     * Get Balance Sheet report for a tenant as of a specific date.
+     * Returns balance sheet account code, name, and amount.
+     */
+    public XeroBalanceSheetResponse getBalanceSheet(String tenantId, LocalDate asOfDate) {
+        return executeWithRetry(tenantId, (accessToken, tid) -> {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(accessToken);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+            headers.set("xero-tenant-id", tid);
+
+            String dateParam = asOfDate.toString();
+            String encodedDate = java.net.URLEncoder.encode(dateParam, java.nio.charset.StandardCharsets.UTF_8);
+            String url = XeroConfig.XERO_API_URL + "/Reports/BalanceSheet?date=" + encodedDate;
+            log.info("Fetching Xero Balance Sheet for tenant {} with date={} (encoded: {})", tid, asOfDate, encodedDate);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> body = response.getBody();
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> reportsList = (List<Map<String, Object>>) body.get("Reports");
+                if (reportsList == null || reportsList.isEmpty()) {
+                    XeroBalanceSheetResponse result = new XeroBalanceSheetResponse();
+                    result.setReportDate(asOfDate.toString());
+                    result.setAccounts(Collections.emptyList());
+                    return result;
+                }
+
+                Map<String, String> accountIdToCode = new HashMap<>();
+                try {
+                    XeroAccountResponse acctResp = getAccounts(tid);
+                    if (acctResp != null && acctResp.getAccounts() != null) {
+                        for (XeroAccountResponse.Account a : acctResp.getAccounts()) {
+                            if (a.getAccountID() != null && a.getCode() != null) {
+                                accountIdToCode.put(a.getAccountID(), a.getCode());
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.debug("Could not fetch accounts for code lookup: {}", e.getMessage());
+                }
+
+                List<XeroBalanceSheetResponse.BalanceSheetAccount> accounts = new ArrayList<>();
+                Map<String, Object> report = reportsList.get(0);
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> rows = (List<Map<String, Object>>) report.get("Rows");
+                if (rows != null) {
+                    extractBalanceSheetAccounts(rows, accounts, accountIdToCode);
+                }
+
+                // Always use the date we requested for display (user selected this month end)
+                String reportDateForResponse = asOfDate.toString();
+                @SuppressWarnings("unchecked")
+                List<String> reportTitles = (List<String>) report.get("ReportTitles");
+                Object reportDateObj = report.get("ReportDate");
+                log.info("Xero Balance Sheet requested={} Xero ReportDate={} ReportTitles={} accounts={}",
+                    asOfDate, reportDateObj, reportTitles, accounts.size());
+
+                XeroBalanceSheetResponse result = new XeroBalanceSheetResponse();
+                result.setReportDate(reportDateForResponse);
+                result.setAccounts(accounts);
+                return result;
+            }
+
+            throw new RuntimeException("Failed to fetch balance sheet: " + response.getStatusCode());
+        });
+    }
+
+    /**
+     * Recursively extract balance sheet account rows from report structure.
+     * Xero report has Section rows with nested Rows; Row type has Cells with account code, name, amount.
+     */
+    @SuppressWarnings("unchecked")
+    private void extractBalanceSheetAccounts(List<Map<String, Object>> rows,
+                                            List<XeroBalanceSheetResponse.BalanceSheetAccount> accounts,
+                                            Map<String, String> accountIdToCode) {
+        if (rows == null) return;
+        for (Map<String, Object> row : rows) {
+            String rowType = (String) row.get("RowType");
+            if (rowType == null) rowType = "";
+
+            if ("Row".equals(rowType) || "SummaryRow".equals(rowType)) {
+                XeroBalanceSheetResponse.BalanceSheetAccount acc = parseBalanceSheetRow(row, accountIdToCode);
+                if (acc != null) {
+                    accounts.add(acc);
+                }
+            } else if ("Section".equals(rowType)) {
+                List<Map<String, Object>> childRows = (List<Map<String, Object>>) row.get("Rows");
+                extractBalanceSheetAccounts(childRows, accounts, accountIdToCode);
+            }
+        }
+    }
+
+    private XeroBalanceSheetResponse.BalanceSheetAccount parseBalanceSheetRow(Map<String, Object> row,
+                                                                            Map<String, String> accountIdToCode) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> cells = (List<Map<String, Object>>) row.get("Cells");
+        if (cells == null || cells.isEmpty()) return null;
+
+        XeroBalanceSheetResponse.BalanceSheetAccount acc = new XeroBalanceSheetResponse.BalanceSheetAccount();
+        String accountCode = null;
+        String accountName = null;
+        BigDecimal amount = BigDecimal.ZERO;
+
+        // Some report formats expose Amount at row level
+        Object rowAmount = row.get("Amount");
+        if (rowAmount != null) {
+            BigDecimal parsed = tryParseAmountFromValue(rowAmount);
+            if (parsed != null) amount = parsed;
+        }
+
+        String accountIdFromAttributes = null;
+        for (int i = 0; i < cells.size(); i++) {
+            Map<String, Object> cell = cells.get(i);
+            Object val = cell.get("Value");
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> attrs = (List<Map<String, Object>>) cell.get("Attributes");
+            if (attrs != null) {
+                for (Map<String, Object> attr : attrs) {
+                    if ("account".equals(attr.get("Id"))) {
+                        Object attrVal = attr.get("Value");
+                        if (attrVal != null) accountIdFromAttributes = attrVal.toString();
+                        break;
+                    }
+                }
+            }
+
+            // Amount: try Value as number first (API may return numeric type), then as string
+            BigDecimal parsedAmount = tryParseAmountFromValue(val);
+            if (parsedAmount != null) {
+                amount = parsedAmount;
+            }
+
+            String strVal = (val != null && !"null".equals(val.toString())) ? val.toString().trim() : "";
+            if (strVal.isEmpty()) continue;
+
+            // Not a number - treat as account code or name
+            if (i == 0) {
+                if (strVal.matches("^[0-9]+$") || strVal.matches("^[0-9]+[A-Za-z]?$")) {
+                    accountCode = strVal;
+                } else {
+                    accountName = strVal;
+                    if (accountCode == null) accountCode = extractCodeFromParentheses(strVal);
+                }
+            } else if (accountName == null) {
+                accountName = strVal;
+                if (accountCode == null) accountCode = extractCodeFromParentheses(strVal);
+            } else if (accountCode == null && strVal.matches("^[0-9]+[A-Za-z]?$")) {
+                accountCode = strVal;
+            }
+        }
+
+        if (accountCode == null && accountIdFromAttributes != null && accountIdToCode != null) {
+            accountCode = accountIdToCode.get(accountIdFromAttributes);
+        }
+        acc.setAccountCode(accountCode != null ? accountCode : "");
+        acc.setAccountName(accountName != null ? accountName : "");
+        acc.setAmount(amount);
+        return acc;
+    }
+
+    /** Parse amount from cell Value: handles Number type from API or string like "1,234.56" or "(1,234.56)". */
+    private BigDecimal tryParseAmountFromValue(Object val) {
+        if (val == null) return null;
+        if (val instanceof Number) {
+            return BigDecimal.valueOf(((Number) val).doubleValue());
+        }
+        String strVal = val.toString().trim();
+        return tryParseAmount(strVal);
+    }
+
+    private BigDecimal tryParseAmount(String strVal) {
+        if (strVal == null || strVal.isEmpty()) return null;
+        try {
+            String numStr = strVal.replace(",", "").replace("(", "-").replace(")", "").trim();
+            if (numStr.isEmpty()) return null;
+            return new BigDecimal(numStr);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Parse dates like "As at 28 February 2026", "28 February 2026", "15 June 2023", etc. */
+    private LocalDate tryParseXeroReportDate(String dateStr) {
+        if (dateStr == null || dateStr.isEmpty()) return null;
+        String cleaned = dateStr.replaceFirst("(?i)^as at\\s+", "").trim();
+        java.time.format.DateTimeFormatter[] formatters = {
+            java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale.ENGLISH),
+            java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy", java.util.Locale.ENGLISH),
+            java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH),
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+        };
+        for (var fmt : formatters) {
+            try {
+                return LocalDate.parse(cleaned, fmt);
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
+    /** Extract account code from "Account Name (270)" or "Interest Income (270)" format */
+    private String extractCodeFromParentheses(String str) {
+        if (str == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\(([0-9]+[A-Za-z]?)\\)").matcher(str);
+        return m.find() ? m.group(1) : null;
     }
     
     /**
