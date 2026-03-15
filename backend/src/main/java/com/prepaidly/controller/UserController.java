@@ -704,22 +704,58 @@ public class UserController {
     }
 
     /**
+     * Resolve the calling user's effective role for a tenant from the Authorization header.
+     * Returns null if the caller cannot be identified.
+     */
+    private String resolveCallerEffectiveRole(String authHeader, String tenantId) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) return null;
+        try {
+            Long callerId = jwtAuthService.getUserIdFromToken(authHeader.substring(7));
+            User caller = userRepository.findById(callerId).orElse(null);
+            if (caller == null) return null;
+            XeroConnection callerConn = xeroConnectionRepository
+                    .findByUserIdAndTenantId(callerId, tenantId.trim()).orElse(null);
+            return computeEffectiveRole(caller, callerConn);
+        } catch (Exception e) {
+            log.debug("Failed to resolve caller role: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Promote a general user to admin for the given tenant.
-     * Only admins or super admins can promote. Only GENERAL_USER can be promoted to ADMIN.
+     * Only admins or super admins can promote.
      */
     @PatchMapping("/{id}/promote-to-admin")
     public ResponseEntity<?> promoteToAdmin(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable Long id,
             @RequestParam String tenantId) {
         if (tenantId == null || tenantId.isBlank() || "null".equals(tenantId) || "undefined".equals(tenantId)) {
             return ResponseEntity.badRequest().body(Map.of("error", "tenantId is required"));
         }
         try {
+            String callerRole = resolveCallerEffectiveRole(authHeader, tenantId);
+            if (callerRole == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "You must be logged in to perform this action."));
+            }
+            if ("GENERAL_USER".equals(callerRole)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Permission denied. Only Admins and Super Admins can promote users."));
+            }
+
+            User targetUser = userRepository.findById(id).orElse(null);
             XeroConnection connection = xeroConnectionRepository.findByUserIdAndTenantId(id, tenantId.trim())
                 .orElse(null);
             if (connection == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "User does not have access to this entity"));
+            }
+            String targetRole = computeEffectiveRole(targetUser, connection);
+            if ("SUPER_ADMIN".equals(targetRole) && !"SUPER_ADMIN".equals(callerRole)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Permission denied. Only Super Admins can modify a Super Admin's role."));
             }
             if (connection.isOrgAdmin()) {
                 return ResponseEntity.ok(Map.of("message", "User is already an admin"));
@@ -740,17 +776,34 @@ public class UserController {
      */
     @PatchMapping("/{id}/demote-to-user")
     public ResponseEntity<?> demoteToUser(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable Long id,
             @RequestParam String tenantId) {
         if (tenantId == null || tenantId.isBlank() || "null".equals(tenantId) || "undefined".equals(tenantId)) {
             return ResponseEntity.badRequest().body(Map.of("error", "tenantId is required"));
         }
         try {
+            String callerRole = resolveCallerEffectiveRole(authHeader, tenantId);
+            if (callerRole == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "You must be logged in to perform this action."));
+            }
+            if ("GENERAL_USER".equals(callerRole)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Permission denied. Only Admins and Super Admins can demote users."));
+            }
+
+            User targetUser = userRepository.findById(id).orElse(null);
             XeroConnection connection = xeroConnectionRepository.findByUserIdAndTenantId(id, tenantId.trim())
                 .orElse(null);
             if (connection == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "User does not have access to this entity"));
+            }
+            String targetRole = computeEffectiveRole(targetUser, connection);
+            if ("SUPER_ADMIN".equals(targetRole) && !"SUPER_ADMIN".equals(callerRole)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Permission denied. Only Super Admins can modify a Super Admin's role."));
             }
             if (!connection.isOrgAdmin()) {
                 return ResponseEntity.ok(Map.of("message", "User is already a general user"));

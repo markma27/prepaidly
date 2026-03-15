@@ -7,7 +7,7 @@ import type { UserListItem } from '@/lib/types';
 import ErrorMessage from '@/components/ErrorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import UsersSkeleton from '@/components/UsersSkeleton';
-import { UserPlus, Shield, ShieldCheck, User, ArrowUpCircle, ArrowDownCircle, ChevronUp, ChevronDown } from 'lucide-react';
+import { UserPlus, Shield, ShieldCheck, User, ArrowUpCircle, ArrowDownCircle, ChevronUp, ChevronDown, AlertTriangle, X } from 'lucide-react';
 
 function formatDisplayName(user: UserListItem): string {
   if (user.displayName && user.displayName.trim()) {
@@ -114,6 +114,7 @@ function UsersPageContent() {
   const [currentUserEffectiveRole, setCurrentUserEffectiveRole] = useState<string | null>(null);
   const [promotingId, setPromotingId] = useState<number | null>(null);
   const [demotingId, setDemotingId] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   type UserSortKey = 'displayName' | 'email' | 'role' | 'createdAt' | 'lastLogin';
   const [sortKey, setSortKey] = useState<UserSortKey>('displayName');
@@ -170,6 +171,12 @@ function UsersPageContent() {
       ? <ChevronUp className="w-3 h-3 inline ml-0.5" />
       : <ChevronDown className="w-3 h-3 inline ml-0.5" />;
   };
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     const tenantIdParam = searchParams.get('tenantId');
@@ -241,9 +248,9 @@ function UsersPageContent() {
       setPromotingId(userId);
       await usersApi.promoteToAdmin(userId, tenantId);
       await loadUsers(tenantId);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to promote user';
-      setError(message);
+    } catch (err: any) {
+      const message = err?.message || 'Failed to promote user';
+      setToast(message);
     } finally {
       setPromotingId(null);
     }
@@ -255,9 +262,9 @@ function UsersPageContent() {
       setDemotingId(userId);
       await usersApi.demoteToUser(userId, tenantId);
       await loadUsers(tenantId);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to demote user';
-      setError(message);
+    } catch (err: any) {
+      const message = err?.message || 'Failed to demote user';
+      setToast(message);
     } finally {
       setDemotingId(null);
     }
@@ -265,6 +272,21 @@ function UsersPageContent() {
 
   return (
     <DashboardLayout tenantId={tenantId || ''}>
+      {toast && (
+        <div className="fixed top-6 right-6 z-[100] max-w-sm animate-in slide-in-from-top-2 fade-in">
+          <div className="flex items-start gap-3 px-4 py-3 bg-white border border-red-200 rounded-xl shadow-lg">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-gray-800 flex-1">{toast}</p>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
       {loading || !tenantId || tenantId === 'null' || tenantId === 'undefined' ? (
         <UsersSkeleton />
       ) : (
